@@ -26,8 +26,8 @@ htmlcov/
 *.swo
 
 # Environment variables
-.env
-.env.*
+# .env
+# .env.*
 
 # SQLite database files
 *.sqlite
