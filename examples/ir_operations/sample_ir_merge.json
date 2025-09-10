@@ -1,0 +1,17 @@
+{
+  "stage": "STO",
+  "op": "Merge",
+  "target": {
+    "by_tags": ["会议记录", "项目A"],
+    "match": "all"
+  },
+  "args": {
+    "strategy": "fold_into_primary",
+    "primary_id": "mem_59382",
+    "soft_delete_children": true
+  },
+  "meta": {
+    "actor": "project_manager",
+    "timestamp": "2025-08-26T14:00:00+08:00"
+  }
+}

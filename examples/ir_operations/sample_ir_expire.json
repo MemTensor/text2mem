@@ -1,0 +1,18 @@
+{
+  "stage": "STO",
+  "op": "Expire",
+  "target": {
+    "by_tags": ["临时笔记"],
+    "filters": {
+      "time_range": {
+        "relative": "last",
+        "amount": 6,
+        "unit": "months"
+      }
+    }
+  },
+  "args": {
+    "ttl": "P90D",
+    "on_expire": "soft_delete"
+  }
+}

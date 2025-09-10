@@ -1,0 +1,20 @@
+{
+  "stage": "STO",
+  "op": "Demote",
+  "target": {
+    "by_query": "已完成",
+    "filters": {
+      "time_range": {
+        "relative": "last",
+        "amount": 3,
+        "unit": "months"
+      },
+      "type": "task"
+    }
+  },
+  "args": {
+    "archive": true,
+    "priority": "low",
+    "weight_delta": -0.5
+  }
+}

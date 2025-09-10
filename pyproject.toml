@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "text2mem"
+version = "0.2.0"
+description = "Text2Mem: AI-Enhanced Memory System with Multi-Backend Support"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Text2Mem Team", email = "hanyu@example.com"}
+]
+dependencies = [
+    "pydantic>=2.7.0",
+    "jsonschema>=4.21.0",
+    "orjson>=3.9.0",
+    "sqlite-utils>=3.36.0",
+    "httpx>=0.25.0",
+    "sqlalchemy>=2.0.0",
+    "numpy>=1.21.0",
+    "openai>=1.6.0"
+]
+
+[project.optional-dependencies]
+# 开发工具
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "jupyter>=1.0.0"
+]
+
+# 可视化工具
+viz = [
+    "matplotlib>=3.5.0",
+    "seaborn>=0.11.0",
+    "plotly>=5.0.0"
+]
+
+# 云API集成
+cloud = [
+    "openai>=1.6.0"
+]
+
+# 完整安装
+all = [
+    "text2mem[dev,viz,cloud]"
+]
+
+[tool.setuptools]
+packages = ["text2mem"]
+package-dir = {"" = "."}
+include-package-data = true
+
+[project.scripts]
+text2mem = "scripts.text2mem_cli:main"
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

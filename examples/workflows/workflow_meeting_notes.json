@@ -1,0 +1,110 @@
+{
+  "description": "会议记录处理工作流",
+  "scenario": "团队会议后的记录整理和后续跟踪",
+  "steps": [
+    {
+      "step": 1,
+      "description": "录入会议记录",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "产品规划会议：讨论了Q4功能路线图，确定优先开发AI助手功能。技术团队评估需要3个月时间，市场团队建议12月发布。决定下周开始详细设计。",
+            "type": "meeting_note",
+            "subject": "产品规划",
+            "topic": "Q4路线图",
+            "time": "2025-09-03T14:00:00Z",
+            "location": "会议室A"
+          },
+          "auto_generate_embedding": true,
+          "auto_generate_tags": true
+        }
+      }
+    },
+    {
+      "step": 2,
+      "description": "提取行动项",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "行动项：1. 技术负责人制定详细开发计划（截止9月10日）2. 设计团队准备AI助手界面原型（截止9月15日）3. 产品经理整理用户需求文档（截止9月8日）",
+            "type": "action_item",
+            "subject": "AI助手项目",
+            "topic": "任务分配",
+            "priority": "high"
+          },
+          "auto_generate_embedding": true,
+          "auto_generate_tags": true
+        }
+      }
+    },
+    {
+      "step": 3,
+      "description": "标记高优先级内容",
+      "ir": {
+        "stage": "STO",
+        "op": "Label",
+        "target": {
+          "by_query": "行动项 任务 截止",
+          "match": "any"
+        },
+        "args": {
+          "tags": ["urgent", "actionable", "deadline"],
+          "operation": "add"
+        }
+      }
+    },
+    {
+      "step": 4,
+      "description": "设置提醒",
+      "ir": {
+        "stage": "STO",
+        "op": "Update",
+        "target": {
+          "by_tags": ["actionable"]
+        },
+        "args": {
+          "set": {
+            "priority": "urgent",
+            "next_auto_update_at": "2025-09-08T09:00:00Z"
+          }
+        }
+      }
+    },
+    {
+      "step": 5,
+      "description": "生成会议摘要",
+      "ir": {
+        "stage": "RET",
+        "op": "Summarize",
+        "args": {
+          "focus": "会议决策和行动项",
+          "max_tokens": 200
+        }
+      }
+    },
+    {
+      "step": 6,
+      "description": "检索相关历史决策",
+      "ir": {
+        "stage": "RET",
+        "op": "Retrieve",
+        "args": {
+          "query": "AI助手 产品功能 开发计划",
+          "order_by": "relevance",
+          "k": 3
+        }
+      }
+    }
+  ],
+  "expected_outcomes": [
+    "会议内容结构化存储",
+    "行动项自动识别和标记",
+    "重要事项优先级管理",
+    "历史决策智能关联",
+    "后续跟踪自动提醒"
+  ]
+}

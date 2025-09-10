@@ -1,0 +1,24 @@
+{
+  "stage": "RET",
+  "op": "Summarize",
+  "target": {
+    "by_tags": ["项目", "会议"],
+    "match": "all",
+    "filters": {
+      "time_range": {
+        "start": "2025-07-01T00:00:00+08:00",
+        "end": "2025-08-30T23:59:59+08:00"
+      },
+      "limit": 20
+    }
+  },
+  "args": {
+    "focus": "项目进展和会议决策",
+    "max_tokens": 500,
+    "time_range": {
+      "relative": "last",
+      "amount": 2,
+      "unit": "months"
+    }
+  }
+}

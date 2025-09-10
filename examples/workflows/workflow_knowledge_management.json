@@ -1,0 +1,91 @@
+{
+  "description": "个人知识管理工作流",
+  "scenario": "研究人员整理学习笔记和论文要点",
+  "steps": [
+    {
+      "step": 1,
+      "description": "编码研究笔记",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "深度学习在自然语言处理中的应用研究表明，Transformer架构通过自注意力机制显著提升了模型性能。BERT、GPT等预训练模型展现出强大的语言理解能力。",
+            "type": "research_note",
+            "subject": "深度学习",
+            "topic": "NLP研究",
+            "source": "论文阅读"
+          },
+          "auto_generate_embedding": true,
+          "auto_generate_tags": true,
+          "auto_generate_summary": true
+        }
+      }
+    },
+    {
+      "step": 2,
+      "description": "添加相关论文",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode", 
+        "args": {
+          "payload": {
+            "text": "《Attention Is All You Need》论文提出了Transformer架构，彻底改变了序列到序列的建模方式。关键创新包括多头自注意力机制和位置编码。",
+            "type": "paper_summary",
+            "subject": "Transformer",
+            "topic": "论文精读",
+            "source": "Vaswani et al., 2017"
+          },
+          "auto_generate_embedding": true,
+          "auto_generate_tags": true
+        }
+      }
+    },
+    {
+      "step": 3,
+      "description": "语义搜索相关内容",
+      "ir": {
+        "stage": "RET",
+        "op": "Retrieve",
+        "args": {
+          "query": "Transformer 自注意力机制",
+          "order_by": "relevance",
+          "k": 5
+        }
+      }
+    },
+    {
+      "step": 4,
+      "description": "生成学习总结",
+      "ir": {
+        "stage": "RET",
+        "op": "Summarize",
+        "args": {
+          "focus": "深度学习和Transformer的核心概念",
+          "max_tokens": 300
+        }
+      }
+    },
+    {
+      "step": 5,
+      "description": "标记重要内容",
+      "ir": {
+        "stage": "STO",
+        "op": "Promote",
+        "target": {
+          "by_tags": ["Transformer", "深度学习"],
+          "match": "any"
+        },
+        "args": {
+          "priority": "high"
+        }
+      }
+    }
+  ],
+  "expected_outcomes": [
+    "知识点自动分类和标签化",
+    "相关内容智能关联",
+    "学习重点智能摘要",
+    "重要概念优先级管理"
+  ]
+}

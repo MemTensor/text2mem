@@ -1,0 +1,10 @@
+{
+  "stage": "RET",
+  "op": "Retrieve",
+  "args": {
+    "query": "OKR",
+    "k": 5,
+    "order_by": "time_desc",
+    "include": ["id", "text", "time", "tags"]
+  }
+}

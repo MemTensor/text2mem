@@ -1,0 +1,17 @@
+{
+  "stage": "ENC",
+  "op": "Encode",
+  "args": {
+    "payload": {"text": "明早 9 点和 Alice 在滨江咖啡店讨论 OKR。"},
+    "type": "event",
+    "facets": {
+      "time": "2025-08-18T09:00:00+08:00",
+      "location": "滨江咖啡店",
+      "subject": "Alice",
+      "topic": "OKR"
+    },
+    "tags": ["会议", "OKR"],
+    "use_embedding": true,
+    "source": "chat"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "stage": "STO",
+  "op": "Delete",
+  "target": {
+    "by_query": "OKR",
+    "filters": {
+      "time_range": {
+        "relative": "last",
+        "amount": 30,
+        "unit": "days"
+      }
+    }
+  },
+  "args": {
+    "soft": true,
+    "reason": "清理过时的OKR记录"
+  },
+  "meta": {
+    "actor": "admin",
+    "timestamp": "2025-08-27T15:30:00+08:00"
+  }
+}

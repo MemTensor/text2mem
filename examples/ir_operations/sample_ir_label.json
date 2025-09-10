@@ -1,0 +1,16 @@
+{
+  "stage": "STO",
+  "op": "Label",
+  "target": {
+    "by_id": "mem_12345",
+    "by_tags": ["工作"]
+  },
+  "args": {
+    "tags": ["重要", "优先", "跟进"]
+  },
+  "meta": {
+    "actor": "user456",
+    "trace_id": "custom-trace-001",
+    "timestamp": "2025-08-27T10:00:00+08:00"
+  }
+}

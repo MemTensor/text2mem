@@ -1,0 +1,16 @@
+{
+  "stage": "STO",
+  "op": "Split",
+  "target": {
+    "by_id": "mem_98765"
+  },
+  "args": {
+    "strategy": "headings",
+    "inherit": {
+      "tags": true,
+      "time": true,
+      "source": true
+    },
+    "link_back": "bi_directional"
+  }
+}

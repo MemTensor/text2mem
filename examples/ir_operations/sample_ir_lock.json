@@ -1,0 +1,18 @@
+{
+  "stage": "STO",
+  "op": "Lock",
+  "target": {
+    "by_tags": ["财务", "敏感"],
+    "match": "any"
+  },
+  "args": {
+    "mode": "read_only",
+    "reason": "敏感信息保护",
+    "policy": {
+      "allow": ["Retrieve", "Summarize"],
+      "deny": ["Update", "Delete", "Merge"],
+      "reviewers": ["financial_team", "security_team"],
+      "expires": "2026-01-01T00:00:00+08:00"
+    }
+  }
+}
