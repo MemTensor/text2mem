@@ -2,8 +2,7 @@
   "stage": "STO",
   "op": "Lock",
   "target": {
-    "by_tags": ["财务", "敏感"],
-    "match": "any"
+    "filter": { "has_tags": ["财务", "敏感"], "limit": 100 }
   },
   "args": {
     "mode": "read_only",

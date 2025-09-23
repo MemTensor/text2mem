@@ -44,7 +44,8 @@ def build_models_service_from_env(explicit_mode: str | None = None):
     ensure_env_loaded()
     from text2mem.core.config import ModelConfig
     from text2mem.services.models_service import set_models_service
-    from text2mem.services.models_service_providers import create_models_service
+    # Prefer centralized factory; providers module keeps a deprecated shim
+    from text2mem.services.service_factory import create_models_service
 
     mode = (explicit_mode or os.environ.get('MODEL_SERVICE') or 'auto').lower()
     if mode == 'openai':

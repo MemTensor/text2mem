@@ -24,7 +24,7 @@ from .core.config import (
 )
 
 from .core.engine import Text2MemEngine
-from .services.models_service_providers import create_models_service
+from .services.models_service_mock import create_models_service
 from .adapters.sqlite_adapter import SQLiteAdapter
 from .adapters.base import ExecutionResult, BaseAdapter
 

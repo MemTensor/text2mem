@@ -1,10 +1,13 @@
 {
   "stage": "RET",
   "op": "Retrieve",
+  "target": {
+    "search": {
+      "intent": { "query": "OKR" },
+      "overrides": { "k": 5 }
+    }
+  },
   "args": {
-    "query": "OKR",
-    "k": 5,
-    "order_by": "time_desc",
     "include": ["id", "text", "time", "tags"]
   }
 }

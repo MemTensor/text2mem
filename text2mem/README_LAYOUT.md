@@ -7,12 +7,12 @@ Text2Mem package layout (modularized)
   - config.py: Model/DB/Text2Mem configs
 - services/
   - models_service.py: Service interfaces and dummy implementations
-  - models_service_providers.py: Factory for mock/ollama/openai services
+  - models_service_mock.py: Mock + factory (canonical). 旧的 providers shim 已删除。
   - models_service_ollama.py: Ollama-backed service
   - models_service_openai.py: OpenAI-backed service
 - adapters/
   - sqlite_adapter.py, base.py
 - schema/
-  - text2mem-ir-v1_3.json
+  - text2mem-ir-v1.json
 
 Public API remains available via `text2mem` top-level imports.

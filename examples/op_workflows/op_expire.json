@@ -1,0 +1,7 @@
+{
+  "name": "Op Workflow - Expire",
+  "steps": [
+    {"name":"Seed: Encode temp note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"临时笔记：仅保留一周"},"tags":["temp"],"type":"note"}}},
+    {"name":"Expire with TTL","ir":{"stage":"STO","op":"Expire","target":{"filter":{"has_tags":["temp"],"limit":100}},"args":{"ttl":"P7D","on_expire":"soft_delete"}}}
+  ]
+}

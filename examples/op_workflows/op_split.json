@@ -1,0 +1,13 @@
+{
+  "name": "Op Workflow - Split",
+  "steps": [
+    {
+      "name": "Seed: Encode long text",
+      "ir": {"stage":"ENC","op":"Encode","args":{"payload":{"text":"# 标题\n第一段内容……\n\n# 第二节\n第二段内容更长……\n\n# 第三节\n第三段内容。"},"tags":["doc","long"],"type":"note"}}
+    },
+    {
+  "name": "Split by sentences (auto)",
+  "ir": {"stage":"STO","op":"Split","target":{"filter":{"has_tags":["long"],"limit":100}},"args":{"strategy":"by_sentences","params":{"by_sentences":{"lang":"zh","max_sentences":10}},"inherit_all":true}}
+    }
+  ]
+}

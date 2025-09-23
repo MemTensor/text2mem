@@ -62,23 +62,60 @@ class OllamaGenerationModel(BaseGenerationModel):
             raise ImportError("需要安装 httpx 以支持 Ollama API")
         self.model_name = model_name
         self.base_url = base_url.rstrip('/')
+        # Default a longer timeout for generation client to 120s; requests may override.
         self.client = httpx.Client(timeout=120.0)
-        logger.info(f"✅ Ollama生成模型初始化: {model_name} @ {base_url}")
+        logger.info(f"✅ Ollama生成模型初始化: {self.model_name} @ {self.base_url}")
+    def _post_with_deadline(self, url: str, payload: dict, timeout: float):
+        """Run httpx POST in a worker thread and enforce a hard deadline.
+
+        If the request exceeds the timeout, close and recreate the client, then raise TimeoutError.
+        """
+        import threading, time, queue
+        q: "queue.Queue[tuple[bool, any]]" = queue.Queue(maxsize=1)  # (ok, value|exc)
+
+        def _worker():
+            try:
+                resp = self.client.post(
+                    url,
+                    json=payload,
+                    timeout=httpx.Timeout(timeout, connect=min(timeout, 10.0), read=timeout, write=timeout),
+                )
+                q.put((True, resp))
+            except Exception as e:
+                q.put((False, e))
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        t.join(timeout)
+        if t.is_alive():
+            try:
+                # Hard-cancel by closing the client; recreate for future requests.
+                self.client.close()
+            except Exception:
+                pass
+            try:
+                self.client = httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0, read=30.0, write=30.0))
+            except Exception:
+                pass
+            raise TimeoutError(f"Ollama request exceeded hard deadline of {timeout}s")
+        ok, value = q.get()
+        if not ok:
+            raise value
+        return value
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
         try:
-            response = self.client.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model_name,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": kwargs.get("temperature", 0.7),
-                        "top_p": kwargs.get("top_p", 0.9),
-                        "num_predict": kwargs.get("max_tokens", 512),
-                    },
+            timeout = float(kwargs.get("timeout", 30.0))
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": kwargs.get("temperature", 0.7),
+                    "top_p": kwargs.get("top_p", 0.9),
+                    "num_predict": kwargs.get("max_tokens", 512),
                 },
-            )
+            }
+            response = self._post_with_deadline(f"{self.base_url}/api/generate", payload, timeout)
             response.raise_for_status()
             data = response.json()
             generated_text = data["response"]
@@ -96,13 +133,49 @@ class OllamaGenerationModel(BaseGenerationModel):
             logger.error(f"❌ Ollama文本生成失败: {e}")
             raise
     def generate_structured(self, prompt: str, schema: Dict[str, Any], **kwargs) -> GenerationResult:
-        structured_prompt = f"""{prompt}
+        """Ask Ollama to return strict JSON by enabling options.format=json.
 
-请严格按照以下JSON格式回复，不要包含其他内容：
-{json.dumps(schema, ensure_ascii=False, indent=2)}
-
-JSON:"""
-        return self.generate(structured_prompt, **kwargs)
+        Notes:
+        - We keep the schema compact to reduce tokens.
+        - Some models respond more reliably with a short, explicit instruction.
+        - Fallback parsing is handled by the caller if needed.
+        """
+        # 统一用简洁提示，请求返回 JSON 数组（元素可包含 title/text/range），不强制输出给定schema
+        structured_prompt = (
+            f"{prompt}\n\n"
+            f"仅输出一个 JSON 数组，不要添加任何解释、注释或前后缀。数组元素为对象，字段可包含：\n"
+            f"- title: 可选，字符串\n- text: 可选，字符串\n- range: 可选，[start,end] 两个整数，表示在原文中的范围\n"
+        )
+        try:
+            timeout = float(kwargs.get("timeout", 30.0))
+            payload = {
+                "model": self.model_name,
+                "prompt": structured_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": kwargs.get("temperature", 0.2),
+                    "top_p": kwargs.get("top_p", 0.9),
+                    "num_predict": kwargs.get("max_tokens", 512),
+                    "format": "json",
+                },
+            }
+            response = self._post_with_deadline(f"{self.base_url}/api/generate", payload, timeout)
+            response.raise_for_status()
+            data = response.json()
+            generated_text = data.get("response", "").strip()
+            prompt_tokens = len(structured_prompt.split())
+            completion_tokens = len(generated_text.split())
+            return GenerationResult(
+                text=generated_text,
+                model=self.model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+            )
+        except Exception as e:
+            logger.error(f"❌ Ollama结构化输出失败: {e}")
+            # 回退到普通生成（可能包含额外文本，由上层做更宽松解析）
+            return self.generate(structured_prompt, **kwargs)
 
 
 class ModelFactory:

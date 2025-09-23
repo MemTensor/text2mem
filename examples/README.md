@@ -1,99 +1,78 @@
+````markdown
 # Text2Mem Examples
 
 这个目录包含了 Text2Mem 的各种使用示例和参考文档。
 
 ## 📁 目录结构
 
-### `ir_operations/` - IR 操作示例
-包含各种 IR 操作的标准示例，展示每种操作的正确格式和参数：
+### ir_operations/ - 单条 IR 示例
+独立的 IR JSON 片段，展示各操作的参数格式，便于在 REPL 中粘贴测试（注意：多数操作需要前置数据）。
 
-- **基础操作**:
-  - `sample_ir_encode.json` - 编码操作，将文本转换为记忆
-  - `sample_ir_retrieve.json` - 检索操作，语义搜索和过滤
-  - `sample_ir_update.json` - 更新操作，修改记忆内容
-  - `sample_ir_delete.json` - 删除操作，软删除和硬删除
+### op_workflows/ - 最小可执行工作流（新增）
+每个文件都包含“先种子（Encode）→再执行该操作”的完整流程，便于直接运行验证：
 
-- **标签和分类**:
-  - `sample_ir_label.json` - 标签操作，自动生成和手动添加标签
+- op_encode.json
+- op_label.json（先写入“工作”标签记录，再打标签）
+- op_promote.json（先写入 action，再提升权重）
+- op_demote.json（先写入 archive，再降级）
+- op_update.json（先写入 release，再更新字段）
+- op_delete.json（先写入带 OKR 标签且在时间范围内的记录，再按时间范围删除）
+- op_lock.json（先写入 sensitive，再锁定）
+- op_expire.json（先写入 temp，再设置过期）
+- op_split.json（先写入长文，再按标题分割）
+- op_merge.json（先写入 meeting A/B，再合并/链接）
+- op_retrieve.json（先写入样例，再语义检索）
+- op_summarize.json（先写入 meeting 样例，再摘要）
+  
+另外包含基于语义搜索（target.search）的存储类操作示例（安全限制：必须提供 limit）：
 
-- **记忆管理**:
-  - `sample_ir_promote.json` - 提升操作，增加记忆重要性
-  - `sample_ir_demote.json` - 降级操作，降低记忆优先级
+- op_label_via_search.json（通过 search+limit 精确打标签）
+- op_update_via_search.json（通过 search+limit 精确更新）
+- op_delete_search.json（通过 search+limit 精确删除，soft 删除）
+- op_promote_search.json（通过 search+limit 精确提升权重）
 
-- **高级操作**:
-  - `sample_ir_merge.json` - 合并操作，组合相关记忆
-  - `sample_ir_split.json` - 拆分操作，分解复杂记忆
-  - `sample_ir_lock.json` - 锁定操作，保护重要记忆
-  - `sample_ir_expire.json` - 过期操作，设置记忆生命周期
+### workflows/ - 端到端场景
+三套端到端示例（知识管理、会议记录、项目管理），包含前置数据、查询与后续整理。
 
-- **AI 功能**:
-  - `sample_ir_summarize.json` - 摘要操作，生成内容摘要
-  - `sample_ir_clarify.json` - 澄清操作，处理模糊输入
+## 🚀 运行方式
 
-### `workflows/` - 工作流示例
-展示复杂业务场景的完整工作流程：
+- 交互 REPL 逐条粘贴 IR：
+  - python manage.py repl --db ./text2mem.db
+  - 在提示符粘贴 ir_operations/*.json 内容回车执行
+- 运行工作流：
+  - python manage.py workflow examples/workflows/workflow_meeting_notes.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/workflows/workflow_project_management.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/workflows/workflow_knowledge_management.json --mode mock --db ./text2mem.db
+- 运行最小操作工作流：
+  - python manage.py workflow examples/op_workflows/op_delete.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/op_workflows/op_label.json --mode mock --db ./text2mem.db
+  - …（其余同理）
+- 运行 demo（自动依次跑所有最小操作工作流）：
+  - python manage.py demo --mode mock --db ./text2mem.db --set ops
 
-- `workflow_project_management.json` - 项目管理工作流
-- `workflow_knowledge_management.json` - 知识管理工作流  
-- `workflow_meeting_notes.json` - 会议记录工作流
+### 🧩 编程式使用（可选）
 
-### `use_cases/` - 使用案例
-实际应用场景的完整示例：
+- 直接在代码中构建 `ModelsService`：
 
-- `personal_knowledge_base.py` - 个人知识库管理
-- `team_collaboration.py` - 团队协作记忆系统
-- `research_assistant.py` - 研究助手应用
+  ```python
+  from text2mem.services.service_factory import create_models_service
+  service = create_models_service(mode="mock")  # 或 openai/ollama/auto
+  ```
 
-## 🚀 如何使用
+## ℹ️ 注意事项
 
-### 1. 运行单个 IR 操作示例
-```bash
-# 使用 Text2Mem CLI 执行 IR 操作
-python scripts/text2mem_cli.py --ir-file examples/ir_operations/sample_ir_encode.json
+- IR JSON 已与最新 Schema 对齐：
+  - 不包含 engine_id；Promote/Demote 使用 weight 或 weight_delta；Update.set.weight 在 [0,1]
+  - 检索示例使用 search.intent.query 或基于 filter 的字段
+  - 适配器当前对时间过滤支持绝对时间范围（start/end）；因此示例使用绝对时间
+  - 出于安全考虑，存储类操作（Label/Update/Promote/Demote/Delete/Lock/Expire/Split/Merge）若使用 target.search，必须提供 limit 字段；否则会被拒绝执行
+- 清空并重建 DB：
+  - rm -f ./text2mem.db && python manage.py features --db ./text2mem.db
 
-# 或使用 IR 测试工具
-python scripts/test_ir_operations.py --operation encode
-```
+## 场景概述
 
-### 2. 运行完整工作流
-```bash
-# 执行工作流示例
-python scripts/run_workflow.py examples/workflows/workflow_project_management.json
+- 会议记录（workflow_meeting_notes）：录入会议、提取行动项、标记、提醒与摘要
+- 项目管理（workflow_project_management）：录入项目与会议、标注、提升权重、检索与总结
+- 知识管理（workflow_knowledge_management）：录入笔记与论文、语义检索、摘要与标注
+````
 
-# 或使用演示脚本
-python scripts/demo_complete.py
-```
-
-### 3. 探索使用案例
-```bash
-```bash
-# 运行个人知识库示例 (带参数选项)
-python scripts/demos/personal_knowledge_base.py --mode auto --db my_knowledge.db
-
-# 使用不同模式运行:
-# - auto: 自动尝试Ollama，失败时使用模拟模型 (默认)
-# - ollama: 强制使用Ollama模型服务
-# - mock: 强制使用模拟模型服务
-
-# 测试 OpenAI API
-python scripts/demos/openai_api_example.py
-```
-```
-
-## 📖 学习路径
-
-1. **初学者**: 从 `ir_operations/` 开始，了解各种基础操作
-2. **进阶用户**: 查看 `workflows/` 了解复杂流程组合
-3. **开发者**: 参考 `use_cases/` 开发自定义应用
-
-## 🔗 相关资源
-
-- 查看 `docs/` 目录获取详细文档
-- 使用 `scripts/` 目录中的工具进行测试和验证
-- 运行 `python manage.py status` 检查系统状态
-
-## 💡 提示
-
-- 所有示例都经过验证，可以直接使用
-- 示例文件包含详细的注释和说明
-- 可以基于示例创建自己的 IR 操作和工作流

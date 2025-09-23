@@ -1,0 +1,13 @@
+{
+  "name": "Op Workflow - Promote",
+  "steps": [
+    {
+      "name": "Seed: Encode note",
+      "ir": {"stage":"ENC","op":"Encode","args":{"payload":{"text":"关键行动项：准备发布计划"},"tags":["pm","action"],"type":"note"}}
+    },
+    {
+      "name": "Promote: set weight",
+      "ir": {"stage":"STO","op":"Promote","target":{"filter":{"has_tags":["action"],"limit":100}},"args":{"weight":0.9}}
+    }
+  ]
+}

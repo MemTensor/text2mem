@@ -1,15 +1,8 @@
 {
   "stage": "STO",
   "op": "Promote",
-  "target": {
-    "by_id": "mem_45678",
-    "by_tags": ["项目"]
-  },
+  "target": {"filter": {"has_tags": ["project"], "limit": 20}},
   "args": {
-    "priority": "urgent"
-  },
-  "meta": {
-    "actor": "manager",
-    "timestamp": "2025-08-27T10:15:00+08:00"
+    "weight": 1.0
   }
 }

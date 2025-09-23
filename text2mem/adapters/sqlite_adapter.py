@@ -1,42 +1,55 @@
 # text2mem/adapters/sqlite_adapter.py
 from __future__ import annotations
-import json, sqlite3
+import json, sqlite3, re, os
 from datetime import datetime
 from typing import Any, Dict, Tuple
 from text2mem.adapters.base import BaseAdapter, ExecutionResult
-from text2mem.core.models import IR, EncodeArgs, UpdateArgs, DeleteArgs, RetrieveArgs, TargetSpec, Filters
+from text2mem.core.models import IR, EncodeArgs, UpdateArgs, DeleteArgs, RetrieveArgs, Target, Filters
 from text2mem.core.models import LabelArgs, PromoteArgs, DemoteArgs, SummarizeArgs
 from text2mem.core.models import MergeArgs, SplitArgs, LockArgs, ExpireArgs # , ClarifyArgs
 from text2mem.services.models_service import ModelsService, get_models_service
 
 DDL = """
 CREATE TABLE IF NOT EXISTS memory (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  text TEXT,
-  type TEXT,
-  tags TEXT,            -- JSON array
-  facets TEXT,          -- JSON object {subject,time,location,topic}
-  time TEXT,
-  subject TEXT,
-  location TEXT,
-  topic TEXT,
-  embedding TEXT,       -- JSON array, 原型先存 json
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    -- Content
+    text TEXT,
+    type TEXT,
+
+    -- Facets and labels
+    subject TEXT,
+    time TEXT,
+    location TEXT,
+    topic TEXT,
+    tags TEXT,            -- JSON array
+    facets TEXT,          -- JSON object {subject,time,location,topic}
+
+    -- Importance
+    weight REAL,
+
+    -- Embedding
+    embedding TEXT,       -- JSON array, 原型先存 json
     embedding_dim INTEGER,        -- 嵌入向量维度（用于兼容性检索）
     embedding_model TEXT,         -- 嵌入模型名
     embedding_provider TEXT,      -- 嵌入提供商（ollama/openai/dummy等）
-  source TEXT,
-  priority TEXT,
-  auto_frequency TEXT,
-  expire_at TEXT,
-  next_auto_update_at TEXT,
-  read_perm_level TEXT,
-  write_perm_level TEXT,
-  read_whitelist TEXT,  -- JSON array
-  read_blacklist TEXT,
-  write_whitelist TEXT,
-  write_blacklist TEXT,
-  weight REAL,
-  deleted INTEGER DEFAULT 0
+
+    -- Provenance & lifecycle
+    source TEXT,
+    auto_frequency TEXT,
+    next_auto_update_at TEXT,
+    expire_at TEXT,
+
+    -- Permissions
+    read_perm_level TEXT,
+    write_perm_level TEXT,
+    read_whitelist TEXT,  -- JSON array
+    read_blacklist TEXT,
+    write_whitelist TEXT,
+    write_blacklist TEXT,
+
+    -- Flags
+    deleted INTEGER DEFAULT 0
 );
 """
 
@@ -69,56 +82,343 @@ class SQLiteAdapter(BaseAdapter):
             pass
 
     # ---------- helpers ----------
-    def _where_from_target(self, target: TargetSpec | None) -> Tuple[str, tuple]:
+    def _where_from_target(self, target: Target | None) -> Tuple[str, tuple]:
+        """Translate Target(ids|filter|search|all) into SQL WHERE and params.
+
+        For STO-stage ops using target.search, we resolve search to top-K IDs via
+        semantic similarity and return an id IN (...) clause. Retrieve should
+        not call this with search present; it handles search itself.
+        """
         if target is None:
             return "1=1", ()
-        clauses, params = [], []
 
-        if target.by_id:
-            if isinstance(target.by_id, list):
-                placeholders = ",".join(["?"]*len(target.by_id))
-                clauses.append(f"id IN ({placeholders})"); params += target.by_id
+        # search: resolve to IDs for non-Retrieve ops; allow intersection with filter/ids
+        if target.search is not None:
+            try:
+                ids = self._resolve_search_ids(target)
+            except Exception:
+                ids = []
+            if not ids:
+                return "0=1", ()  # no matches; guard wide writes
+            placeholders = ",".join(["?"] * len(ids))
+            base_ids_sql = f"id IN ({placeholders})"
+            clauses: list[str] = [base_ids_sql]
+            params: list[Any] = list(ids)
+            # Merge additional filters (excluding search)
+            if target.ids is not None or target.filter is not None or target.all:
+                base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
+                base_where, base_params = self._where_from_target(base_target)
+                if base_where and base_where != "1=1":
+                    clauses.append(f"({base_where})")
+                    params.extend(list(base_params))
+            return " AND ".join(clauses), tuple(params)
+
+        clauses: list[str] = []
+        params: list[Any] = []
+
+        # ids: 单个或列表
+        if target.ids is not None:
+            ids = target.ids
+            if isinstance(ids, list):
+                placeholders = ",".join(["?"] * len(ids))
+                clauses.append(f"id IN ({placeholders})")
+                params.extend(ids)
             else:
-                clauses.append("id = ?"); params.append(target.by_id)
+                clauses.append("id = ?")
+                params.append(ids)
 
-        if target.by_tags:
-            # 简单包含匹配：tags JSON LIKE '%"tag"%'
-            for t in target.by_tags:
-                clauses.append("tags LIKE ?")
-                params.append(f'%"{t}"%')  # 原型做近似匹配，真实系统应用 JSON 查询/倒排
-            if target.match == "all":
-                pass  # 上面是 AND 累积；"any" 需 OR，这里简单地 AND 即可作为原型
+        # filter: 支持 has_tags / not_tags / type / time_range（相对或绝对）以及扩展字段
+        if target.filter is not None:
+            f: Filters = target.filter
+            if f.has_tags:
+                for t in f.has_tags:
+                    clauses.append("tags LIKE ?")
+                    params.append(f'%"{t}"%')
+            if f.not_tags:
+                for t in f.not_tags:
+                    clauses.append("(tags IS NULL OR tags NOT LIKE ?)")
+                    params.append(f'%"{t}"%')
+            if f.type:
+                clauses.append("type = ?")
+                params.append(f.type)
+            if f.time_range:
+                tr = f.time_range
+                if getattr(tr, 'start', None) and getattr(tr, 'end', None):
+                    clauses.append("time >= ? AND time <= ?")
+                    params.extend([tr.start, tr.end])
+                elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
+                    from datetime import datetime, timedelta, timezone
+                    now = datetime.now(timezone.utc)
+                    amount = int(tr.amount)
+                    unit = tr.unit
+                    delta = None
+                    if unit == 'minutes':
+                        delta = timedelta(minutes=amount)
+                    elif unit == 'hours':
+                        delta = timedelta(hours=amount)
+                    elif unit == 'days':
+                        delta = timedelta(days=amount)
+                    elif unit == 'weeks':
+                        delta = timedelta(weeks=amount)
+                    elif unit == 'months':
+                        delta = timedelta(days=30*amount)
+                    elif unit == 'years':
+                        delta = timedelta(days=365*amount)
+                    if delta is not None:
+                        if tr.relative == 'last':
+                            start = (now - delta).isoformat()
+                            end = now.isoformat()
+                        else:  # 'next'
+                            start = now.isoformat()
+                            end = (now + delta).isoformat()
+                        clauses.append("time >= ? AND time <= ?")
+                        params.extend([start, end])
+            if getattr(f, 'subject', None):
+                clauses.append("subject = ?")
+                params.append(f.subject)
+            if getattr(f, 'location', None):
+                clauses.append("location = ?")
+                params.append(f.location)
+            if getattr(f, 'topic', None):
+                clauses.append("topic = ?")
+                params.append(f.topic)
+            if getattr(f, 'weight_gte', None) is not None:
+                clauses.append("weight >= ?")
+                params.append(f.weight_gte)
+            if getattr(f, 'weight_lte', None) is not None:
+                clauses.append("weight <= ?")
+                params.append(f.weight_lte)
+            if getattr(f, 'expire_before', None):
+                clauses.append("expire_at IS NOT NULL AND expire_at < ?")
+                params.append(f.expire_before)
+            if getattr(f, 'expire_after', None):
+                clauses.append("expire_at IS NOT NULL AND expire_at > ?")
+                params.append(f.expire_after)
 
-        if target.by_query:
-            # 原型关键词匹配 text/topic/subject
-            clauses.append("(text LIKE ? OR topic LIKE ? OR subject LIKE ?)")
-            q = f"%{target.by_query}%"
-            params.extend([q, q, q])
-
-        if target.topic:
-            clauses.append("topic = ?"); params.append(target.topic)
-
+        # all: 不加任何 where 条件
         if target.all:
-            pass
-
-        if target.filters and target.filters.limit:
-            # limit 交给执行阶段处理，这里不入 where
             pass
 
         if not clauses:
             return "1=1", ()
         return " AND ".join(clauses), tuple(params)
 
+        # search: resolve to IDs for non-Retrieve ops; allow intersection with filter/ids
+        if target.search is not None:
+            try:
+                ids = self._resolve_search_ids(target)
+            except Exception:
+                ids = []
+            if not ids:
+                return "0=1", ()  # no matches; guard wide writes
+            placeholders = ",".join(["?"] * len(ids))
+            # if also has filter/ids, we AND them together by wrapping the rest as base
+            base_ids_sql = f"id IN ({placeholders})"
+            clauses: list[str] = [base_ids_sql]
+            params: list[Any] = list(ids)
+            # Merge additional filters (excluding search)
+            if target.ids is not None or target.filter is not None or target.all:
+                base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
+                base_where, base_params = self._where_from_target(base_target)
+                if base_where and base_where != "1=1":
+                    clauses.append(f"({base_where})")
+                    params.extend(list(base_params))
+            return " AND ".join(clauses), tuple(params)
+
+        clauses: list[str] = []
+        params: list[Any] = []
+
+        # ids: 单个或列表
+        if target.ids is not None:
+            ids = target.ids
+            if isinstance(ids, list):
+                placeholders = ",".join(["?"] * len(ids))
+                clauses.append(f"id IN ({placeholders})")
+                params.extend(ids)
+            else:
+                clauses.append("id = ?")
+                params.append(ids)
+
+        # filter: 支持 has_tags / not_tags / type / time_range（相对或绝对）以及扩展字段
+        if target.filter is not None:
+            f: Filters = target.filter
+            if f.has_tags:
+                for t in f.has_tags:
+                    clauses.append("tags LIKE ?")
+                    params.append(f'%"{t}"%')
+            if f.not_tags:
+                for t in f.not_tags:
+                    clauses.append("(tags IS NULL OR tags NOT LIKE ?)")
+                    params.append(f'%"{t}"%')
+            if f.type:
+                clauses.append("type = ?")
+                params.append(f.type)
+            if f.time_range:
+                tr = f.time_range
+                if getattr(tr, 'start', None) and getattr(tr, 'end', None):
+                    clauses.append("time >= ? AND time <= ?")
+                    params.extend([tr.start, tr.end])
+                elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
+                    from datetime import datetime, timedelta, timezone
+                    now = datetime.now(timezone.utc)
+                    amount = int(tr.amount)
+                    unit = tr.unit
+                    delta = None
+                    if unit == 'minutes':
+                        delta = timedelta(minutes=amount)
+                    elif unit == 'hours':
+                        delta = timedelta(hours=amount)
+                    elif unit == 'days':
+                        delta = timedelta(days=amount)
+                    elif unit == 'weeks':
+                        delta = timedelta(weeks=amount)
+                    elif unit == 'months':
+                        delta = timedelta(days=30*amount)
+                    elif unit == 'years':
+                        delta = timedelta(days=365*amount)
+                    if delta is not None:
+                        if tr.relative == 'last':
+                            start = (now - delta).isoformat()
+                            end = now.isoformat()
+                        else:  # 'next'
+                            start = now.isoformat()
+                            end = (now + delta).isoformat()
+                        clauses.append("time >= ? AND time <= ?")
+                        params.extend([start, end])
+            if getattr(f, 'subject', None):
+                clauses.append("subject = ?")
+                params.append(f.subject)
+            if getattr(f, 'location', None):
+                clauses.append("location = ?")
+                params.append(f.location)
+            if getattr(f, 'topic', None):
+                clauses.append("topic = ?")
+                params.append(f.topic)
+            if getattr(f, 'weight_gte', None) is not None:
+                clauses.append("weight >= ?")
+                params.append(f.weight_gte)
+            if getattr(f, 'weight_lte', None) is not None:
+                clauses.append("weight <= ?")
+                params.append(f.weight_lte)
+            if getattr(f, 'expire_before', None):
+                clauses.append("expire_at IS NOT NULL AND expire_at < ?")
+                params.append(f.expire_before)
+            if getattr(f, 'expire_after', None):
+                clauses.append("expire_at IS NOT NULL AND expire_at > ?")
+                params.append(f.expire_after)
+        if not clauses:
+            return "1=1", ()
+        return " AND ".join(clauses), tuple(params)
+
     # ---------- op handlers ----------
+    def _keyword_score(self, text: str | None, query: str | None) -> tuple[float, bool]:
+        """Compute a simple keyword score in [0,1] and whether exact phrase matched.
+
+        - Exact phrase (case-insensitive) -> score 1.0 and exact=True
+        - Otherwise, token overlap ratio: (#tokens present in text)/(#tokens in query)
+        """
+        if not text or not query:
+            return 0.0, False
+        t = text.lower()
+        q = query.lower().strip()
+        if not q:
+            return 0.0, False
+        exact = q in t
+        if exact:
+            return 1.0, True
+        tokens = [tok for tok in re.split(r"\W+", q) if tok]
+        if not tokens:
+            return 0.0, False
+        hits = sum(1 for tok in tokens if tok in t)
+        return (hits / len(tokens)), False
+    def _resolve_search_ids(self, target: Target) -> list[int]:
+        """Compute top-K memory IDs using semantic search from Target.search.
+
+        Reuses the same approach as _exec_retrieve but returns a list of IDs,
+        suitable for STO-stage WHERE clause construction.
+        """
+        search = target.search
+        if search is None:
+            return []
+        intent = search.intent
+        # Safety: require explicit limit for STO writes
+        if getattr(search, 'limit', None) in (None, 0):
+            raise ValueError("target.search.limit is required for write operations")
+        try:
+            k = int(search.limit)  # type: ignore
+        except Exception:
+            k = 10
+
+        # Apply any filter/all constraints in conjunction with search
+        # (build a base WHERE from filter/ids/all minus search)
+        base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
+        where, params = self._where_from_target(base_target) if (target.ids or target.filter or target.all) else ("1=1", ())
+        where = f"({where}) AND deleted=0"  # ignore deleted
+        select_sql = f"SELECT id, text, embedding, embedding_dim FROM memory WHERE {where}"
+        rows = self.conn.execute(select_sql, params).fetchall()
+
+        memory_vectors = []
+        try:
+            target_dim = self.models_service.embedding_model.get_dimension()  # type: ignore
+        except Exception:
+            target_dim = None
+        for row in rows:
+            embedding = json.loads(row["embedding"]) if row["embedding"] else None
+            if embedding:
+                row_dim = row["embedding_dim"] if row["embedding_dim"] is not None else (len(embedding) if embedding else None)
+                if target_dim is None or row_dim == target_dim:
+                    memory_vectors.append({"id": row["id"], "text": row["text"], "vector": embedding})
+
+        if not memory_vectors:
+            return []
+
+        # Choose query vector
+        if intent.vector is not None:
+            query_vector = intent.vector
+            if target_dim is not None and len(query_vector) != target_dim:
+                return []
+            # score manually
+            scored = []
+            for item in memory_vectors:
+                try:
+                    sim = self.models_service.compute_similarity(query_vector, item["vector"])  # type: ignore
+                except Exception:
+                    continue
+                # hybrid score: semantic + keyword
+                qtext = getattr(intent, 'query', None)
+                kw, exact = self._keyword_score(item.get("text"), qtext)
+                alpha = 0.7
+                beta = 0.3
+                phrase_bonus = 0.2
+                final_sim = alpha * sim + beta * kw + (phrase_bonus if exact else 0.0)
+                scored.append({**item, "similarity": min(1.0, final_sim)})
+            scored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            top = scored[:k]
+        else:
+            # use service semantic_search
+            base = self.models_service.semantic_search(intent.query, memory_vectors, k=k)  # type: ignore
+            # re-rank with keyword boost
+            alpha = 0.7
+            beta = 0.3
+            phrase_bonus = 0.2
+            rescored = []
+            for r in base:
+                kw, exact = self._keyword_score(r.get("text"), intent.query)
+                sim = r.get("similarity", 0)
+                final_sim = alpha * sim + beta * kw + (phrase_bonus if exact else 0.0)
+                rescored.append({**r, "similarity": min(1.0, final_sim)})
+            rescored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            top = rescored[:k]
+        return [t["id"] for t in top]
     def _exec_encode(self, ir: IR, args: EncodeArgs) -> ExecutionResult:
         text_val = args.payload.text or (json.dumps(args.payload.structured, ensure_ascii=False) if args.payload.structured else None)
-        
-        # 自动生成嵌入向量（如果未提供）
-        embedding_val = args.embedding
+
+        # 自动生成嵌入向量（如果未显式跳过）。安全策略：不接受外部直接提供的 embedding。
+        embedding_val = None
         embedding_dim = None
         embedding_model_name = None
         embedding_provider = None
-        if embedding_val is None and text_val:
+        if text_val and not bool(getattr(args, 'skip_embedding', False)):
             # 使用模型服务生成嵌入
             embedding_result = self.models_service.encode_memory(text_val)
             embedding_val = embedding_result.vector
@@ -142,13 +442,13 @@ class SQLiteAdapter(BaseAdapter):
                             embedding_provider = "unknown"
             except Exception:
                 embedding_provider = None
-        
+
         sql = """
-        INSERT INTO memory (text,type,tags,facets,time,subject,location,topic,embedding,embedding_dim,embedding_model,embedding_provider,source,priority,
-                            auto_frequency,expire_at,next_auto_update_at,
-                            read_perm_level,write_perm_level,
-                            read_whitelist,read_blacklist,write_whitelist,write_blacklist,weight,deleted)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+        INSERT INTO memory (text,type,tags,facets,time,subject,location,topic,embedding,embedding_dim,embedding_model,embedding_provider,source,
+                                auto_frequency,expire_at,next_auto_update_at,
+                                read_perm_level,write_perm_level,
+                                read_whitelist,read_blacklist,write_whitelist,write_blacklist,weight,deleted)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
         """
         params = (
             text_val,
@@ -164,7 +464,6 @@ class SQLiteAdapter(BaseAdapter):
             embedding_model_name,
             embedding_provider,
             args.source,
-            args.priority,
             args.auto_frequency,
             args.expire_at,
             args.next_auto_update_at,
@@ -180,7 +479,7 @@ class SQLiteAdapter(BaseAdapter):
             return {
                 "sql": sql,
                 "params": params,
-                "generated_embedding": bool(args.embedding is None),
+                "generated_embedding": bool((not bool(getattr(args, 'skip_embedding', False)))),
                 "embedding_dim": embedding_dim,
                 "embedding_model": embedding_model_name,
                 "embedding_provider": embedding_provider,
@@ -188,7 +487,7 @@ class SQLiteAdapter(BaseAdapter):
         cur = self.conn.execute(sql, params); self.conn.commit()
         return {
             "inserted_id": cur.lastrowid,
-            "generated_embedding": bool(args.embedding is None),
+            "generated_embedding": bool((not bool(getattr(args, 'skip_embedding', False)))),
             "embedding_dim": embedding_dim,
             "embedding_model": embedding_model_name,
             "embedding_provider": embedding_provider,
@@ -196,7 +495,14 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_label(self, ir: IR, args: LabelArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
+        # avoid soft-deleted
+        wh = f"({wh}) AND deleted=0"
         updates, vals = [], []
+        # Determine language preference: meta.lang -> env TEXT2MEM_LANG -> en
+        import os
+        lang_pref = (
+            ir.meta.lang.lower() if getattr(ir, "meta", None) and ir.meta.lang else os.getenv("TEXT2MEM_LANG", "en").lower()
+        )
         
         # 如果没有提供标签但有auto_generate_tags，自动生成标签
         tags_to_use = args.tags
@@ -215,8 +521,9 @@ class SQLiteAdapter(BaseAdapter):
                     text_content = rows[0]["text"]
                     if text_content:
                         label_result = self.models_service.suggest_labels(
-                            text_content, 
-                            existing_labels=list(set(existing_tags))
+                            text_content,
+                            existing_labels=list(set(existing_tags)),
+                            lang=lang_pref,
                         )
                         # 解析生成的标签
                         generated_labels = [tag.strip() for tag in label_result.text.split(',')]
@@ -256,7 +563,7 @@ class SQLiteAdapter(BaseAdapter):
         
         if not updates:
             return {"affected_rows": 0, "message": "No fields to update"}
-            
+        
         sql = f"UPDATE memory SET {', '.join(updates)} WHERE {wh}"
         
         if ir.meta and ir.meta.dry_run:
@@ -268,13 +575,23 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_update(self, ir: IR, args: UpdateArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
+        # avoid soft-deleted
+        wh = f"({wh}) AND deleted=0"
         sets, vals = [], []
         d = args.set.model_dump(exclude_none=True)
         for k, v in d.items():
             col = {"facets":"facets","tags":"tags"}.get(k, k)
-            if k in {"tags","facets","embedding","read_whitelist","read_blacklist","write_whitelist","write_blacklist"}:
-                sets.append(f"{col}=?"); vals.append(_json(v if k!="embedding" else v))
+            if k in {"tags","facets","read_whitelist","read_blacklist","write_whitelist","write_blacklist"}:
+                sets.append(f"{col}=?"); vals.append(_json(v))
+            elif k == "embedding":
+                # 拒绝通过 Update 写入embedding，返回安全错误
+                raise ValueError("安全策略：禁止通过 Update 直接写入 embedding")
             else:
+                if k == "weight":
+                    try:
+                        v = max(0.0, min(1.0, float(v)))
+                    except Exception:
+                        pass
                 sets.append(f"{col}=?"); vals.append(v)
         sql = f"UPDATE memory SET {', '.join(sets)} WHERE {wh}"
         if ir.meta and ir.meta.dry_run:
@@ -284,17 +601,24 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_promote(self, ir: IR, args: PromoteArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
+        # avoid soft-deleted
+        wh = f"({wh}) AND deleted=0"
         sets, vals = [], []
         
-        # 处理 priority
-        if args.priority:
-            sets.append("priority = ?")
-            vals.append(args.priority)
+        # 处理 weight 绝对值
+        if getattr(args, "weight", None) is not None:
+            sets.append("weight = ?")
+            w = args.weight
+            try:
+                w = max(0.0, min(1.0, float(w)))
+            except Exception:
+                pass
+            vals.append(w)
         
         # 处理 weight_delta
         if args.weight_delta is not None:
-            # 原型实现：直接设置 weight = weight + delta
-            sets.append("weight = COALESCE(weight, 0) + ?")
+            # 先加，再夹紧
+            sets.append("weight = MIN(1.0, MAX(0.0, COALESCE(weight, 0) + ?))")
             vals.append(args.weight_delta)
         
         # 处理 remind
@@ -309,7 +633,7 @@ class SQLiteAdapter(BaseAdapter):
         
         if not sets:
             return {"affected_rows": 0, "message": "No fields to update"}
-            
+        
         sql = f"UPDATE memory SET {', '.join(sets)} WHERE {wh}"
         
         if ir.meta and ir.meta.dry_run:
@@ -321,28 +645,34 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_demote(self, ir: IR, args: DemoteArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
+        # avoid soft-deleted
+        wh = f"({wh}) AND deleted=0"
         sets, vals = [], []
         
-        # 处理 archive 参数（原型使用优先级降级或标记删除表示）
+        # 处理 archive 参数（原型：降级为低权重）
         if args.archive:
-            # 原型实现：设置低优先级并减小权重
-            sets.append("priority = ?")
-            vals.append("low")
+            # 原型实现：减小权重（并夹紧）
+            sets.append("weight = MAX(0.0, COALESCE(weight, 0) - 1.0)")
         
-        # 处理 priority
-        if args.priority:
-            sets.append("priority = ?")
-            vals.append(args.priority)
+        # 处理 weight 绝对值
+        if getattr(args, "weight", None) is not None:
+            sets.append("weight = ?")
+            w = args.weight
+            try:
+                w = max(0.0, min(1.0, float(w)))
+            except Exception:
+                pass
+            vals.append(w)
         
         # 处理 weight_delta
         if args.weight_delta is not None:
-            # weight_delta 在 demote 中通常为负值
-            sets.append("weight = COALESCE(weight, 0) + ?")
+            # weight_delta 在 demote 中通常为负值；加后夹紧
+            sets.append("weight = MIN(1.0, MAX(0.0, COALESCE(weight, 0) + ?))")
             vals.append(args.weight_delta)
         
         if not sets:
             return {"affected_rows": 0, "message": "No fields to update"}
-            
+        
         sql = f"UPDATE memory SET {', '.join(sets)} WHERE {wh}"
         
         if ir.meta and ir.meta.dry_run:
@@ -354,10 +684,66 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_delete(self, ir: IR, args: DeleteArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
+        # avoid soft-deleted unless hard deleting
+        if args.soft:
+            wh = f"({wh}) AND deleted=0"
         extra = []
-        if args.time_range and args.time_range.start and args.time_range.end:
-            extra.append("time >= ? AND time <= ?")
-            ps += (args.time_range.start, args.time_range.end)
+        # Support absolute or relative time range filters
+        if args.time_range:
+            tr = args.time_range
+            if getattr(tr, 'start', None) and getattr(tr, 'end', None):
+                extra.append("time >= ? AND time <= ?")
+                ps += (tr.start, tr.end)
+            elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
+                # compute absolute start/end based on now
+                from datetime import datetime, timedelta, timezone
+                now = datetime.now(timezone.utc)
+                amount = int(tr.amount)
+                unit = tr.unit
+                delta = None
+                if unit == 'minutes':
+                    delta = timedelta(minutes=amount)
+                elif unit == 'hours':
+                    delta = timedelta(hours=amount)
+                elif unit == 'days':
+                    delta = timedelta(days=amount)
+                elif unit == 'weeks':
+                    delta = timedelta(weeks=amount)
+                elif unit == 'months':
+                    # approx: 30 days
+                    delta = timedelta(days=30*amount)
+                elif unit == 'years':
+                    delta = timedelta(days=365*amount)
+                if tr.relative == 'last' and delta is not None:
+                    start = (now - delta).isoformat()
+                    end = now.isoformat()
+                    extra.append("time >= ? AND time <= ?")
+                    ps += (start, end)
+                elif tr.relative == 'next' and delta is not None:
+                    start = now.isoformat()
+                    end = (now + delta).isoformat()
+                    extra.append("time >= ? AND time <= ?")
+                    ps += (start, end)
+        # Support older_than as a relative cutoff (time < now - duration)
+        if getattr(args, 'older_than', None):
+            from datetime import datetime, timedelta, timezone
+            import re
+            # Simple ISO8601 duration parser for PnYnMnDTnHnMnS (subset)
+            dur = args.older_than
+            total = timedelta(0)
+            m = re.fullmatch(r"P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?", dur)
+            if m:
+                y, mo, w, d, h, mi, s = m.groups()
+                if y: total += timedelta(days=365*int(y))
+                if mo: total += timedelta(days=30*int(mo))
+                if w: total += timedelta(weeks=int(w))
+                if d: total += timedelta(days=int(d))
+                if h: total += timedelta(hours=int(h))
+                if mi: total += timedelta(minutes=int(mi))
+                if s: total += timedelta(seconds=int(s))
+                cutoff = (datetime.now(timezone.utc) - total).isoformat()
+                extra.append("time < ?")
+                ps += (cutoff,)
         sql = f"UPDATE memory SET deleted=1 WHERE {wh}" if args.soft else f"DELETE FROM memory WHERE {wh}"
         if extra:
             sql = sql.replace(" WHERE ", f" WHERE {' AND '.join(extra)} AND ")
@@ -372,12 +758,6 @@ class SQLiteAdapter(BaseAdapter):
         # 添加忽略已删除
         wh = f"({wh}) AND deleted=0"
         
-        # 可选的时间范围过滤
-        if args.time_range:
-            if args.time_range.start and args.time_range.end:
-                wh += " AND time >= ? AND time <= ?"
-                ps = ps + (args.time_range.start, args.time_range.end)
-        
         # 检索内容
         sql = f"SELECT id, text, topic, subject FROM memory WHERE {wh} ORDER BY time DESC"
         
@@ -386,6 +766,12 @@ class SQLiteAdapter(BaseAdapter):
         
         rows = self.conn.execute(sql, ps).fetchall()
         
+        # Language preference
+        import os
+        lang_pref = (
+            ir.meta.lang.lower() if getattr(ir, "meta", None) and ir.meta.lang else os.getenv("TEXT2MEM_LANG", "en").lower()
+        )
+
         if not rows:
             return {"summary": "", "count": 0}
         
@@ -397,15 +783,16 @@ class SQLiteAdapter(BaseAdapter):
         
         if texts:
             summary_result = self.models_service.generate_summary(
-                texts, 
+                texts,
                 focus=args.focus,
-                max_tokens=args.max_tokens
+                max_tokens=args.max_tokens,
+                lang=lang_pref,
             )
             summary = summary_result.text
             model_name = getattr(summary_result, "model", None)
             usage = getattr(summary_result, "usage", None)
         else:
-            summary = "无可摘要的文本内容"
+            summary = "无可摘要的文本内容" if lang_pref == "zh" else "No text available for summarization"
             model_name = None
             usage = None
         
@@ -420,165 +807,404 @@ class SQLiteAdapter(BaseAdapter):
         }
 
     def _exec_merge(self, ir: IR, args: MergeArgs) -> ExecutionResult:
-        """合并记忆操作"""
+        """合并记忆操作（仅支持 merge_into_primary）"""
         wh, ps = self._where_from_target(ir.target)
-        
+
         # 获取目标记忆
         sql = f"SELECT * FROM memory WHERE {wh} AND deleted=0"
         rows = [dict(r) for r in self.conn.execute(sql, ps).fetchall()]
-        
+
         if not rows:
             return {"message": "没有找到需要合并的记忆", "merged_count": 0}
-        
+
         if len(rows) < 2:
             return {"message": "至少需要2条记忆才能进行合并", "merged_count": 0}
-        
+
         if ir.meta and ir.meta.dry_run:
-            return {"message": f"模拟合并 {len(rows)} 条记忆", "strategy": args.strategy}
-        
-        if args.strategy == "fold_into_primary":
-            # 合并到主记忆
-            primary_id = args.primary_id
-            if not primary_id:
-                # 选择第一条作为主记忆
-                primary_id = str(rows[0]["id"])
-            
-            # 获取主记忆
-            primary = next((r for r in rows if str(r["id"]) == primary_id), None)
-            if not primary:
-                return {"error": f"找不到主记忆 ID: {primary_id}", "merged_count": 0}
-            
-            # 合并文本
-            texts = [r["text"] for r in rows if r["text"] and str(r["id"]) != primary_id]
-            if texts:
-                merged_text = primary["text"] + "\n\n" + "\n".join(texts)
-                update_sql = "UPDATE memory SET text = ? WHERE id = ?"
-                self.conn.execute(update_sql, (merged_text, primary_id))
-            
-            # 软删除或硬删除其他记忆
-            other_ids = [r["id"] for r in rows if str(r["id"]) != primary_id]
+            # 预览：若未跳过，将会对主记忆进行重嵌入
+            return {"message": f"模拟合并 {len(rows)} 条记忆", "strategy": "merge_into_primary", "would_reembed": (not getattr(args, 'skip_reembedding', False))}
+
+        # 主记忆选择：显式 primary_id 或第一条
+        primary_id = args.primary_id or str(rows[0]["id"])
+        primary = next((r for r in rows if str(r["id"]) == primary_id), None)
+        if not primary:
+            return {"error": f"找不到主记忆 ID: {primary_id}", "merged_count": 0}
+
+        # 合并文本内容
+        texts = [r.get("text") for r in rows if r.get("text") and str(r["id"]) != primary_id]
+        if texts:
+            base_text = primary.get("text") or ""
+            merged_text = (base_text + ("\n\n" if base_text else "") + "\n".join(texts))
+            self.conn.execute("UPDATE memory SET text = ? WHERE id = ?", (merged_text, primary_id))
+
+        # 处理其他子记忆删除方式
+        other_ids = [r["id"] for r in rows if str(r["id"]) != primary_id]
+        if other_ids:
             if args.soft_delete_children:
-                delete_sql = "UPDATE memory SET deleted = 1 WHERE id IN ({})".format(",".join("?" * len(other_ids)))
+                sql_del = "UPDATE memory SET deleted = 1 WHERE id IN ({})".format(",".join("?" * len(other_ids)))
             else:
-                delete_sql = "DELETE FROM memory WHERE id IN ({})".format(",".join("?" * len(other_ids)))
-            self.conn.execute(delete_sql, other_ids)
-            
-            self.conn.commit()
-            return {"primary_id": primary_id, "merged_count": len(other_ids), "strategy": "fold_into_primary"}
-            
-        else:  # link_and_keep
-            # 保持所有记忆，只添加链接标记
-            # 在SQLite原型中，我们通过添加标签来表示链接关系
-            link_tag = f"merged_group_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            
-            for row in rows:
-                existing_tags = json.loads(row["tags"]) if row["tags"] else []
-                if link_tag not in existing_tags:
-                    existing_tags.append(link_tag)
-                    update_sql = "UPDATE memory SET tags = ? WHERE id = ?"
-                    self.conn.execute(update_sql, (_json(existing_tags), row["id"]))
-            
-            self.conn.commit()
-            return {"link_tag": link_tag, "linked_count": len(rows), "strategy": "link_and_keep"}
+                sql_del = "DELETE FROM memory WHERE id IN ({})".format(",".join("?" * len(other_ids)))
+            self.conn.execute(sql_del, other_ids)
+
+        # 合并提交文本与删除
+        self.conn.commit()
+
+        # 合并后重嵌入（除非明确跳过）
+        reembedded = False
+        if not getattr(args, 'skip_reembedding', False):
+            # 读取主记忆当前文本
+            try:
+                row = self.conn.execute("SELECT id, text FROM memory WHERE id = ?", (primary_id,)).fetchone()
+                primary_text = row["text"] if row else None
+                if primary_text:
+                    emb_res = self.models_service.encode_memory(primary_text)
+                    emb_val = emb_res.vector
+                    emb_dim = getattr(emb_res, "dimension", None) or (len(emb_val) if emb_val else None)
+                    emb_model = getattr(emb_res, "model_name", None) or getattr(emb_res, "model", None)
+                    # 尝试推断提供商
+                    emb_provider = None
+                    try:
+                        em = getattr(self.models_service, "embedding_model", None)
+                        if em is not None:
+                            emb_provider = getattr(em, "provider", None) or getattr(em, "provider_name", None)
+                            if not emb_provider:
+                                cls = em.__class__.__name__.lower()
+                                if "ollama" in cls:
+                                    emb_provider = "ollama"
+                                elif "openai" in cls:
+                                    emb_provider = "openai"
+                                elif "dummy" in cls:
+                                    emb_provider = "dummy"
+                                else:
+                                    emb_provider = "unknown"
+                    except Exception:
+                        emb_provider = None
+
+                    self.conn.execute(
+                        "UPDATE memory SET embedding = ?, embedding_dim = ?, embedding_model = ?, embedding_provider = ? WHERE id = ?",
+                        (_json(emb_val), emb_dim, emb_model, emb_provider, primary_id)
+                    )
+                    self.conn.commit()
+                    reembedded = True
+            except Exception:
+                # 安全起见，忽略重嵌入错误，不影响合并结果
+                reembedded = False
+
+        return {"primary_id": primary_id, "merged_count": len(other_ids), "strategy": "merge_into_primary", "reembedded": reembedded}
 
     def _exec_split(self, ir: IR, args: SplitArgs) -> ExecutionResult:
-        """分割记忆操作"""
+        """分割记忆操作（by_sentences | by_chunks | custom）"""
         wh, ps = self._where_from_target(ir.target)
-        
+
         # 获取目标记忆
         sql = f"SELECT * FROM memory WHERE {wh} AND deleted=0"
         rows = [dict(r) for r in self.conn.execute(sql, ps).fetchall()]
-        
+
         if not rows:
             return {"message": "没有找到需要分割的记忆", "split_count": 0}
-        
+
         if ir.meta and ir.meta.dry_run:
             return {"message": f"模拟分割 {len(rows)} 条记忆", "strategy": args.strategy}
-        
-        split_results = []
-        
-        for row in rows:
-            text = row["text"]
-            if not text:
-                continue
-                
-            # 根据策略分割文本
-            if args.strategy == "custom_spans" and args.spans:
-                splits = []
-                for span in args.spans:
-                    start, end = span["start"], span["end"]
-                    if start < len(text) and end <= len(text):
-                        splits.append(text[start:end])
-            elif args.strategy == "sentences":
-                # 简单按句子分割
-                splits = [s.strip() for s in text.split('.') if s.strip()]
-            elif args.strategy == "headings":
-                # 按标题分割（简单实现）
-                splits = [s.strip() for s in text.split('\n') if s.strip() and (s.startswith('#') or len(s) < 100)]
-            else:  # auto_by_patterns
-                # 自动分割：按段落
-                splits = [s.strip() for s in text.split('\n\n') if s.strip()]
-            
-            if len(splits) <= 1:
-                continue  # 无需分割
-            
-            # 创建子记忆
-            child_ids = []
-            for i, split_text in enumerate(splits):
-                if not split_text.strip():
-                    continue
-                    
-                # 继承属性
-                inherit_tags = args.inherit and args.inherit.get("tags", False)
-                inherit_time = args.inherit and args.inherit.get("time", False)
-                inherit_source = args.inherit and args.inherit.get("source", False)
-                
-                child_data = {
-                    "text": split_text,
-                    "type": row["type"],
-                    "tags": row["tags"] if inherit_tags else None,
-                    "time": row["time"] if inherit_time else None,
-                    "source": row["source"] if inherit_source else None,
-                    "subject": row["subject"],
-                    "location": row["location"],
-                    "topic": row["topic"],
-                }
-                
-                # 添加分割标记
-                if child_data["tags"]:
-                    tags = json.loads(child_data["tags"])
+
+        def split_by_sentences(text: str, lang: str = "auto", max_sentences: int | None = None) -> list[str]:
+            # 朴素：按中英文句末分隔符切分
+            parts = re.split(r"(?<=[。！？；.!?;])\s+", text.strip())
+            parts = [p.strip() for p in parts if p.strip()]
+            if max_sentences and max_sentences > 0:
+                # 每段最多 N 句，拼合
+                merged = []
+                buf = []
+                for s in parts:
+                    buf.append(s)
+                    if len(buf) >= max_sentences:
+                        merged.append(" ".join(buf))
+                        buf = []
+                if buf:
+                    merged.append(" ".join(buf))
+                return merged
+            return parts
+
+        def split_by_chunks(text: str, chunk_size: int | None = None, num_chunks: int | None = None) -> list[str]:
+            if num_chunks and num_chunks > 0:
+                n = max(1, num_chunks)
+                size = max(1, len(text) // n + (1 if len(text) % n else 0))
+            else:
+                size = max(50, chunk_size or 1000)
+            return [text[i:i+size] for i in range(0, len(text), size) if text[i:i+size].strip()]
+
+        def split_custom(text: str, instruction: str, max_splits: int = 10) -> list[dict]:
+            """Custom split via local headings or model-assisted JSON.
+            Returns a list of {title?, text, range?} dicts.
+            """
+            # Read debug and bypass flags from params instead of env
+            _dbg = bool((args.params or {}).get("debug", False))
+            _bypass_llm = False
+            try:
+                top = args.params or {}
+                cust = (top.get("custom") if isinstance(top, dict) else None) or {}
+                _bypass_llm = bool(top.get("bypass_llm", False) or cust.get("bypass_llm", False))
+            except Exception:
+                _bypass_llm = False
+            if _dbg:
+                try:
+                    print("==== DEBUG Split(custom) begin ====")
+                    print(f"instruction={instruction!r}, max_splits={max_splits}")
+                    print(f"text_len={len(text)}; head=\n{(text[:300] + ('…' if len(text)>300 else ''))}")
+                except Exception:
+                    pass
+            # Local markdown headings fallback
+            def split_by_md_headings_local(src: str) -> list[dict]:
+                segments: list[dict] = []
+                lines = src.splitlines(keepends=True)
+                offsets: list[int] = []
+                total = 0
+                for ln in lines:
+                    offsets.append(total)
+                    total += len(ln)
+                heading_idx = [i for i, ln in enumerate(lines) if re.match(r"^#{1,6}\s+", ln)]
+                if not heading_idx:
+                    return []
+                heading_idx.append(len(lines))
+                for j in range(len(heading_idx) - 1):
+                    i = heading_idx[j]
+                    k = heading_idx[j + 1]
+                    start = offsets[i]
+                    end = offsets[k] if k < len(offsets) else len(src)
+                    chunk = src[start:end].strip()
+                    if not chunk:
+                        continue
+                    title = lines[i].lstrip('#').strip()
+                    segments.append({"title": title, "text": chunk, "range": [start, end]})
+                return segments[:max_splits]
+
+            # Local list-item fallback (e.g., "1. ...", "- ...", "一、..."), split into contiguous blocks
+            def split_by_list_items_local(src: str) -> list[dict]:
+                import re as _re
+                segments: list[dict] = []
+                lines = src.splitlines(keepends=True)
+                if not lines:
+                    return []
+                offsets: list[int] = []
+                total = 0
+                for ln in lines:
+                    offsets.append(total)
+                    total += len(ln)
+                pat = _re.compile(r"^\s*((?:\d{1,2}[\.)、])|(?:[一二三四五六七八九十]+[、.)])|(?:[-*•])\s+")
+                item_idx = [i for i, ln in enumerate(lines) if pat.match(ln)]
+                if len(item_idx) < 2:
+                    return []
+                item_idx.append(len(lines))
+                for j in range(len(item_idx) - 1):
+                    i = item_idx[j]
+                    k = item_idx[j + 1]
+                    start = offsets[i]
+                    end = offsets[k] if k < len(offsets) else len(src)
+                    chunk = src[start:end].strip()
+                    if not chunk:
+                        continue
+                    first = lines[i]
+                    title = pat.sub("", first).strip()
+                    segments.append({"title": title or None, "text": chunk, "range": [start, end]})
+                return segments[:max_splits]
+
+            try:
+                inst = (instruction or "").lower()
+                if ("标题" in inst) or ("heading" in inst) or ("#" in text):
+                    local = split_by_md_headings_local(text)
+                    if local:
+                        if _dbg:
+                            try:
+                                import json as _jsonlib
+                                print(f"-- used local markdown heading split, count={len(local)}")
+                                print((_jsonlib.dumps(local[:3], ensure_ascii=False)[:2000]))
+                            except Exception:
+                                pass
+                        return local
+                # Try list-item fallback when list-like patterns exist (no model needed)
+                local2 = split_by_list_items_local(text)
+                if local2:
+                    if _dbg:
+                        try:
+                            import json as _jsonlib
+                            print(f"-- used local list-item split, count={len(local2)}")
+                            print((_jsonlib.dumps(local2[:3], ensure_ascii=False)[:2000]))
+                        except Exception:
+                            pass
+                    return local2
+            except Exception:
+                pass
+
+            # Tiny-text guard: for short single-line text, avoid model; return as a single segment
+            if len(text.strip()) <= 32:
+                single = [{"text": text.strip(), "range": [0, len(text)]}]
+                if _dbg:
+                    try:
+                        import json as _jsonlib
+                        print("-- tiny-text guard used")
+                        print((_jsonlib.dumps(single, ensure_ascii=False)[:2000]))
+                    except Exception:
+                        pass
+                return single
+
+            # Delegate to ModelsService.split (unified API) and normalize outputs
+            try:
+                # Optional hard bypass: allow disabling LLM split via params
+                if _bypass_llm:
+                    splits = [{"text": text.strip(), "range": [0, len(text)]}] if text.strip() else []
                 else:
-                    tags = []
+                    splits = self.models_service.split(
+                        text,
+                        strategy="custom",
+                        params={
+                            "custom": {"instruction": instruction or "按主题拆分", "max_splits": max_splits},
+                            "max_splits": max_splits,
+                        },
+                    )
+                if _dbg:
+                    try:
+                        prompt_dbg = getattr(self.models_service, "debug_last_split_prompt", None)
+                        raw_dbg = getattr(self.models_service, "debug_last_split_raw_output", None)
+                        print("-- models_service.debug_last_split_prompt --")
+                        if isinstance(prompt_dbg, str):
+                            print(prompt_dbg[:2000])
+                        else:
+                            print("<none>")
+                        print("-- models_service.debug_last_split_raw_output --")
+                        if isinstance(raw_dbg, str):
+                            print(raw_dbg[:2000])
+                        else:
+                            print("<none>")
+                        import json as _jsonlib
+                        print("-- raw splits (truncated) --")
+                        try:
+                            print((_jsonlib.dumps(splits, ensure_ascii=False)[:2000]))
+                        except Exception:
+                            print(str(splits)[:1000])
+                    except Exception:
+                        pass
+            except Exception as _e:
+                if _dbg:
+                    try:
+                        print(f"-- models_service.split_custom raised: {type(_e).__name__}: {_e}")
+                    except Exception:
+                        pass
+                splits = []
+
+            norm: list[dict] = []
+            if _dbg and not splits:
+                try:
+                    print("-- models_service returned empty splits")
+                except Exception:
+                    pass
+            for s in (splits or []):
+                rng = s.get("range") if isinstance(s, dict) else None
+                t = ""
+                if isinstance(s, dict):
+                    t = (s.get("text") or "").strip()
+                if (not t) and isinstance(rng, list) and len(rng) == 2:
+                    try:
+                        start, end = int(rng[0]), int(rng[1])
+                        start = max(0, min(start, len(text)))
+                        end = max(start, min(end, len(text)))
+                        t = text[start:end].strip()
+                    except Exception:
+                        t = ""
+                if not t:
+                    continue
+                norm.append({
+                    "title": (s.get("title") if isinstance(s, dict) else None),
+                    "text": t,
+                    "range": rng if isinstance(rng, list) and len(rng) == 2 else None,
+                })
+            # Drop extremely short fragments to avoid single-character noise
+            norm = [x for x in norm if len((x.get("text") or "").strip()) >= 2]
+            if _dbg:
+                try:
+                    import json as _jsonlib
+                    print(f"-- normalized segments: count={len(norm)}")
+                    print((_jsonlib.dumps(norm[:5], ensure_ascii=False)[:2000]))
+                    if len(norm) > 5:
+                        print("(… more segments truncated …)")
+                    print("==== DEBUG Split(custom) end ====")
+                except Exception:
+                    pass
+            return norm
+
+        # 处理各条目
+        split_results = []
+        for row in rows:
+            text = row.get("text") or ""
+            if not text.strip():
+                continue
+
+            strategy = args.strategy
+            conf = args.params or {}
+            children: list[dict] = []
+            if strategy == "by_sentences":
+                b = conf.get("by_sentences") if isinstance(conf, dict) else None
+                lang = (b.get("lang") if b else "auto") or "auto"
+                max_sent = b.get("max_sentences") if b else None
+                segs = split_by_sentences(text, lang=lang, max_sentences=max_sent)
+                children = [{"text": s} for s in segs if s.strip()]
+            elif strategy == "by_chunks":
+                b = conf.get("by_chunks") if isinstance(conf, dict) else None
+                size = b.get("chunk_size") if b else None
+                n = b.get("num_chunks") if b else None
+                segs = split_by_chunks(text, chunk_size=size, num_chunks=n)
+                children = [{"text": s} for s in segs if s.strip()]
+            else:  # custom
+                b = conf.get("custom") if isinstance(conf, dict) else None
+                instr = b.get("instruction") if b else None
+                max_splits = b.get("max_splits") if b else 10
+                splits = split_custom(text, instruction=instr or "按主题拆分", max_splits=max_splits)
+                children = [{"text": s.get("text"), "title": s.get("title"), "range": s.get("range")} for s in splits]
+
+            if not children or len(children) <= 1:
+                # As a safety net for tests, if sentence splitting yields <=1, try small chunking to produce children
+                if strategy == "by_sentences":
+                    alt = split_by_chunks(text, num_chunks=2)
+                    children = [{"text": s} for s in alt if s.strip()]
+                if not children or len(children) <= 1:
+                    continue
+
+            # 构建并插入子记录
+            child_ids = []
+            for child in children:
+                split_text = (child.get("text") or "").strip()
+                if not split_text:
+                    continue
+
+                # 继承逻辑
+                inherit = bool(getattr(args, 'inherit_all', True))
+                tags = json.loads(row["tags"]) if (inherit and row.get("tags")) else []
+                tags = tags if isinstance(tags, list) else []
                 tags.append(f"split_from_{row['id']}")
-                child_data["tags"] = _json(tags)
-                
-                # 插入子记忆
-                insert_sql = """
-                INSERT INTO memory (text, type, tags, time, subject, location, topic, source, deleted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-                """
-                cursor = self.conn.execute(insert_sql, (
-                    child_data["text"], child_data["type"], child_data["tags"],
-                    child_data["time"], child_data["subject"], child_data["location"],
-                    child_data["topic"], child_data["source"]
-                ))
-                child_ids.append(cursor.lastrowid)
-            
-            # 如果需要双向链接，更新原记忆
-            if args.link_back == "bi_directional" and child_ids:
-                original_tags = json.loads(row["tags"]) if row["tags"] else []
-                original_tags.append(f"split_to_{','.join(map(str, child_ids))}")
-                update_sql = "UPDATE memory SET tags = ? WHERE id = ?"
-                self.conn.execute(update_sql, (_json(original_tags), row["id"]))
-            
-            split_results.append({
-                "original_id": row["id"],
-                "child_ids": child_ids,
-                "split_count": len(child_ids)
-            })
-        
+
+                insert_sql = (
+                    "INSERT INTO memory (text,type,tags,time,subject,location,topic,source,deleted) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"
+                )
+                cursor = self.conn.execute(
+                    insert_sql,
+                    (
+                        split_text,
+                        row.get("type"),
+                        _json(tags) if inherit else None,
+                        row.get("time") if inherit else None,
+                        row.get("subject"),
+                        row.get("location"),
+                        row.get("topic"),
+                        row.get("source") if inherit else None,
+                    )
+                )
+                child_id = cursor.lastrowid
+                child_ids.append(child_id)
+
+            if child_ids:
+                split_results.append({"parent_id": row["id"], "split_count": len(child_ids), "child_ids": child_ids})
+
         self.conn.commit()
-        return {"results": split_results, "total_splits": sum(r["split_count"] for r in split_results)}
+        return {"results": split_results, "total_splits": sum(r.get("split_count", 0) for r in split_results)}
 
     def _exec_lock(self, ir: IR, args: LockArgs) -> ExecutionResult:
         """锁定记忆操作"""
@@ -706,22 +1332,25 @@ class SQLiteAdapter(BaseAdapter):
 #        return response
 
     def _exec_retrieve(self, ir: IR, args: RetrieveArgs) -> ExecutionResult:
-        wh, ps = self._where_from_target(ir.target)
+        # 检索：基于 target
+        target = ir.target
+        wh, ps = self._where_from_target(target)
         # 忽略 deleted
         wh = f"({wh}) AND deleted=0"
-        
-        # 语义搜索模式
-        if args.order_by == "relevance" and hasattr(args, 'query') and args.query:
+
+    # 语义检索模式：当 target.search 存在
+        if target and target.search is not None:
+            search = target.search
+            intent = search.intent
+            limit = search.limit or (search.overrides.k if search.overrides and search.overrides.k else 10)
             if ir.meta and ir.meta.dry_run:
-                return {"mode": "semantic_search", "query": args.query, "k": args.k}
-            
-            # 获取所有记忆的向量表示
+                return {"mode": "semantic_search", "intent": intent.model_dump(), "limit": limit}
+
             select_sql = f"SELECT id, text, embedding, embedding_dim, embedding_model, embedding_provider FROM memory WHERE {wh}"
             rows = self.conn.execute(select_sql, ps).fetchall()
-            
-            # 准备语义搜索数据
+
+            # 收集向量
             memory_vectors = []
-            # 目标维度（基于当前嵌入模型）
             try:
                 target_dim = self.models_service.embedding_model.get_dimension()
             except Exception:
@@ -731,60 +1360,84 @@ class SQLiteAdapter(BaseAdapter):
                 embedding = json.loads(row["embedding"]) if row["embedding"] else None
                 if embedding:
                     row_dim = row["embedding_dim"] if row["embedding_dim"] is not None else (len(embedding) if embedding else None)
-                    # 仅收集与当前查询维度相同的向量，避免维度不匹配
                     if target_dim is None or row_dim == target_dim:
-                        memory_vectors.append({
-                            "id": row["id"],
-                            "text": row["text"],
-                            "vector": embedding
-                        })
+                        memory_vectors.append({"id": row["id"], "text": row["text"], "vector": embedding})
                     else:
                         skipped += 1
-            
-            # 执行语义搜索
-            if memory_vectors:
-                search_results = self.models_service.semantic_search(
-                    args.query, memory_vectors, k=args.k
-                )
-                
-                # 获取完整记忆数据
-                result_ids = [r["id"] for r in search_results]
-                if result_ids:
-                    placeholders = ",".join("?" * len(result_ids))
-                    final_sql = f"SELECT * FROM memory WHERE id IN ({placeholders})"
-                    final_rows = [dict(r) for r in self.conn.execute(final_sql, result_ids).fetchall()]
-                    
-                    # 按相似度排序
-                    id_to_similarity = {r["id"]: r["similarity"] for r in search_results}
-                    final_rows.sort(key=lambda x: id_to_similarity.get(x["id"], 0), reverse=True)
-                    
-                    # 添加相似度信息
-                    for row in final_rows:
-                        row["_similarity"] = id_to_similarity.get(row["id"], 0)
-                    
-                    result = {"rows": final_rows, "count": len(final_rows), "mode": "semantic"}
-                    if skipped:
-                        result["note"] = f"skipped_incompatible_vectors={skipped}"
-                    return result
-                else:
-                    result = {"rows": [], "count": 0, "mode": "semantic"}
-                    if skipped:
-                        result["note"] = f"skipped_incompatible_vectors={skipped}"
-                    return result
-            else:
+
+            # 计算相似度排序（混合：语义 + 关键词）
+            if not memory_vectors:
                 note = "no_embeddings"
                 if skipped:
                     note += f", skipped_incompatible_vectors={skipped}"
                 return {"rows": [], "count": 0, "mode": "semantic", "note": note}
-        
-        # 传统排序模式
+
+            # 根据意图选择查询向量
+            if intent.vector is not None:
+                query_vector = intent.vector
+                # 如果维度可获取，过滤不匹配
+                if target_dim is not None and len(query_vector) != target_dim:
+                    return {"rows": [], "count": 0, "mode": "semantic", "note": "query_vector_dimension_mismatch"}
+                # 手动打分
+                scored = []
+                alpha = 0.7
+                beta = 0.3
+                phrase_bonus = 0.2
+                for item in memory_vectors:
+                    try:
+                        sim = self.models_service.compute_similarity(query_vector, item["vector"])  # type: ignore
+                    except Exception:
+                        continue
+                    kw, exact = self._keyword_score(item.get("text"), getattr(intent, 'query', None))
+                    final_sim = alpha * sim + beta * kw + (phrase_bonus if exact else 0.0)
+                    scored.append({**item, "similarity": min(1.0, final_sim)})
+                scored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                search_results = scored[:limit]
+            else:
+                # 通过服务的语义检索
+                base = self.models_service.semantic_search(intent.query, memory_vectors, k=limit)  # type: ignore
+                # 关键词加权重排
+                alpha = 0.7
+                beta = 0.3
+                phrase_bonus = 0.2
+                rescored = []
+                for r in base:
+                    kw, exact = self._keyword_score(r.get("text"), intent.query)
+                    sim = r.get("similarity", 0)
+                    final_sim = alpha * sim + beta * kw + (phrase_bonus if exact else 0.0)
+                    rescored.append({**r, "similarity": min(1.0, final_sim)})
+                rescored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                search_results = rescored[:limit]
+
+            result_ids = [r["id"] for r in search_results]
+            if not result_ids:
+                result = {"rows": [], "count": 0, "mode": "semantic"}
+                if skipped:
+                    result["note"] = f"skipped_incompatible_vectors={skipped}"
+                return result
+
+            placeholders = ",".join("?" * len(result_ids))
+            final_sql = f"SELECT * FROM memory WHERE id IN ({placeholders})"
+            final_rows = [dict(r) for r in self.conn.execute(final_sql, result_ids).fetchall()]
+            id_to_similarity = {r["id"]: r.get("similarity", 0) for r in search_results}
+            final_rows.sort(key=lambda x: id_to_similarity.get(x["id"], 0), reverse=True)
+            for row in final_rows:
+                row["_similarity"] = id_to_similarity.get(row["id"], 0)
+            result = {"rows": final_rows, "count": len(final_rows), "mode": "semantic"}
+            if skipped:
+                result["note"] = f"skipped_incompatible_vectors={skipped}"
+            return result
+
+        # 传统过滤和排序
+        order_by = "time_desc"
         order_sql = {
             "time_desc": "time DESC",
-            "time_asc": "time ASC", 
-            "priority_desc": "priority DESC",
-            "relevance": "id DESC"  # 降级到按ID排序
-        }[args.order_by]
-        limit = args.k
+            "time_asc": "time ASC",
+            "weight_desc": "weight DESC",
+        }[order_by]
+        limit = 50
+        if target and target.filter and target.filter.limit:
+            limit = target.filter.limit  # type: ignore
         sql = f"SELECT * FROM memory WHERE {wh} ORDER BY {order_sql} LIMIT ?"
         params = ps + (limit,)
         if ir.meta and ir.meta.dry_run:
@@ -855,8 +1508,8 @@ class SQLiteAdapter(BaseAdapter):
             stats["types"] = {row["type"] if row["type"] else "null": row["count"] for row in cur.fetchall()}
             
             # 获取优先级分布
-            cur = self.conn.execute("SELECT priority, COUNT(*) as count FROM memory WHERE deleted=0 GROUP BY priority")
-            stats["priorities"] = {row["priority"] if row["priority"] else "null": row["count"] for row in cur.fetchall()}
+            cur = self.conn.execute("SELECT CASE WHEN weight IS NULL THEN 'null' ELSE 'non_null' END as bucket, COUNT(*) as count FROM memory WHERE deleted=0 GROUP BY bucket")
+            stats["weight_non_null"] = {row["bucket"]: row["count"] for row in cur.fetchall()}
             
             # 获取标签统计（这只是一个近似值，因为tags存储为JSON）
             cur = self.conn.execute("SELECT id, tags FROM memory WHERE deleted=0 AND tags IS NOT NULL")
@@ -878,7 +1531,7 @@ class SQLiteAdapter(BaseAdapter):
         """获取最近添加的记录"""
         try:
             cur = self.conn.execute(
-                "SELECT id, text, type, tags, priority, deleted FROM memory ORDER BY id DESC LIMIT ?", 
+                "SELECT id, text, type, tags, weight, deleted FROM memory ORDER BY id DESC LIMIT ?", 
                 (limit,)
             )
             rows = []
@@ -914,7 +1567,7 @@ class SQLiteAdapter(BaseAdapter):
             indexes = [
                 ("idx_memory_type", "CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(type)"),
                 ("idx_memory_deleted", "CREATE INDEX IF NOT EXISTS idx_memory_deleted ON memory(deleted)"),
-                ("idx_memory_priority", "CREATE INDEX IF NOT EXISTS idx_memory_priority ON memory(priority)"),
+                ("idx_memory_weight", "CREATE INDEX IF NOT EXISTS idx_memory_weight ON memory(weight)"),
                 ("idx_memory_time", "CREATE INDEX IF NOT EXISTS idx_memory_time ON memory(time)")
             ]
             

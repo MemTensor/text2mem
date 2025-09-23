@@ -1,18 +1,13 @@
 {
   "stage": "STO",
   "op": "Update",
-  "target": {
-    "by_tags": ["项目"]
-  },
+  "target": {"filter": {"has_tags": ["项目"], "limit": 100}},
   "args": {
     "set": {
       "text": "已更新的项目描述",
-      "priority": "high",
+      "weight": 0.8,
       "time": "2025-09-01T10:00:00+08:00",
-      "facets": {
-        "subject": "项目B",
-        "topic": "项目更新"
-      }
+      "facets": {"subject": "项目B", "topic": "项目更新"}
     }
   }
 }

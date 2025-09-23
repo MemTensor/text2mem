@@ -1,0 +1,11 @@
+{
+	"name": "Op Workflow - Label via Search (noise-enriched)",
+	"steps": [
+		{"name":"Seed: project OKR note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR：完善产品上线流程与质量门禁"},"tags":["OKR","project"],"type":"note"}}},
+		{"name":"Seed: unrelated travel note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"旅行计划：下个月去成都看大熊猫"},"tags":["travel"],"type":"note"}}},
+		{"name":"Seed: meeting recap about OKR","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：围绕 OKR 目标与关键结果的讨论"},"tags":["meeting"],"type":"note"}}},
+		{"name":"Seed: cooking log (noise)","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"下厨笔记：黑胡椒牛排与意面做法"},"tags":["life","cook"],"type":"note"}}},
+		{"name":"Label using search (limit)","ir":{"stage":"STO","op":"Label","target":{"search":{"intent":{"query":"OKR"},"limit":2}},"args":{"tags":["重点","跟进"]}}}
+	]
+}
+

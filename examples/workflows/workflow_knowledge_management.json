@@ -9,16 +9,12 @@
         "stage": "ENC",
         "op": "Encode",
         "args": {
-          "payload": {
-            "text": "深度学习在自然语言处理中的应用研究表明，Transformer架构通过自注意力机制显著提升了模型性能。BERT、GPT等预训练模型展现出强大的语言理解能力。",
-            "type": "research_note",
-            "subject": "深度学习",
-            "topic": "NLP研究",
-            "source": "论文阅读"
-          },
-          "auto_generate_embedding": true,
-          "auto_generate_tags": true,
-          "auto_generate_summary": true
+          "payload": {"text": "深度学习在自然语言处理中的应用研究表明，Transformer架构通过自注意力机制显著提升了模型性能。BERT、GPT等预训练模型展现出强大的语言理解能力。"},
+          "type": "note",
+          "subject": "深度学习",
+          "topic": "NLP研究",
+          "tags": ["深度学习", "Transformer"],
+          "source": "论文阅读"
         }
       }
     },
@@ -29,15 +25,12 @@
         "stage": "ENC",
         "op": "Encode", 
         "args": {
-          "payload": {
-            "text": "《Attention Is All You Need》论文提出了Transformer架构，彻底改变了序列到序列的建模方式。关键创新包括多头自注意力机制和位置编码。",
-            "type": "paper_summary",
-            "subject": "Transformer",
-            "topic": "论文精读",
-            "source": "Vaswani et al., 2017"
-          },
-          "auto_generate_embedding": true,
-          "auto_generate_tags": true
+          "payload": {"text": "《Attention Is All You Need》论文提出了Transformer架构，彻底改变了序列到序列的建模方式。关键创新包括多头自注意力机制和位置编码。"},
+          "type": "note",
+          "subject": "Transformer",
+          "topic": "论文精读",
+          "tags": ["Transformer", "论文"],
+          "source": "Vaswani et al., 2017"
         }
       }
     },
@@ -47,11 +40,8 @@
       "ir": {
         "stage": "RET",
         "op": "Retrieve",
-        "args": {
-          "query": "Transformer 自注意力机制",
-          "order_by": "relevance",
-          "k": 5
-        }
+  "target": {"search": {"intent": {"query": "Transformer 自注意力机制"}, "overrides": {"k": 5}}},
+        "args": {}
       }
     },
     {
@@ -72,13 +62,8 @@
       "ir": {
         "stage": "STO",
         "op": "Promote",
-        "target": {
-          "by_tags": ["Transformer", "深度学习"],
-          "match": "any"
-        },
-        "args": {
-          "priority": "high"
-        }
+        "target": {"filter": {"has_tags": ["Transformer", "深度学习"], "limit": 100}},
+  "args": {"weight_delta": 1.0}
       }
     }
   ],

@@ -1,0 +1,8 @@
+{
+  "name": "Op Workflow - Summarize",
+  "steps": [
+    {"name":"Seed: Encode meeting notes","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：讨论需求与下一步"},"tags":["meeting","summary"],"type":"note"}}},
+    {"name":"Seed: Encode more notes","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：确定行动项和负责人"},"tags":["meeting","summary"],"type":"note"}}},
+    {"name":"Summarize by tags","ir":{"stage":"RET","op":"Summarize","target":{"filter":{"has_tags":["meeting","summary"],"limit":100}},"args":{"focus":"会议要点","max_tokens":120}}}
+  ]
+}

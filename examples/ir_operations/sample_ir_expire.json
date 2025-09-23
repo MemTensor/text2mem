@@ -2,13 +2,9 @@
   "stage": "STO",
   "op": "Expire",
   "target": {
-    "by_tags": ["临时笔记"],
-    "filters": {
-      "time_range": {
-        "relative": "last",
-        "amount": 6,
-        "unit": "months"
-      }
+    "filter": {
+  "has_tags": ["临时", "草稿"],
+      "limit": 100
     }
   },
   "args": {

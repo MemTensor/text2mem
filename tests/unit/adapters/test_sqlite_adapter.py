@@ -1,7 +1,7 @@
 import json
 import pytest
 from text2mem.adapters.sqlite_adapter import SQLiteAdapter
-from text2mem.services.models_service_providers import create_models_service
+from text2mem.services.models_service_mock import create_models_service
 from text2mem.core.models import IR
 
 
@@ -21,6 +21,7 @@ def test_encode_generates_embedding_meta(adapter):
             "payload": {"text": "hello embedding"},
             "type": "note",
             "tags": ["emb"],
+            
         },
     })
     out = adapter.execute(ir)
@@ -45,8 +46,8 @@ def test_retrieve_semantic_mode_filters_incompatible_vectors(adapter):
     out = adapter.execute(IR.model_validate({
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_tags": ["sem"]},
-        "args": {"k": 2, "order_by": "relevance", "query": "alpha"}
+        "target": {"search": {"intent": {"query": "alpha"}, "overrides": {"k": 2}}},
+        "args": {}
     }))
     assert out.success
     data = out.data
@@ -59,7 +60,7 @@ def test_get_table_stats_and_dump(adapter):
     adapter.execute(IR.model_validate({
         "stage": "ENC",
         "op": "Encode",
-        "args": {"payload": {"text": "stats"}, "type": "note"}
+    "args": {"payload": {"text": "stats"}, "type": "note"}
     }))
     stats = adapter.get_table_stats()
     assert isinstance(stats, dict)

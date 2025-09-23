@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, RootMod
 Stage = Literal["ENC", "STO", "RET"]
 Op = Literal[
     "Encode","Label","Update","Merge","Promote","Demote","Delete",
-    "Retrieve","Summarize","Split","Lock","Expire"#,"Clarify"
+    "Retrieve","Summarize","Split","Lock","Expire"
 ]
 
 class Meta(BaseModel):
@@ -15,6 +15,7 @@ class Meta(BaseModel):
     trace_id: Optional[str] = None
     timestamp: Optional[str] = None
     dry_run: bool = False
+    confirmation: bool = False
     
     @field_validator('timestamp')
     @classmethod
@@ -50,7 +51,14 @@ class Filters(BaseModel):
     time_range: Optional["TimeRange"] = None
     has_tags: Optional[List[str]] = None
     not_tags: Optional[List[str]] = None
-    type: Optional[Literal["note","event","task","profile","preference","generic"]] = None
+    type: Optional[str] = None
+    subject: Optional[str] = None
+    location: Optional[str] = None
+    topic: Optional[str] = None
+    weight_gte: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    weight_lte: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    expire_before: Optional[str] = None
+    expire_after: Optional[str] = None
     limit: Optional[int] = Field(default=None, ge=1)
     
     @field_validator('limit')
@@ -83,22 +91,46 @@ class TimeRange(BaseModel):
             raise ValueError("使用相对时间范围时，必须同时提供 relative 和 unit")
         return self
 
-class TargetSpec(BaseModel):
-    by_id: Optional[Union[str, List[str]]] = None
-    by_tags: Optional[List[str]] = None
-    match: Literal["any","all"] = "any"
-    by_query: Optional[str] = None
-    topic: Optional[str] = None
-    all: bool = False
-    filters: Optional[Filters] = None
-    
+class SearchIntent(BaseModel):
+    query: Optional[str] = None
+    vector: Optional[List[float]] = None
+
     @model_validator(mode="after")
-    def validate_target_specification(self):
-        has_selector = any([self.by_id, self.by_tags, self.by_query, self.topic, self.all])
-        if not has_selector:
-            raise ValueError("目标规范至少需要提供一种定位方式：by_id、by_tags、by_query、topic 或 all")
-        if self.all and any([self.by_id, self.by_tags, self.by_query, self.topic]):
-            raise ValueError("当 all=True 时，不能同时使用其他定位方式")
+    def _one_of(self):
+        if not ((self.query is not None) ^ (self.vector is not None)):
+            raise ValueError("search.intent 必须且只能设置 query 或 vector 其中之一")
+        return self
+
+class SearchOverrides(BaseModel):
+    k: Optional[int] = Field(default=None, ge=1)
+    alpha: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    order_by: Optional[Literal["relevance","time_desc","time_asc","weight_desc"]] = None
+
+class TargetSearch(BaseModel):
+    intent: SearchIntent
+    overrides: Optional[SearchOverrides] = None
+    limit: Optional[int] = Field(default=None, ge=1)
+
+class Target(BaseModel):
+    ids: Optional[Union[str, List[str]]] = None
+    filter: Optional[Filters] = None
+    search: Optional[TargetSearch] = None
+    all: bool = False
+
+    @model_validator(mode="after")
+    def _xor(self):
+        # Allow search+filter combo; keep ids/all mutually exclusive
+        has_ids = self.ids is not None
+        has_filter = self.filter is not None
+        has_search = self.search is not None
+        has_all = bool(self.all)
+        if has_all and (has_ids or has_filter or has_search):
+            # Keep legacy error message for compatibility with tests
+            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
+        if has_ids and (has_filter or has_search or has_all):
+            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
+        if not (has_ids or has_filter or has_search or has_all):
+            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
         return self
 
 class Embedding(RootModel):
@@ -108,7 +140,6 @@ class Embedding(RootModel):
     def __getitem__(self, index):
         return self.root[index]
 
-Priority = Literal["low","normal","high","urgent"]
 
 class EncodePayload(BaseModel):
     text: Optional[str] = None
@@ -123,17 +154,16 @@ class EncodePayload(BaseModel):
 
 class EncodeArgs(BaseModel):
     payload: EncodePayload
-    type: Optional[Literal["note","event","task","profile","preference","generic"]] = None
+    type: Optional[str] = None
     tags: Optional[List[str]] = None
     facets: Optional[Facets] = None
     time: Optional[str] = None
     subject: Optional[str] = None
     location: Optional[str] = None
     topic: Optional[str] = None
-    embedding: Optional[List[float]] = None
-    use_embedding: bool = False
+    skip_embedding: Optional[bool] = False
     source: Optional[str] = None
-    priority: Optional[Priority] = None
+    
     auto_frequency: Optional[str] = None
     expire_at: Optional[str] = None
     next_auto_update_at: Optional[str] = None
@@ -153,6 +183,7 @@ class EncodeArgs(BaseModel):
             except ValueError:
                 raise ValueError(f"时间格式错误: '{self.time}' 不是有效的ISO8601格式")
         return self
+    
 
 class LabelArgs(BaseModel):
     tags: Optional[List[str]] = None
@@ -167,15 +198,14 @@ class LabelArgs(BaseModel):
 class UpdateSet(BaseModel):
     text: Optional[str] = None
     time: Optional[str] = None
-    type: Optional[Literal["note","event","task","profile","preference","generic"]] = None
+    type: Optional[str] = None
     ttl: Optional[str] = None
-    priority: Optional[Priority] = None
+    
     weight: Optional[float] = None
     subject: Optional[str] = None
     location: Optional[str] = None
     topic: Optional[str] = None
     facets: Optional[Facets] = None
-    embedding: Optional[List[float]] = None
     auto_frequency: Optional[str] = None
     expire_at: Optional[str] = None
     next_auto_update_at: Optional[str] = None
@@ -190,6 +220,13 @@ class UpdateSet(BaseModel):
         if not any(getattr(self, f) is not None for f in self.__class__.model_fields):
             raise ValueError("Update.set 必须至少包含一个要更新的字段")
         return self
+    @model_validator(mode="after")
+    def _validate_weight_range(self):
+        if self.weight is not None:
+            if not (0.0 <= self.weight <= 1.0):
+                raise ValueError("Update.set.weight 必须在 [0,1] 区间内")
+        return self
+    
 
 class UpdateArgs(BaseModel):
     set: UpdateSet
@@ -200,37 +237,49 @@ class UpdateArgs(BaseModel):
         return self
 
 class MergeArgs(BaseModel):
-    strategy: Literal["link_and_keep","fold_into_primary"] = "fold_into_primary"
+    strategy: Literal["merge_into_primary"] = "merge_into_primary"
     primary_id: Optional[str] = None
     soft_delete_children: bool = True
-    @model_validator(mode="after")
-    def validate_strategy_dependencies(self):
-        return self
-        return self
+    skip_reembedding: bool = False
 
 class PromoteArgs(BaseModel):
-    priority: Optional[Priority] = None
+    weight: Optional[float] = None
     weight_delta: Optional[float] = None
     remind: Optional[Dict[str, Optional[str]]] = None
     @model_validator(mode="after")
     def _one_of(self):
-        provided = sum(1 for v in [self.priority is not None, self.weight_delta is not None, self.remind is not None] if v)
+        provided = sum(1 for v in [self.weight is not None, self.weight_delta is not None, self.remind is not None] if v)
         if provided == 0:
-            raise ValueError("Promote 操作至少需要提供以下一种：priority（优先级） | weight_delta（权重调整） | remind（提醒）")
+            raise ValueError("Promote 操作至少需要提供以下一种：weight（设置绝对权重） | weight_delta（权重调整） | remind（提醒）")
         elif provided > 1:
-            raise ValueError("Promote 操作只能提供以下一种：priority（优先级） | weight_delta（权重调整） | remind（提醒）")
+            raise ValueError("Promote 操作只能提供以下一种：weight（设置绝对权重） | weight_delta（权重调整） | remind（提醒）")
         if self.remind and "rrule" not in self.remind:
             raise ValueError("remind 必须包含 rrule 字段")
+        return self
+    @model_validator(mode="after")
+    def _validate_weight_range(self):
+        if self.weight is not None:
+            if not (0.0 <= self.weight <= 1.0):
+                raise ValueError("Promote.weight 必须在 [0,1] 区间内")
         return self
 
 class DemoteArgs(BaseModel):
     archive: Optional[bool] = None
-    priority: Optional[Priority] = None
+    weight: Optional[float] = None
     weight_delta: Optional[float] = None
     @model_validator(mode="after")
     def validate_operations(self):
-        if self.archive is None and self.priority is None and self.weight_delta is None:
-            raise ValueError("Demote 操作至少需要提供以下一种：archive（归档） | priority（优先级） | weight_delta（权重调整）")
+        provided = sum(1 for v in [self.archive is not None, self.weight is not None, self.weight_delta is not None] if v)
+        if provided == 0:
+            raise ValueError("Demote 操作至少需要提供以下一种：archive（归档） | weight（设置绝对权重） | weight_delta（权重调整）")
+        if provided > 1:
+            raise ValueError("Demote 操作只能提供以下一种：archive（归档） | weight（设置绝对权重） | weight_delta（权重调整）")
+        return self
+    @model_validator(mode="after")
+    def _validate_weight_range(self):
+        if self.weight is not None:
+            if not (0.0 <= self.weight <= 1.0):
+                raise ValueError("Demote.weight 必须在 [0,1] 区间内")
         return self
 
 class DeleteArgs(BaseModel):
@@ -238,26 +287,11 @@ class DeleteArgs(BaseModel):
     time_range: Optional[TimeRange] = None
     soft: bool = True
     reason: Optional[str] = None
-    @model_validator(mode="after")
-    def validate_time_criteria(self):
-        if self.older_than is not None and self.time_range is not None:
-            raise ValueError("不能同时设置 older_than 和 time_range，请只选择一种时间条件")
-        return self
+    # Note: time scoping is recommended via target.filter.time_range.
+    # older_than/time_range here are optional convenience fields.
 
 class RetrieveArgs(BaseModel):
-    query: Optional[str] = None
-    time_range: Optional[TimeRange] = None
-    k: int = 10
-    order_by: Literal["relevance","time_desc","time_asc","priority_desc"] = "relevance"
     include: Optional[List[str]] = None
-    @field_validator('k')
-    @classmethod
-    def validate_k(cls, v):
-        if v < 1:
-            raise ValueError("k 必须大于或等于1")
-        if v > 100:
-            raise ValueError("k 不能超过100，请考虑使用分页")
-        return v
     @field_validator('include')
     @classmethod
     def validate_include(cls, v):
@@ -265,7 +299,7 @@ class RetrieveArgs(BaseModel):
             return v
         allowed_fields = [
             "id", "text", "type", "tags", "facets", "time", "subject", "location", "topic",
-            "source", "priority", "weight", 
+            "source", "weight",
             "read_perm_level", "write_perm_level",
             "read_whitelist", "read_blacklist", "write_whitelist", "write_blacklist"
         ]
@@ -277,7 +311,6 @@ class RetrieveArgs(BaseModel):
 class SummarizeArgs(BaseModel):
     focus: Optional[str] = None
     max_tokens: int = 256
-    time_range: Optional[TimeRange] = None
     @field_validator('max_tokens')
     @classmethod
     def validate_max_tokens(cls, v):
@@ -288,31 +321,76 @@ class SummarizeArgs(BaseModel):
         return v
 
 class SplitArgs(BaseModel):
-    strategy: Literal["auto_by_patterns","headings","sentences","custom_spans"] = "auto_by_patterns"
+    strategy: Literal["by_sentences","by_chunks","custom"] = "by_sentences"
+    params: Optional[Dict[str, Any]] = None
+    # legacy compatibility
     spans: Optional[List[Dict[str,int]]] = None
     inherit: Optional[Dict[str,bool]] = None
-    link_back: Literal["none","bi_directional"] = "bi_directional"
+    inherit_all: bool = True
+
+    @field_validator('strategy', mode='before')
+    @classmethod
+    def _map_legacy_strategy(cls, v):
+        mapping = {
+            "sentences": "by_sentences",
+            "headings": "by_sentences",
+            "auto_by_patterns": "by_sentences",
+            "custom_spans": "custom",  # handled via spans/custom
+        }
+        if isinstance(v, str) and v in mapping:
+            return mapping[v]
+        return v
+
     @model_validator(mode="after")
-    def validate_strategy_and_spans(self):
-        if self.strategy == "custom_spans" and not self.spans:
-            raise ValueError("当使用 'custom_spans' 策略时，必须提供 spans 参数")
-        if self.spans and self.strategy != "custom_spans":
-            raise ValueError(f"当提供 spans 参数时，strategy 必须设置为 'custom_spans'，而不是 '{self.strategy}'")
-        if self.spans:
-            for i, span in enumerate(self.spans):
-                if "start" not in span or "end" not in span:
-                    raise ValueError(f"第 {i+1} 个跨度缺少 'start' 或 'end' 字段")
-                if not isinstance(span.get("start"), int) or not isinstance(span.get("end"), int):
-                    raise ValueError(f"第 {i+1} 个跨度的 'start' 和 'end' 必须是整数")
-                if span.get("start") < 0 or span.get("end") <= span.get("start"):
-                    raise ValueError(f"第 {i+1} 个跨度的 'start' 必须大于等于0，且 'end' 必须大于 'start'")
-        if self.inherit:
-            allowed_keys = ["tags", "time", "source"]
-            for key in self.inherit:
-                if key not in allowed_keys:
-                    raise ValueError(f"inherit 只能包含以下字段：{', '.join(allowed_keys)}，发现无效字段: '{key}'")
-                if not isinstance(self.inherit[key], bool):
-                    raise ValueError(f"inherit.{key} 必须是布尔值")
+    def validate_params(self):
+        # legacy inherit -> inherit_all
+        if getattr(self, 'inherit', None):
+            try:
+                vals = [bool(x) for x in self.inherit.values()]
+                if any(vals):
+                    self.inherit_all = True
+            except Exception:
+                pass
+        # Validate presence of correct params branch if provided
+        if self.params:
+            allowed = {"by_sentences", "by_chunks", "custom"}
+            unknown = set(self.params.keys()) - allowed
+            if unknown:
+                raise ValueError(f"params 仅支持键 {allowed}，发现无效: {unknown}")
+            # by_sentences
+            if self.strategy == "by_sentences":
+                conf = self.params.get("by_sentences") if isinstance(self.params, dict) else None
+                if conf is not None:
+                    lang = conf.get("lang")
+                    if lang and lang not in {"zh","en","auto"}:
+                        raise ValueError("by_sentences.lang 只能为 zh|en|auto")
+                    max_sent = conf.get("max_sentences")
+                    if max_sent is not None and (not isinstance(max_sent, int) or max_sent < 1):
+                        raise ValueError("by_sentences.max_sentences 必须为 >=1 的整数")
+            # by_chunks
+            if self.strategy == "by_chunks":
+                conf = self.params.get("by_chunks") if isinstance(self.params, dict) else None
+                if conf is None:
+                    raise ValueError("by_chunks 策略要求提供 params.by_chunks 配置")
+                chunk = conf.get("chunk_size")
+                num = conf.get("num_chunks")
+                if chunk is None and num is None:
+                    raise ValueError("by_chunks 需要 chunk_size 或 num_chunks 之一")
+                if chunk is not None and (not isinstance(chunk, int) or chunk < 50):
+                    raise ValueError("by_chunks.chunk_size 必须为 >=50 的整数")
+                if num is not None and (not isinstance(num, int) or num < 1):
+                    raise ValueError("by_chunks.num_chunks 必须为 >=1 的整数")
+            # custom
+            if self.strategy == "custom":
+                conf = self.params.get("custom") if isinstance(self.params, dict) else None
+                if conf is None:
+                    raise ValueError("custom 策略要求提供 params.custom 配置")
+                instr = conf.get("instruction")
+                if not instr or not isinstance(instr, str):
+                    raise ValueError("custom.instruction 必须提供且为字符串")
+                max_splits = conf.get("max_splits")
+                if max_splits is not None and (not isinstance(max_splits, int) or max_splits < 1):
+                    raise ValueError("custom.max_splits 必须为 >=1 的整数")
         return self
 
 class LockArgs(BaseModel):
@@ -363,7 +441,7 @@ class ExpireArgs(BaseModel):
 class IR(BaseModel):
     stage: Stage
     op: Op
-    target: Optional[TargetSpec] = None
+    target: Optional[Target] = None
     args: Dict[str, Any] = {}
     meta: Optional[Meta] = None
     def parse_args_typed(self) -> BaseModel:
@@ -380,10 +458,24 @@ class IR(BaseModel):
         enc_ops = {"Encode"}
         sto_ops = {"Label","Update","Merge","Promote","Demote","Delete","Split","Lock","Expire"}
         ret_ops = {"Retrieve","Summarize"}
-        if self.op in enc_ops and self.stage not in {"ENC","RET"}:
-            raise ValueError(f"操作类型 {self.op} 需要在 ENC 或 RET 阶段执行")
+        if self.op in enc_ops and self.stage != "ENC":
+            raise ValueError(f"操作类型 {self.op} 需要在 ENC 阶段执行")
         if self.op in sto_ops and self.stage != "STO":
             raise ValueError(f"操作类型 {self.op} 需要在 STO 阶段执行")
         if self.op in ret_ops and self.stage != "RET":
             raise ValueError(f"操作类型 {self.op} 需要在 RET 阶段执行")
+        return self
+
+    @model_validator(mode="after")
+    def _sto_safety(self):
+        if self.stage == "STO" and self.target:
+            # ids: fine; filter/search require limit; all requires dry_run or confirmation
+            if isinstance(self.target, Target):
+                if self.target.filter is not None and (self.target.filter.limit is None):
+                    raise ValueError("STO 阶段使用 target.filter 时必须提供 limit 以保障安全")
+                if self.target.search is not None and (self.target.search.limit is None):
+                    raise ValueError("STO 阶段使用 target.search 时必须提供 limit 以保障安全")
+                if self.target.all:
+                    if not (self.meta and (self.meta.dry_run or getattr(self.meta, 'confirmation', False))):
+                        raise ValueError("STO 阶段使用 target.all 时，必须设置 meta.dry_run=true 或 meta.confirmation=true")
         return self

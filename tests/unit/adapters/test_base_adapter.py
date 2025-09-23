@@ -141,7 +141,7 @@ class TestBaseAdapter:
         ir = IR(
             stage="RET",
             op="Retrieve",
-            args={"k": 10, "query": "测试查询"}
+            args={}
         )
         
         result = adapter.execute(ir)
@@ -157,8 +157,8 @@ class TestBaseAdapter:
         ir = IR(
             stage="STO",
             op="Update",
-            args={"set": {"text": "更新的文本"}},
-            target={"by_id": "mem123"}
+            target={"ids": "mem123"},
+            args={"set": {"text": "测试文本"}}
         )
         
         result = adapter.execute(ir)
@@ -191,24 +191,23 @@ class TestBaseAdapter:
     
     def test_execution_result_chaining(self):
         """测试执行结果的链式处理"""
-        adapter = MockAdapter()
-        
-        # 执行多个操作
-        encode_ir = IR(stage="ENC", op="Encode", args={"payload": {"text": "文本1"}})
-        retrieve_ir = IR(stage="RET", op="Retrieve", args={"k": 5})
-        
-        encode_result = adapter.execute(encode_ir)
-        retrieve_result = adapter.execute(retrieve_ir)
-        
-        # 验证执行历史
-        assert len(adapter.executed_operations) == 2
-        assert adapter.executed_operations[0].op == "Encode"
-        assert adapter.executed_operations[1].op == "Retrieve"
-        
-        # 验证结果独立性
-        assert encode_result.data["id"] == "mem123"
-        assert len(retrieve_result.data) == 2
-        assert encode_result.meta["operation"] != retrieve_result.meta["operation"]
+    adapter = MockAdapter()
+    # 执行多个操作
+    encode_ir = IR(stage="ENC", op="Encode", args={"payload": {"text": "文本1"}})
+    retrieve_ir = IR(stage="RET", op="Retrieve", args={})
+
+    encode_result = adapter.execute(encode_ir)
+    retrieve_result = adapter.execute(retrieve_ir)
+
+    # 验证执行历史
+    assert len(adapter.executed_operations) == 2
+    assert adapter.executed_operations[0].op == "Encode"
+    assert adapter.executed_operations[1].op == "Retrieve"
+
+    # 验证结果独立性
+    assert encode_result.data["id"] == "mem123"
+    assert len(retrieve_result.data) == 2
+    assert encode_result.meta["operation"] != retrieve_result.meta["operation"]
 
 
 class TestAdapterIntegration:
@@ -221,7 +220,7 @@ class TestAdapterIntegration:
         # 测试各种操作类型
         operations = [
             ("ENC", "Encode", {"payload": {"text": "编码测试"}}),
-            ("RET", "Retrieve", {"k": 10}),
+            ("RET", "Retrieve", {}),
             ("STO", "Update", {"set": {"text": "更新测试"}}),
             ("STO", "Delete", {"soft": True}),
             ("STO", "Label", {"tags": ["test"]}),

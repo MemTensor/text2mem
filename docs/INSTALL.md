@@ -1,6 +1,6 @@
 # Text2Mem 环境配置指南
 
-Text2Mem 使用 Miniconda 管理依赖，项目配置使用 pyproject.toml。
+Text2Mem 使用 Miniconda 管理依赖，项目配置使用 pyproject.toml。自 v0.2 起，模型 Provider 与 Service 分离：Provider 只负责模型接口；Service 负责编排高阶能力。建议通过 `service_factory` 统一创建模型服务。
 
 ## 方法一：使用 setup.sh 脚本（推荐，仅 Linux/macOS）
 
@@ -64,4 +64,16 @@ python run_demo.py --file sample_ir_encode.json
 
 # 运行工作流
 python run_workflow.py text2mem/examples/workflow_project_management.json
+
+## 编程式创建模型服务（可选）
+
+```python
+from text2mem.services.service_factory import create_models_service
+from text2mem.adapters.sqlite_adapter import SQLiteAdapter
+from text2mem.core.engine import Text2MemEngine
+
+service = create_models_service(mode="auto")
+adapter = SQLiteAdapter("./text2mem.db", models_service=service)
+engine = Text2MemEngine(adapter=adapter, models_service=service)
+```
 ```

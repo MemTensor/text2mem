@@ -1,0 +1,7 @@
+{
+  "name": "Op Workflow - Lock",
+  "steps": [
+    {"name":"Seed: Encode sensitive note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"敏感会议记录：包含客户隐私"},"tags":["sensitive","meeting"],"type":"note"}}},
+    {"name":"Lock read-only","ir":{"stage":"STO","op":"Lock","target":{"filter":{"has_tags":["sensitive"],"limit":100}},"args":{"mode":"read_only","reason":"保护敏感记录"}}}
+  ]
+}

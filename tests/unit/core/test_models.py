@@ -9,8 +9,8 @@
 import pytest
 from datetime import datetime
 from text2mem.core.models import (
-    IR, Stage, Op, Meta, Facets, Filters, TimeRange, TargetSpec, 
-    Embedding, Priority, EncodePayload, EncodeArgs, LabelArgs,
+    IR, Stage, Op, Meta, Facets, Filters, TimeRange, Target,
+    Embedding, EncodePayload, EncodeArgs, LabelArgs,
     UpdateSet, UpdateArgs, MergeArgs, PromoteArgs, DemoteArgs,
     DeleteArgs, RetrieveArgs, SummarizeArgs, SplitArgs, LockArgs, ExpireArgs
 )
@@ -120,34 +120,35 @@ class TestTimeRange:
         assert "时间范围设置不完整" in str(exc_info.value)
 
 
-class TestTargetSpec:
-    """测试TargetSpec目标规范模型"""
+class TestTarget:
+    """测试Target 目标规范模型"""
     
     def test_target_by_id(self):
         """测试通过ID定位"""
-        target = TargetSpec(by_id="mem123")
-        assert target.by_id == "mem123"
-        
-        target = TargetSpec(by_id=["mem123", "mem456"])
-        assert target.by_id == ["mem123", "mem456"]
+        target = Target(ids="mem123")
+        assert target.ids == "mem123"
+
+    def test_target_by_ids_list(self):
+        target = Target(ids=["mem123", "mem456"])
+        assert target.ids == ["mem123", "mem456"]
     
-    def test_target_by_tags(self):
-        """测试通过标签定位"""
-        target = TargetSpec(by_tags=["work", "important"], match="all")
-        assert target.by_tags == ["work", "important"]
-        assert target.match == "all"
+    def test_target_filter(self):
+        """测试通过过滤器定位（包含 limit）"""
+        target = Target(filter=Filters(type="note", limit=5))
+        assert target.filter and target.filter.type == "note"
+        assert target.filter.limit == 5
     
     def test_target_all_exclusive(self):
         """测试all=True与其他定位方式互斥"""
         with pytest.raises(ValidationError) as exc_info:
-            TargetSpec(all=True, by_id="mem123")
-        assert "当 all=True 时，不能同时使用其他定位方式" in str(exc_info.value)
+            Target(ids="mem123", all=True)
+        assert "target 必须且只能在 ids | filter | search | all 中选择一种" in str(exc_info.value)
     
     def test_target_requires_selector(self):
         """测试必须提供至少一种定位方式"""
         with pytest.raises(ValidationError) as exc_info:
-            TargetSpec()
-        assert "目标规范至少需要提供一种定位方式" in str(exc_info.value)
+            Target()
+        assert "target 必须且只能在 ids | filter | search | all 中选择一种" in str(exc_info.value)
 
 
 class TestEmbedding:
@@ -243,12 +244,12 @@ class TestUpdateArgs:
         """测试更新多个字段"""
         update_set = UpdateSet(
             text="新文本",
-            priority="high",
+            weight=0.9,
             tags=["updated"]
         )
         args = UpdateArgs(set=update_set)
         assert args.set.text == "新文本"
-        assert args.set.priority == "high"
+        assert args.set.weight == 0.9
     
     def test_update_empty_set(self):
         """测试空的更新集合"""
@@ -260,10 +261,10 @@ class TestUpdateArgs:
 class TestPromoteArgs:
     """测试PromoteArgs提升参数模型"""
     
-    def test_promote_priority(self):
-        """测试提升优先级"""
-        args = PromoteArgs(priority="high")
-        assert args.priority == "high"
+    def test_promote_requires_delta_or_remind(self):
+        """测试必须提供权重调整或提醒"""
+        with pytest.raises(ValidationError):
+            PromoteArgs()
     
     def test_promote_weight(self):
         """测试调整权重"""
@@ -279,7 +280,7 @@ class TestPromoteArgs:
     def test_promote_mutual_exclusion(self):
         """测试参数互斥"""
         with pytest.raises(ValidationError) as exc_info:
-            PromoteArgs(priority="high", weight_delta=0.5)
+            PromoteArgs(weight_delta=0.5, remind={"rrule":"FREQ=DAILY"})
         assert "Promote 操作只能提供以下一种" in str(exc_info.value)
     
     def test_promote_requires_something(self):
@@ -297,18 +298,19 @@ class TestIR:
         ir = IR(stage="ENC", op="Encode", args={"payload": {"text": "测试"}})
         assert ir.stage == "ENC"
         assert ir.op == "Encode"
-        assert ir.args == {"payload": {"text": "测试"}}
+        assert "payload" in ir.args and ir.args["payload"]["text"] == "测试"
+        assert "engine_id" not in ir.args
     
     def test_ir_with_target(self):
         """测试带目标的IR"""
-        target = TargetSpec(by_id="mem123")
+        target = Target(ids="mem123")
         ir = IR(stage="STO", op="Update", target=target, args={"set": {"text": "新文本"}})
         assert ir.target == target
     
     def test_ir_with_meta(self):
         """测试带元数据的IR"""
         meta = Meta(actor="user1", dry_run=True)
-        ir = IR(stage="RET", op="Retrieve", meta=meta, args={"k": 10})
+        ir = IR(stage="RET", op="Retrieve", meta=meta, args={})
         assert ir.meta == meta
     
     def test_ir_parse_args_typed(self):
@@ -332,10 +334,10 @@ class TestIR:
         ir2 = IR(stage="STO", op="Update", args={"set": {"text": "test"}})
         assert ir2.stage == "STO"
         
-        ir3 = IR(stage="RET", op="Retrieve", args={"k": 10})
+        ir3 = IR(stage="RET", op="Retrieve", args={})
         assert ir3.stage == "RET"
         
         # 错误的匹配
         with pytest.raises(ValidationError) as exc_info:
             IR(stage="STO", op="Encode", args={"payload": {"text": "test"}})
-        assert "操作类型 Encode 需要在 ENC 或 RET 阶段执行" in str(exc_info.value)
+        assert "操作类型 Encode 需要在 ENC 阶段执行" in str(exc_info.value)

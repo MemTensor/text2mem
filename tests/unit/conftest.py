@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from text2mem.services.models_service_providers import create_models_service
+from text2mem.services.models_service_mock import create_models_service
 from text2mem.adapters.sqlite_adapter import SQLiteAdapter
 from text2mem.core.engine import Text2MemEngine
 

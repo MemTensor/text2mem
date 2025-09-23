@@ -1,0 +1,35 @@
+{
+  "name": "Op Workflow - Merge",
+  "steps": [
+    {"name":"Seed: Encode meeting note A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议A：讨论项目范围。"},"tags":["meeting","projectA"],"type":"note"}}},
+    {"name":"Seed: Encode meeting note B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议B：确定人员分工。"},"tags":["meeting","projectA"],"type":"note"}}},
+
+    {"name":"Dry-run merge default (no primary_id)",
+     "ir":{
+       "stage":"STO","op":"Merge",
+       "target":{"filter":{"has_tags":["meeting","projectA"],"limit":50}},
+       "args":{},
+       "meta":{"dry_run":true}
+     }
+    },
+
+    {"name":"Merge meeting notes (default merge_into_primary)",
+     "ir":{
+       "stage":"STO","op":"Merge",
+       "target":{"filter":{"has_tags":["meeting","projectA"],"limit":50}},
+       "args":{}
+     }
+    },
+
+    {"name":"Merge meeting notes via search+filter (default)",
+     "ir":{
+       "stage":"STO","op":"Merge",
+       "target":{
+         "search":{"intent":{"query":"会议"},"limit":2},
+         "filter":{"has_tags":["meeting","projectA"],"limit":50}
+       },
+       "args":{}
+     }
+    }
+  ]
+}

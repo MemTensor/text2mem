@@ -2,15 +2,11 @@
   "stage": "STO",
   "op": "Split",
   "target": {
-    "by_id": "mem_98765"
+  "filter": {"has_tags": ["长文", "报告"], "limit": 10}
   },
   "args": {
-    "strategy": "headings",
-    "inherit": {
-      "tags": true,
-      "time": true,
-      "source": true
-    },
-    "link_back": "bi_directional"
+    "strategy": "by_sentences",
+  "params": { "by_sentences": { "lang": "zh", "max_sentences": 3 } },
+  "inherit_all": true
   }
 }

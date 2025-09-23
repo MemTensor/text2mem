@@ -1,0 +1,9 @@
+{
+  "name": "Op Workflow - Delete via Search",
+  "steps": [
+    {"name":"Seed: Encode OKR note A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR: 清理冗余任务与数据"},"tags":["OKR","cleanup"],"type":"note","time":"2024-01-10T09:00:00"}}},
+  {"name":"Seed: unrelated journal (noise)","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"随记：周末去超市买菜和看电影"},"tags":["life"],"type":"note","time":"2024-01-10T20:00:00"}}},
+    {"name":"Seed: Encode OKR note B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：讨论 OKR 清理策略"},"tags":["meeting","OKR"],"type":"note","time":"2024-01-11T10:00:00"}}},
+  {"name":"Delete using semantic search target (soft)","ir":{"stage":"STO","op":"Delete","target":{"search":{"intent":{"query":"OKR 清理"},"limit":2}},"args":{"soft":true}}}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Op Workflow - Promote with Remind",
+  "steps": [
+    {"name":"Seed: Encode task","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"准备季度汇报材料"},"tags":["task","Q3"],"type":"task"}}},
+    {"name":"Promote: add RRULE remind","ir":{"stage":"STO","op":"Promote","target":{"filter":{"has_tags":["task"],"limit":50}},"args":{"remind":{"rrule":"FREQ=WEEKLY;BYDAY=MO","until":"2025-12-31T23:59:59Z"}}}}
+  ]
+}

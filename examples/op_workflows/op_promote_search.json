@@ -1,0 +1,9 @@
+{
+  "name": "Op Workflow - Promote via Search",
+  "steps": [
+  {"name":"Seed: Encode target note A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"关键任务：完善 OKR 复盘机制"},"tags":["OKR","priority"],"type":"note"}}},
+  {"name":"Seed: unrelated diary","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"生活随记：今天跑步 5 公里"},"tags":["life"],"type":"note"}}},
+  {"name":"Seed: Encode target note B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议纪要：OKR 指标推进计划"},"tags":["meeting","OKR"],"type":"note"}}},
+  {"name":"Promote using semantic search target","ir":{"stage":"STO","op":"Promote","target":{"search":{"intent":{"query":"OKR"},"limit":3}},"args":{"weight":0.9}}}
+  ]
+}

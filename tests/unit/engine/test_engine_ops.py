@@ -27,8 +27,8 @@ def test_retrieve_by_tag_returns_rows(engine, seed_memories):
     rows = exec_ok(engine, {
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_tags": ["检索标签"]},
-        "args": {"k": 5, "order_by": "time_desc"},
+        "target": {"filter": {"has_tags": ["检索标签"], "limit": 5}},
+        "args": {},
     }).get("rows", [])
     assert isinstance(rows, list)
 
@@ -38,19 +38,19 @@ def test_label_adds_tags(engine, seed_memories):
     exec_ok(engine, {
         "stage": "STO",
         "op": "Label",
-        "target": {"by_tags": ["Alpha"]},
-        "args": {"tags": ["项目"]},
+        "target": {"filter": {"has_tags": ["Alpha"], "limit": 10}},
+    "args": {"tags": ["项目"]},
     })
 
 
-def test_promote_sets_priority(engine, seed_memories):
+def test_promote_sets_weight(engine, seed_memories):
     # 直接种入有目标标签，避免依赖Label测试
     seed_memories(["P1", "P2", "P3"], tags=["项目"], mtype="task")
     out = exec_ok(engine, {
         "stage": "STO",
-        "op": "Promote",
-        "target": {"by_tags": ["项目"]},
-        "args": {"priority": "high"},
+    "op": "Promote",
+    "target": {"filter": {"has_tags": ["项目"], "limit": 10}},
+    "args": {"weight_delta": 1.0},
     })
     assert out.get("affected_rows") is not None
 
@@ -60,35 +60,63 @@ def test_update_by_id(engine, seed_memories):
     exec_ok(engine, {
         "stage": "STO",
         "op": "Update",
-        "target": {"by_id": str(ids[0])},
-        "args": {"set": {"text": "Alpha 分析需求 - 已完成", "priority": "low"}},
+        "target": {"ids": str(ids[0])},
+        "args": {"set": {"text": "Alpha 分析需求 - 已完成", "weight": 0.1}},
     })
     rows = exec_ok(engine, {
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_id": str(ids[0])},
-        "args": {"k": 1, "order_by": "time_desc"},
+    "target": {"ids": str(ids[0])},
+    "args": {},
     }).get("rows", [])
     assert rows and "已完成" in (rows[0].get("text") or "")
 
 
-def test_merge_link_strategy(engine, seed_memories):
-    seed_memories(["A", "B", "C"], tags=["MergeGroup"], mtype="note")
+def test_merge_into_primary_default(engine, seed_memories):
+    # Seed three related notes
+    ids = seed_memories(["A", "B", "C"], tags=["MergeGroup"], mtype="note")
+    # Dry-run to preview
+    preview = exec_ok(engine, {
+        "stage": "STO",
+        "op": "Merge",
+        "target": {"filter": {"has_tags": ["MergeGroup"], "limit": 10}},
+        "args": {},
+        "meta": {"dry_run": True},
+    })
+    assert preview.get("strategy") == "merge_into_primary"
+    # Actual merge with default primary (first match) and soft delete
     out = exec_ok(engine, {
         "stage": "STO",
         "op": "Merge",
-        "target": {"by_tags": ["MergeGroup"]},
-        "args": {"strategy": "link_and_keep"},
+        "target": {"filter": {"has_tags": ["MergeGroup"], "limit": 10}},
+        "args": {},
     })
-    link_tag = out.get("link_tag")
-    assert link_tag
+    assert out.get("strategy") == "merge_into_primary"
+    assert out.get("merged_count", 0) >= 1
+    # Verify primary still retrievable, others soft-deleted
+    primary_id = int(out.get("primary_id"))
     rows = exec_ok(engine, {
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_tags": [link_tag]},
-        "args": {"k": 10, "order_by": "time_desc"},
+        "target": {"ids": str(primary_id)},
+        "args": {},
     }).get("rows", [])
-    assert len(rows) == out.get("linked_count")
+    assert rows and rows[0]["id"] == primary_id
+
+def test_merge_via_search_target(engine, seed_memories):
+    # Seed with a keyword to enable search target, and use filter to constrain scope
+    seed_memories(["OKR A", "OKR B", "Other"], tags=["MergeSearch"], mtype="note")
+    out = exec_ok(engine, {
+        "stage": "STO",
+        "op": "Merge",
+        "target": {
+            "search": {"intent": {"query": "OKR"}, "limit": 2},
+            "filter": {"has_tags": ["MergeSearch"], "limit": 10}
+        },
+        "args": {},
+    })
+    assert out.get("strategy") == "merge_into_primary"
+    assert out.get("merged_count", 0) >= 1
 
 
 def test_split_sentences_inherit_tags(engine, seed_memories):
@@ -97,8 +125,8 @@ def test_split_sentences_inherit_tags(engine, seed_memories):
     out = exec_ok(engine, {
         "stage": "STO",
         "op": "Split",
-        "target": {"by_id": str(ids[0])},
-        "args": {"strategy": "sentences", "inherit": {"tags": True}},
+        "target": {"ids": str(ids[0])},
+    "args": {"strategy": "sentences", "inherit": {"tags": True}},
     })
     # total_splits >= 1 means at least one child inserted
     assert out.get("total_splits", 0) >= 1
@@ -109,14 +137,14 @@ def test_lock_read_only(engine, seed_memories):
     exec_ok(engine, {
         "stage": "STO",
         "op": "Lock",
-        "target": {"by_id": str(ids[0])},
-        "args": {"mode": "read_only", "reason": "冻结测试"},
+        "target": {"ids": str(ids[0])},
+    "args": {"mode": "read_only", "reason": "冻结测试"},
     })
     row = exec_ok(engine, {
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_id": str(ids[0])},
-        "args": {"k": 1, "order_by": "time_desc"},
+        "target": {"ids": str(ids[0])},
+    "args": {},
     }).get("rows", [])[0]
     assert row.get("write_perm_level") == "locked_no_write"
 
@@ -126,14 +154,14 @@ def test_expire_sets_time(engine, seed_memories):
     exec_ok(engine, {
         "stage": "STO",
         "op": "Expire",
-        "target": {"by_id": str(ids[0])},
-        "args": {"ttl": "P7D", "on_expire": "soft_delete"},
+        "target": {"ids": str(ids[0])},
+    "args": {"ttl": "P7D", "on_expire": "soft_delete"},
     })
     row2 = exec_ok(engine, {
         "stage": "RET",
         "op": "Retrieve",
-        "target": {"by_id": str(ids[0])},
-        "args": {"k": 1, "order_by": "time_desc"},
+        "target": {"ids": str(ids[0])},
+    "args": {},
     }).get("rows", [])[0]
     assert row2.get("expire_at")
 
@@ -143,7 +171,7 @@ def test_summarize_focus(engine, seed_memories):
     out = exec_ok(engine, {
         "stage": "RET",
         "op": "Summarize",
-        "target": {"by_tags": ["Alpha"]},
-        "args": {"focus": "项目概览", "max_tokens": 120},
+        "target": {"filter": {"has_tags": ["Alpha"], "limit": 10}},
+    "args": {"focus": "项目概览", "max_tokens": 120},
     })
     assert isinstance(out.get("summary", ""), str)

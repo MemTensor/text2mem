@@ -1,0 +1,26 @@
+{
+  "name": "Op Workflow - Label",
+  "steps": [
+    {
+      "name": "Seed: Encode a work note",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "今天处理了几个工作任务，准备下周计划。"},
+          "tags": ["工作", "待办"],
+          "type": "note"
+        }
+      }
+    },
+    {
+      "name": "Label: add priority tags",
+      "ir": {
+        "stage": "STO",
+        "op": "Label",
+        "target": {"filter": {"has_tags": ["工作"], "limit": 100}},
+        "args": {"tags": ["重要", "优先", "跟进"]}
+      }
+    }
+  ]
+}

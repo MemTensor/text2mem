@@ -1,0 +1,18 @@
+{
+  "name": "Op Workflow - Update via Search",
+  "steps": [
+    {"name":"Seed: Encode search target A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR 提升 Q3 转化率"},"tags":["OKR","target"],"type":"note"}}},
+    {"name":"Seed: Encode search target B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：围绕 OKR 指标讨论方案"},"tags":["meeting"],"type":"note"}}},
+    {"name":"Update using semantic search target","ir":{"stage":"STO","op":"Update","target":{"search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":2}},"args":{"set":{"weight":0.8}}}},
+
+    {"name":"Update via search + filter (tags + time)","ir":{"stage":"STO","op":"Update","target":{
+      "search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":3},
+      "filter":{"has_tags":["OKR"],"time_range":{"relative":"last","amount":7,"unit":"days"},"limit":3}
+    },"args":{"set":{"topic":"需求讨论"}}}},
+
+    {"name":"Update via search + filter (type + weight range)","ir":{"stage":"STO","op":"Update","target":{
+      "search":{"intent":{"query":"会议纪要"},"overrides":{"k":8},"limit":4},
+      "filter":{"type":"note","weight_gte":0.5,"limit":4}
+    },"args":{"set":{"subject":"OKR 复盘","weight":0.6}}}}
+  ]
+}

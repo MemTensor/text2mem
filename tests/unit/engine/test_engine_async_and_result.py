@@ -7,7 +7,7 @@ async def _run_async(engine):
     ir = {
         "stage": "ENC",
         "op": "Encode",
-        "args": {"payload": {"text": "async 测试"}, "tags": ["async"]}
+    "args": {"payload": {"text": "async 测试"}, "tags": ["async"]}
     }
     return await engine.process_ir(ir)
 

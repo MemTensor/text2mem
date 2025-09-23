@@ -1,4 +1,4 @@
-from text2mem.services.models_service_providers import create_models_service
+from text2mem.services.models_service_mock import create_models_service
 
 
 def test_semantic_search_and_dimension_guard():

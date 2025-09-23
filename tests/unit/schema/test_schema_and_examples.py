@@ -7,7 +7,7 @@ from text2mem.core.validate import IRValidator
 def test_schema_load_and_validate_examples():
     # This test lives at tests/unit/schema/, repo root is 3 levels up
     root = Path(__file__).resolve().parents[3]
-    schema_path = root / "text2mem" / "schema" / "text2mem-ir-v1_3.json"
+    schema_path = root / "text2mem" / "schema" / "text2mem-ir-v1.json"
     validator = IRValidator(schema_path)
 
     # Examples are in the root examples directory, not in text2mem/examples

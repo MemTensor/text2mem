@@ -85,11 +85,11 @@ def run_full(mode: str | None, db_path: str | None):
 
     _run({"stage":"RET","op":"Summarize","target":{"by_tags":["project","meeting"],"match":"all"},"args":{"focus":"项目A 会议进展","max_tokens":200}}, "Summarize project meetings")
 
-    _run({"stage":"STO","op":"Promote","target":{"by_id":str(ids['main']) if ids.get('main') else None},"args":{"priority":"urgent"}}, "Promote main")
+    _run({"stage":"STO","op":"Promote","target":{"by_id":str(ids['main']) if ids.get('main') else None},"args":{"weight":1.0}}, "Promote main")
 
     _run({"stage":"STO","op":"Demote","target":{"by_id":str(ids['secondary']) if ids.get('secondary') else None},"args":{"archive":True}}, "Demote secondary")
 
-    _run({"stage":"STO","op":"Update","target":{"by_tags":["project"]},"args":{"set":{"priority":"high","text":"项目A 会议内容已整理"}}}, "Update project")
+    _run({"stage":"STO","op":"Update","target":{"by_tags":["project"]},"args":{"set":{"weight":0.8,"text":"项目A 会议内容已整理"}}}, "Update project")
 
     _run({"stage":"STO","op":"Split","target":{"by_id":str(ids['long']) if ids.get('long') else None},"args":{"strategy":"headings","inherit":{"tags":True}}}, "Split long doc")
 

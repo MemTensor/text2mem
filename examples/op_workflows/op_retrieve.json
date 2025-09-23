@@ -1,0 +1,8 @@
+{
+  "name": "Op Workflow - Retrieve",
+  "steps": [
+    {"name":"Seed: Encode notes for search","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR 文档：提升 Q3 增长"},"tags":["OKR","doc"],"type":"note"}}},
+    {"name":"Seed: Encode another note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"周会记录：讨论 OKR 指标"},"tags":["meeting"],"type":"note"}}},
+    {"name":"Semantic retrieve by query","ir":{"stage":"RET","op":"Retrieve","target":{"search":{"intent":{"query":"OKR"},"overrides":{"k":5}}},"args":{}}}
+  ]
+}

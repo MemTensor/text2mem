@@ -1,0 +1,17 @@
+{
+  "name": "Op Workflow - Encode",
+  "steps": [
+    {
+      "name": "Encode a single memory",
+      "ir": {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "演示：这是一次用于 encode 的测试记忆。"},
+          "tags": ["demo", "encode"],
+          "type": "note"
+        }
+      }
+    }
+  ]
+}

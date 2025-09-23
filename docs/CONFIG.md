@@ -2,7 +2,19 @@
 
 ## 配置概述
 
-Text2Mem支持两种主要的模型服务提供商:
+Text2Mem 支持“Provider 与 Service 分离”的模型配置：
+
+- Provider：仅提供模型接口（EmbeddingModel / GenerationModel），如 Mock、Ollama、OpenAI。
+- Service：统一封装 encode / semantic_search / summarize / label / split 等高阶能力。
+
+推荐通过工厂统一创建 Service：
+
+```python
+from text2mem.services.service_factory import create_models_service
+service = create_models_service(mode="auto")  # auto/mock/ollama/openai
+```
+
+主要提供商：
 1. **OpenAI API** - 云端API服务，需要API密钥
 2. **Ollama** - 本地运行的开源模型服务
 
@@ -92,6 +104,18 @@ Text2Mem支持两种主要的模型服务提供商:
 2. **手动编辑**:
    编辑`.env`文件，注释/取消注释相应的配置部分
 
+3. **编程方式**（无需 CLI）：
+
+```python
+from text2mem.services.service_factory import create_models_service
+
+# 固定 provider
+service = create_models_service(mode="openai")  # 或 "ollama" / "mock"
+
+# 自动根据 .env/环境选择
+service = create_models_service(mode="auto")
+```
+
 ## 检查配置状态
 
 ```bash
@@ -109,3 +133,24 @@ pip install openai>=1.6.0
 # Ollama无需额外Python依赖，但需要本地运行Ollama服务
 # 详见: https://ollama.com
 ```
+
+## 语言与国际化（i18n）
+
+- 默认输出语言：英语（en）。
+- 全局默认可通过环境变量设置：
+
+   - TEXT2MEM_LANG=en    # 英文（默认）
+   - TEXT2MEM_LANG=zh    # 中文
+
+- 运行时的语言解析顺序：
+   1) 显式传入的 meta.lang 或调用参数 lang
+   2) 环境变量 TEXT2MEM_LANG
+   3) 自动检测输入是否包含中文（若包含则按中文）
+   4) 回落到英文（en）
+
+- 示例：
+
+   - 全局设置中文：在 shell 中 export TEXT2MEM_LANG=zh
+   - 单次调用使用英文：请求中带上 meta.lang="en"
+
+注：Schema 文档默认以英文描述，关键字段提供并行的 x-description-zh 以便中文阅读，无需每次指定语言。

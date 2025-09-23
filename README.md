@@ -2,9 +2,39 @@
 
 <h1>Text2Mem · 结构化记忆 IR 执行与检索引擎</h1>
 
-<b>IR Schema v1.3 → 校验 → 强类型解析 → 存储/检索/模型推理 → 统一结果</b>
+<b>IR Schema v1 → 校验 → 强类型解析 → 存储/检索/模型推理 → 统一结果</b>
 
 </div>
+
+---
+
+## 新增：Provider vs Service 职责划分（v0.2）
+
+- Provider（提供者）只负责“模型接口实现”：EmbeddingModel / GenerationModel（如 Mock、Ollama、OpenAI）。
+- Service 负责“编排与能力复用”：统一封装 encode/semantic_search/summarize/label/split 等高阶能力。
+- 工厂入口：通过 `text2mem.services.service_factory.create_models_service` 选择 provider 并组装 `ModelsService`。
+
+最简代码示例：
+
+```python
+from text2mem.services.service_factory import create_models_service
+from text2mem.adapters.sqlite_adapter import SQLiteAdapter
+from text2mem.core.engine import Text2MemEngine
+
+# 根据环境变量/参数自动选择 mock/ollama/openai
+service = create_models_service(mode="auto")
+adapter = SQLiteAdapter("./text2mem.db", models_service=service)
+engine = Text2MemEngine(adapter=adapter, models_service=service)
+
+res = engine.execute({
+	"stage": "ENC",
+	"op": "Encode",
+	"args": {"payload": {"text": "hello text2mem"}}
+})
+print(res.success, res.data)
+```
+
+注意：请使用 `service_factory` 或 `text2mem.services.models_service_mock`；已移除旧的 `models_service_providers` 别名。
 
 ---
 
@@ -44,7 +74,7 @@ Text2Mem/
 │  │  ├─ base.py            # BaseAdapter / ExecutionResult 协议
 │  │  └─ sqlite_adapter.py  # 全量 IR 操作原型实现
 │  ├─ services/             # 模型服务抽象（embedding / generation / 语义检索）
-│  ├─ schema/               # text2mem-ir-v1_3.json
+│  ├─ schema/               # text2mem-ir-v1.json
 │  └─ validate.py           # JSON Schema 校验封装
 ├─ scripts/                 # CLI 复用：demo 运行 / env 生成 / 分组配置
 ├─ examples/                # sample_ir_* / workflow_* 示例
@@ -116,6 +146,13 @@ export TEXT2MEM_GENERATION_PROVIDER=openai
 export TEXT2MEM_GENERATION_MODEL=gpt-3.5-turbo
 ```
 
+编程方式（不依赖 CLI）选择模型服务：
+
+```python
+from text2mem.services.service_factory import create_models_service
+service = create_models_service(mode="openai")  # 或者 "ollama" / "mock" / "auto"
+```
+
 ---
 
 ## 4. CLI 使用速览
@@ -183,8 +220,8 @@ python manage.py ir --inline '{"stage":"ENC","op":"Encode","meta":{"dry_run":tru
 | Update | 修改字段 | set.{...} | 修正内容、优先级 |
 | Merge | 合并 | strategy / primary_id | 去重聚合 |
 | Split | 拆分 | strategy / spans / inherit | 长文切片 |
-| Promote | 抬升权重 | priority / weight_delta / remind | 提醒/强化记忆 |
-| Demote | 降级/归档 | archive / priority / weight_delta | 过时内容降级 |
+| Promote | 抬升权重 | weight / weight_delta / remind | 提醒/强化记忆 |
+| Demote | 降级/归档 | archive / weight / weight_delta | 过时内容降级 |
 | Lock | 保护 | mode / policy | 防止误改 |
 | Expire | 过期策略 | ttl / until / on_expire | 生命周期治理 |
 | Delete | 删除 | soft / time_range | 清理空间 |

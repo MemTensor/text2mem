@@ -89,13 +89,21 @@ class OpenAIGenerationModel(BaseGenerationModel):
         logger.info(f"✅ OpenAI生成模型初始化: {model_name}")
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
         try:
+            import os, re
+            # Resolve language: explicit kwarg -> env -> auto-detect -> default 'en'
+            lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
+            if "lang" not in kwargs and re.search(r"[\u4e00-\u9fff]", prompt):
+                lang = "zh"
+
             temperature = kwargs.get("temperature", 0.7)
             max_tokens = kwargs.get("max_tokens", 512)
             top_p = kwargs.get("top_p", 1.0)
+            system_msg = "您是一个有用的AI助手。" if lang == "zh" else "You are a helpful AI assistant."
+
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "您是一个有用的AI助手。"},
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=temperature,
@@ -113,12 +121,23 @@ class OpenAIGenerationModel(BaseGenerationModel):
             raise
     def generate_structured(self, prompt: str, schema: Dict[str, Any], **kwargs) -> GenerationResult:
         try:
+            import os, re
+            # Resolve language: explicit kwarg -> env -> auto-detect -> default 'en'
+            lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
+            if "lang" not in kwargs and re.search(r"[\u4e00-\u9fff]", prompt):
+                lang = "zh"
+
             temperature = kwargs.get("temperature", 0.7)
             max_tokens = kwargs.get("max_tokens", 1024)
+            system_msg = (
+                "您是一个专业的AI助手，可以输出结构化数据。"
+                if lang == "zh"
+                else "You are a professional AI assistant that can output structured JSON."
+            )
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "您是一个专业的AI助手，可以输出结构化数据。"},
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=temperature,

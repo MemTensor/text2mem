@@ -45,8 +45,8 @@ class Text2MemEngine:
 
         # 加载schema
         if schema_path is None:
-            # core/engine.py -> ../../schema/text2mem-ir-v1_3.json
-            schema_path = Path(__file__).resolve().parent.parent / "schema" / "text2mem-ir-v1_3.json"
+            # core/engine.py -> ../../schema/text2mem-ir-v1.json
+            schema_path = Path(__file__).resolve().parent.parent / "schema" / "text2mem-ir-v1.json"
 
         with open(schema_path, "r", encoding="utf-8") as f:
             self.schema = json.load(f)

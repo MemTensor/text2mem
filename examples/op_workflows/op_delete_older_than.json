@@ -1,0 +1,9 @@
+{
+  "name": "Op Workflow - Delete older_than",
+  "steps": [
+    {"name":"Seed: old note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"2019 年的临时待办"},"tags":["todo","old"],"type":"note","time":"2019-07-01T09:00:00Z"}}},
+    {"name":"Seed: recent note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"最近的项目记录"},"tags":["project"],"type":"note","time":"2025-07-01T09:00:00Z"}}},
+  {"name":"Delete items older than 3 years (soft)","ir":{"stage":"STO","op":"Delete","target":{"filter":{"time_range":{"relative":"last","amount":3,"unit":"years"},"limit":100}},"args":{"soft":true},"meta":{"dry_run":true}}},
+  {"name":"Apply soft delete after preview","ir":{"stage":"STO","op":"Delete","target":{"filter":{"time_range":{"relative":"last","amount":3,"unit":"years"},"limit":100}},"args":{"soft":true},"meta":{"confirmation":true}}}
+  ]
+}

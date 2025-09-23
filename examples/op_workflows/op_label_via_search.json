@@ -1,0 +1,8 @@
+{
+  "name": "Op Workflow - Label via Search",
+  "steps": [
+    {"name":"Seed: Encode note for search","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"产品文档：OKR 方案"},"tags":["doc"],"type":"note"}}},
+    {"name":"Seed: Encode another note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"周会回顾：检查 OKR 进展"},"tags":["meeting"],"type":"note"}}},
+  {"name":"Label using semantic search target","ir":{"stage":"STO","op":"Label","target":{"search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":5}},"args":{"tags":["重点","跟进"]}}}
+  ]
+}

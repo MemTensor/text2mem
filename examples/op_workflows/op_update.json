@@ -1,0 +1,7 @@
+{
+  "name": "Op Workflow - Update",
+  "steps": [
+    {"name":"Seed: Encode note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"初版发布计划"},"tags":["release","plan"],"type":"note"}}},
+    {"name":"Update fields","ir":{"stage":"STO","op":"Update","target":{"filter":{"has_tags":["release"],"limit":100}},"args":{"set":{"weight":0.75,"text":"更新：发布计划V2"}}}}
+  ]
+}

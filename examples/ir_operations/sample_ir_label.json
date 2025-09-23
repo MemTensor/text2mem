@@ -2,8 +2,7 @@
   "stage": "STO",
   "op": "Label",
   "target": {
-    "by_id": "mem_12345",
-    "by_tags": ["工作"]
+  "filter": {"has_tags": ["工作"], "limit": 50}
   },
   "args": {
     "tags": ["重要", "优先", "跟进"]

@@ -2,19 +2,13 @@
   "stage": "STO",
   "op": "Demote",
   "target": {
-    "by_query": "已完成",
-    "filters": {
-      "time_range": {
-        "relative": "last",
-        "amount": 3,
-        "unit": "months"
-      },
-      "type": "task"
+    "filter": {
+  "time_range": {"start": "2025-06-01T00:00:00+08:00", "end": "2025-08-31T23:59:59+08:00"},
+      "type": "task",
+      "limit": 100
     }
   },
   "args": {
-    "archive": true,
-    "priority": "low",
     "weight_delta": -0.5
   }
 }

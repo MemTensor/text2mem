@@ -1,0 +1,7 @@
+{
+  "name": "Op Workflow - Demote",
+  "steps": [
+    {"name":"Seed: Encode note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"旧信息：过时的需求草案"},"tags":["old","archive"],"type":"note"}}},
+    {"name":"Demote: archive","ir":{"stage":"STO","op":"Demote","target":{"filter":{"has_tags":["archive"],"limit":100}},"args":{"archive":true}}}
+  ]
+}
