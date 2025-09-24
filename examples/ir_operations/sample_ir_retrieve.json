@@ -1,4 +1,5 @@
 {
+  "_comment": "请检索与‘OKR’相关的记忆，返回前5条，包含id、内容、时间和标签。",
   "stage": "RET",
   "op": "Retrieve",
   "target": {

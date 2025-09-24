@@ -535,16 +535,49 @@ def cmd_session():
 		line = line.strip()
 		if not line:
 			return
-		# 若整行是 JSON（IR）直接尝试执行
+		# 若整行是 JSON（IR/数组/op_workflow）直接尝试执行
 		if line[0] in '{[':
+			import re
 			try:
 				obj = json.loads(line)
-				if isinstance(obj, dict) and obj.get('op'):
+				# 1. op_workflow 格式 {"steps": [...]}
+				if isinstance(obj, dict) and "steps" in obj and isinstance(obj["steps"], list):
+					echo(f"检测到 op_workflow 格式，批量执行 {len(obj['steps'])} 步")
+					for i, step in enumerate(obj["steps"], 1):
+						ir = step.get("ir") if isinstance(step, dict) and "ir" in step else step
+						if isinstance(ir, dict) and ir.get("op"):
+							echo(f"➡️ step {i}: {ir.get('op')}")
+							exec_ir(ir)
+					return
+				# 2. 直接数组格式 [{"op": ...}, ...]
+				if isinstance(obj, list):
+					echo(f"检测到 IR 数组，批量执行 {len(obj)} 步")
+					for i, ir in enumerate(obj, 1):
+						if isinstance(ir, dict) and ir.get("op"):
+							echo(f"➡️ step {i}: {ir.get('op')}")
+							exec_ir(ir)
+					return
+				# 3. 单条 IR dict
+				if isinstance(obj, dict) and obj.get("op"):
 					history.append(line)
 					exec_ir(obj)
 					return
-			except Exception:
-				pass  # 继续按普通命令解析
+			except Exception as e:
+				# 尝试堆叠 IR 分割
+				matches = re.findall(r'\{.*?\}', line, re.DOTALL)
+				if matches and len(matches) > 1:
+					echo(f"检测到堆叠 IR 格式，批量执行 {len(matches)} 步")
+					for i, chunk in enumerate(matches, 1):
+						try:
+							ir = json.loads(chunk)
+							if isinstance(ir, dict) and ir.get("op"):
+								echo(f"➡️ step {i}: {ir.get('op')}")
+								exec_ir(ir)
+						except Exception as e2:
+							echo(f"❌ 第{i}步解析失败: {e2}")
+					return
+				echo(f"❌ JSON 解析失败: {e}")
+				return
 		history.append(line)
 		parts = line.split(' ', 1)
 		cmd = parts[0]

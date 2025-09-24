@@ -1,4 +1,5 @@
 {
+  "_comment": "请将所有标签为‘project’的记忆权重提升为1.0（最多20条），用于重点关注。",
   "stage": "STO",
   "op": "Promote",
   "target": {"filter": {"has_tags": ["project"], "limit": 20}},
