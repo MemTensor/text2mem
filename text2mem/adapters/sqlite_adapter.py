@@ -1,6 +1,6 @@
 # text2mem/adapters/sqlite_adapter.py
 from __future__ import annotations
-import json, sqlite3, re, os
+import json, sqlite3, re
 from datetime import datetime
 from typing import Any, Dict, Tuple
 from text2mem.adapters.base import BaseAdapter, ExecutionResult
@@ -351,8 +351,11 @@ class SQLiteAdapter(BaseAdapter):
 
         # Apply any filter/all constraints in conjunction with search
         # (build a base WHERE from filter/ids/all minus search)
-        base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
-        where, params = self._where_from_target(base_target) if (target.ids or target.filter or target.all) else ("1=1", ())
+        if target.ids or target.filter or target.all:
+            base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
+            where, params = self._where_from_target(base_target)
+        else:
+            where, params = ("1=1", ())
         where = f"({where}) AND deleted=0"  # ignore deleted
         select_sql = f"SELECT id, text, embedding, embedding_dim FROM memory WHERE {where}"
         rows = self.conn.execute(select_sql, params).fetchall()
@@ -906,16 +909,20 @@ class SQLiteAdapter(BaseAdapter):
         if ir.meta and ir.meta.dry_run:
             return {"message": f"模拟分割 {len(rows)} 条记忆", "strategy": args.strategy}
 
+        params = args.params if isinstance(args.params, dict) else {}
+
+        def _get_conf(name: str) -> dict:
+            conf = params.get(name)
+            return conf if isinstance(conf, dict) else {}
+
         def split_by_sentences(text: str, lang: str = "auto", max_sentences: int | None = None) -> list[str]:
-            # 朴素：按中英文句末分隔符切分
             parts = re.split(r"(?<=[。！？；.!?;])\s+", text.strip())
             parts = [p.strip() for p in parts if p.strip()]
             if max_sentences and max_sentences > 0:
-                # 每段最多 N 句，拼合
-                merged = []
-                buf = []
-                for s in parts:
-                    buf.append(s)
+                merged: list[str] = []
+                buf: list[str] = []
+                for sent in parts:
+                    buf.append(sent)
                     if len(buf) >= max_sentences:
                         merged.append(" ".join(buf))
                         buf = []
@@ -926,209 +933,88 @@ class SQLiteAdapter(BaseAdapter):
 
         def split_by_chunks(text: str, chunk_size: int | None = None, num_chunks: int | None = None) -> list[str]:
             if num_chunks and num_chunks > 0:
-                n = max(1, num_chunks)
-                size = max(1, len(text) // n + (1 if len(text) % n else 0))
+                size = max(1, len(text) // num_chunks + (1 if len(text) % num_chunks else 0))
             else:
                 size = max(50, chunk_size or 1000)
-            return [text[i:i+size] for i in range(0, len(text), size) if text[i:i+size].strip()]
+            chunks = [text[i : i + size] for i in range(0, len(text), size)]
+            return [c.strip() for c in chunks if c.strip()]
 
-        def split_custom(text: str, instruction: str, max_splits: int = 10) -> list[dict]:
-            """Custom split via local headings or model-assisted JSON.
-            Returns a list of {title?, text, range?} dicts.
-            """
-            # Read debug and bypass flags from params instead of env
-            _dbg = bool((args.params or {}).get("debug", False))
-            _bypass_llm = False
-            try:
-                top = args.params or {}
-                cust = (top.get("custom") if isinstance(top, dict) else None) or {}
-                _bypass_llm = bool(top.get("bypass_llm", False) or cust.get("bypass_llm", False))
-            except Exception:
-                _bypass_llm = False
-            if _dbg:
-                try:
-                    print("==== DEBUG Split(custom) begin ====")
-                    print(f"instruction={instruction!r}, max_splits={max_splits}")
-                    print(f"text_len={len(text)}; head=\n{(text[:300] + ('…' if len(text)>300 else ''))}")
-                except Exception:
-                    pass
-            # Local markdown headings fallback
-            def split_by_md_headings_local(src: str) -> list[dict]:
-                segments: list[dict] = []
-                lines = src.splitlines(keepends=True)
-                offsets: list[int] = []
-                total = 0
-                for ln in lines:
-                    offsets.append(total)
-                    total += len(ln)
-                heading_idx = [i for i, ln in enumerate(lines) if re.match(r"^#{1,6}\s+", ln)]
-                if not heading_idx:
-                    return []
-                heading_idx.append(len(lines))
-                for j in range(len(heading_idx) - 1):
-                    i = heading_idx[j]
-                    k = heading_idx[j + 1]
-                    start = offsets[i]
-                    end = offsets[k] if k < len(offsets) else len(src)
-                    chunk = src[start:end].strip()
-                    if not chunk:
-                        continue
-                    title = lines[i].lstrip('#').strip()
-                    segments.append({"title": title, "text": chunk, "range": [start, end]})
-                return segments[:max_splits]
+        def split_by_headings(text: str) -> list[dict]:
+            segments: list[dict] = []
+            lines = text.splitlines(keepends=True)
+            offsets: list[int] = []
+            total = 0
+            for ln in lines:
+                offsets.append(total)
+                total += len(ln)
+            heading_idx = [i for i, ln in enumerate(lines) if re.match(r"^#{1,6}\s+", ln)]
+            if not heading_idx:
+                return []
+            heading_idx.append(len(lines))
+            for idx, next_idx in zip(heading_idx[:-1], heading_idx[1:]):
+                start = offsets[idx]
+                end = offsets[next_idx] if next_idx < len(offsets) else len(text)
+                chunk = text[start:end].strip()
+                if not chunk:
+                    continue
+                title = lines[idx].lstrip('#').strip()
+                segments.append({"title": title, "text": chunk, "range": [start, end]})
+            return segments
 
-            # Local list-item fallback (e.g., "1. ...", "- ...", "一、..."), split into contiguous blocks
-            def split_by_list_items_local(src: str) -> list[dict]:
-                import re as _re
-                segments: list[dict] = []
-                lines = src.splitlines(keepends=True)
-                if not lines:
-                    return []
-                offsets: list[int] = []
-                total = 0
-                for ln in lines:
-                    offsets.append(total)
-                    total += len(ln)
-                pat = _re.compile(r"^\s*((?:\d{1,2}[\.)、])|(?:[一二三四五六七八九十]+[、.)])|(?:[-*•])\s+")
-                item_idx = [i for i, ln in enumerate(lines) if pat.match(ln)]
-                if len(item_idx) < 2:
-                    return []
-                item_idx.append(len(lines))
-                for j in range(len(item_idx) - 1):
-                    i = item_idx[j]
-                    k = item_idx[j + 1]
-                    start = offsets[i]
-                    end = offsets[k] if k < len(offsets) else len(src)
-                    chunk = src[start:end].strip()
-                    if not chunk:
-                        continue
-                    first = lines[i]
-                    title = pat.sub("", first).strip()
-                    segments.append({"title": title or None, "text": chunk, "range": [start, end]})
-                return segments[:max_splits]
-
-            try:
-                inst = (instruction or "").lower()
-                if ("标题" in inst) or ("heading" in inst) or ("#" in text):
-                    local = split_by_md_headings_local(text)
-                    if local:
-                        if _dbg:
-                            try:
-                                import json as _jsonlib
-                                print(f"-- used local markdown heading split, count={len(local)}")
-                                print((_jsonlib.dumps(local[:3], ensure_ascii=False)[:2000]))
-                            except Exception:
-                                pass
-                        return local
-                # Try list-item fallback when list-like patterns exist (no model needed)
-                local2 = split_by_list_items_local(text)
-                if local2:
-                    if _dbg:
-                        try:
-                            import json as _jsonlib
-                            print(f"-- used local list-item split, count={len(local2)}")
-                            print((_jsonlib.dumps(local2[:3], ensure_ascii=False)[:2000]))
-                        except Exception:
-                            pass
-                    return local2
-            except Exception:
-                pass
-
-            # Tiny-text guard: for short single-line text, avoid model; return as a single segment
-            if len(text.strip()) <= 32:
-                single = [{"text": text.strip(), "range": [0, len(text)]}]
-                if _dbg:
-                    try:
-                        import json as _jsonlib
-                        print("-- tiny-text guard used")
-                        print((_jsonlib.dumps(single, ensure_ascii=False)[:2000]))
-                    except Exception:
-                        pass
-                return single
-
-            # Delegate to ModelsService.split (unified API) and normalize outputs
-            try:
-                # Optional hard bypass: allow disabling LLM split via params
-                if _bypass_llm:
-                    splits = [{"text": text.strip(), "range": [0, len(text)]}] if text.strip() else []
-                else:
-                    splits = self.models_service.split(
-                        text,
-                        strategy="custom",
-                        params={
-                            "custom": {"instruction": instruction or "按主题拆分", "max_splits": max_splits},
-                            "max_splits": max_splits,
-                        },
-                    )
-                if _dbg:
-                    try:
-                        prompt_dbg = getattr(self.models_service, "debug_last_split_prompt", None)
-                        raw_dbg = getattr(self.models_service, "debug_last_split_raw_output", None)
-                        print("-- models_service.debug_last_split_prompt --")
-                        if isinstance(prompt_dbg, str):
-                            print(prompt_dbg[:2000])
-                        else:
-                            print("<none>")
-                        print("-- models_service.debug_last_split_raw_output --")
-                        if isinstance(raw_dbg, str):
-                            print(raw_dbg[:2000])
-                        else:
-                            print("<none>")
-                        import json as _jsonlib
-                        print("-- raw splits (truncated) --")
-                        try:
-                            print((_jsonlib.dumps(splits, ensure_ascii=False)[:2000]))
-                        except Exception:
-                            print(str(splits)[:1000])
-                    except Exception:
-                        pass
-            except Exception as _e:
-                if _dbg:
-                    try:
-                        print(f"-- models_service.split_custom raised: {type(_e).__name__}: {_e}")
-                    except Exception:
-                        pass
-                splits = []
-
-            norm: list[dict] = []
-            if _dbg and not splits:
-                try:
-                    print("-- models_service returned empty splits")
-                except Exception:
-                    pass
-            for s in (splits or []):
-                rng = s.get("range") if isinstance(s, dict) else None
-                t = ""
-                if isinstance(s, dict):
-                    t = (s.get("text") or "").strip()
-                if (not t) and isinstance(rng, list) and len(rng) == 2:
+        def normalize_custom_segments(raw_segments: list[dict], src: str) -> list[dict]:
+            normalized: list[dict] = []
+            for item in raw_segments or []:
+                if not isinstance(item, dict):
+                    continue
+                text_val = (item.get("text") or "").strip()
+                rng = item.get("range") if isinstance(item.get("range"), list) else None
+                if not text_val and rng and len(rng) == 2:
                     try:
                         start, end = int(rng[0]), int(rng[1])
-                        start = max(0, min(start, len(text)))
-                        end = max(start, min(end, len(text)))
-                        t = text[start:end].strip()
+                        start = max(0, min(start, len(src)))
+                        end = max(start, min(end, len(src)))
+                        text_val = src[start:end].strip()
                     except Exception:
-                        t = ""
-                if not t:
+                        text_val = ""
+                if not text_val:
                     continue
-                norm.append({
-                    "title": (s.get("title") if isinstance(s, dict) else None),
-                    "text": t,
-                    "range": rng if isinstance(rng, list) and len(rng) == 2 else None,
+                normalized.append({
+                    "title": item.get("title") if isinstance(item.get("title"), str) else None,
+                    "text": text_val,
+                    "range": rng if rng and len(rng) == 2 else None,
                 })
-            # Drop extremely short fragments to avoid single-character noise
-            norm = [x for x in norm if len((x.get("text") or "").strip()) >= 2]
-            if _dbg:
-                try:
-                    import json as _jsonlib
-                    print(f"-- normalized segments: count={len(norm)}")
-                    print((_jsonlib.dumps(norm[:5], ensure_ascii=False)[:2000]))
-                    if len(norm) > 5:
-                        print("(… more segments truncated …)")
-                    print("==== DEBUG Split(custom) end ====")
-                except Exception:
-                    pass
-            return norm
+            return normalized
+
+        def split_custom(text: str, instruction: str, max_splits: int = 10, force_model: bool = False) -> tuple[list[dict], str]:
+            # 1) markdown heading heuristic (unless forcing model)
+            if not force_model:
+                heading_segments = split_by_headings(text)
+                if heading_segments:
+                    return heading_segments[:max_splits], "custom:headings"
+
+            # 2) delegate to models service
+            service_used = False
+            try:
+                service_segments = self.models_service.split_custom(text, instruction or "按主题拆分", max_splits=max_splits)
+                service_used = True
+            except Exception:
+                service_segments = []
+            normalized = normalize_custom_segments(service_segments if isinstance(service_segments, list) else [], text)
+            if normalized:
+                return normalized[:max_splits], "custom:model" if service_used else "custom:model_fallback"
+
+            # 3) fallback: paragraph split by blank lines (unless force_model requested)
+            if not force_model:
+                paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+                if len(paragraphs) > 1:
+                    return ([{"text": p} for p in paragraphs[:max_splits]], "custom:paragraphs")
+
+            # 4) final fallback: sentence split
+            sentences = split_by_sentences(text)
+            if len(sentences) > 1:
+                return ([{"text": s} for s in sentences[:max_splits]], "custom:sentences")
+
+            return ([{"text": text.strip()}], "custom:single")
 
         # 处理各条目
         split_results = []
@@ -1138,34 +1024,44 @@ class SQLiteAdapter(BaseAdapter):
                 continue
 
             strategy = args.strategy
-            conf = args.params or {}
-            children: list[dict] = []
+            children: list[dict]
             if strategy == "by_sentences":
-                b = conf.get("by_sentences") if isinstance(conf, dict) else None
-                lang = (b.get("lang") if b else "auto") or "auto"
-                max_sent = b.get("max_sentences") if b else None
-                segs = split_by_sentences(text, lang=lang, max_sentences=max_sent)
-                children = [{"text": s} for s in segs if s.strip()]
+                conf = _get_conf("by_sentences")
+                segs = split_by_sentences(
+                    text,
+                    lang=(conf.get("lang") or "auto"),
+                    max_sentences=conf.get("max_sentences"),
+                )
+                children = [{"text": seg} for seg in segs if seg.strip()]
+                child_strategy = "by_sentences"
             elif strategy == "by_chunks":
-                b = conf.get("by_chunks") if isinstance(conf, dict) else None
-                size = b.get("chunk_size") if b else None
-                n = b.get("num_chunks") if b else None
-                segs = split_by_chunks(text, chunk_size=size, num_chunks=n)
-                children = [{"text": s} for s in segs if s.strip()]
-            else:  # custom
-                b = conf.get("custom") if isinstance(conf, dict) else None
-                instr = b.get("instruction") if b else None
-                max_splits = b.get("max_splits") if b else 10
-                splits = split_custom(text, instruction=instr or "按主题拆分", max_splits=max_splits)
-                children = [{"text": s.get("text"), "title": s.get("title"), "range": s.get("range")} for s in splits]
+                conf = _get_conf("by_chunks")
+                segs = split_by_chunks(
+                    text,
+                    chunk_size=conf.get("chunk_size"),
+                    num_chunks=conf.get("num_chunks"),
+                )
+                children = [{"text": seg} for seg in segs if seg.strip()]
+                child_strategy = "by_chunks"
+            else:
+                conf = _get_conf("custom")
+                instr = conf.get("instruction") if conf else None
+                max_splits = conf.get("max_splits") if conf else 10
+                splits, split_mode = split_custom(
+                    text,
+                    instruction=instr or "按主题拆分",
+                    max_splits=max_splits or 10,
+                    force_model=bool(conf.get("force_model")) if conf else False,
+                )
+                children = [{
+                    "text": s.get("text"),
+                    "title": s.get("title"),
+                    "range": s.get("range"),
+                } for s in splits if s.get("text")]
+                child_strategy = split_mode
 
             if not children or len(children) <= 1:
-                # As a safety net for tests, if sentence splitting yields <=1, try small chunking to produce children
-                if strategy == "by_sentences":
-                    alt = split_by_chunks(text, num_chunks=2)
-                    children = [{"text": s} for s in alt if s.strip()]
-                if not children or len(children) <= 1:
-                    continue
+                continue
 
             # 构建并插入子记录
             child_ids = []
@@ -1201,10 +1097,18 @@ class SQLiteAdapter(BaseAdapter):
                 child_ids.append(child_id)
 
             if child_ids:
-                split_results.append({"parent_id": row["id"], "split_count": len(child_ids), "child_ids": child_ids})
+                split_results.append({
+                    "parent_id": row["id"],
+                    "split_count": len(child_ids),
+                    "child_ids": child_ids,
+                    "strategy_used": child_strategy,
+                })
 
         self.conn.commit()
-        return {"results": split_results, "total_splits": sum(r.get("split_count", 0) for r in split_results)}
+        return {
+            "results": split_results,
+            "total_splits": sum(r.get("split_count", 0) for r in split_results),
+        }
 
     def _exec_lock(self, ir: IR, args: LockArgs) -> ExecutionResult:
         """锁定记忆操作"""
@@ -1334,7 +1238,17 @@ class SQLiteAdapter(BaseAdapter):
     def _exec_retrieve(self, ir: IR, args: RetrieveArgs) -> ExecutionResult:
         # 检索：基于 target
         target = ir.target
-        wh, ps = self._where_from_target(target)
+        base_target = target
+        if target and target.search is not None:
+            base_kwargs: dict[str, Any] = {}
+            if target.ids is not None:
+                base_kwargs["ids"] = target.ids
+            if target.filter is not None:
+                base_kwargs["filter"] = target.filter
+            if target.all:
+                base_kwargs["all"] = True
+            base_target = Target(**base_kwargs) if base_kwargs else None  # type: ignore[arg-type]
+        wh, ps = self._where_from_target(base_target)
         # 忽略 deleted
         wh = f"({wh}) AND deleted=0"
 

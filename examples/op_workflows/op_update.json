@@ -1,7 +1,46 @@
 {
   "name": "Op Workflow - Update",
   "steps": [
-    {"name":"Seed: Encode note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"初版发布计划"},"tags":["release","plan"],"type":"note"}}},
-    {"name":"Update fields","ir":{"stage":"STO","op":"Update","target":{"filter":{"has_tags":["release"],"limit":100}},"args":{"set":{"weight":0.75,"text":"更新：发布计划V2"}}}}
+    {
+      "name": "Seed: Encode note",
+      "ir": {
+        "_comment": "4 月初我在 Google Docs 写下‘初版发布计划’，包含上线窗口和依赖，先同步进记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "初版发布计划"
+          },
+          "tags": ["release", "plan"],
+          "type": "note",
+          "time": "2025-04-03T09:30:00+08:00",
+          "source": "google_doc",
+          "facets": {
+            "subject": "6 月版本",
+            "topic": "发布计划"
+          }
+        }
+      }
+    },
+    {
+      "name": "Update fields",
+      "ir": {
+        "_comment": "本周评审后计划有调整，需要把发布记忆更新成 V2，同时提升权重。请覆盖 text 字段并把 weight 设置成 0.75。",
+        "stage": "STO",
+        "op": "Update",
+        "target": {
+          "filter": {
+            "has_tags": ["release"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "set": {
+            "weight": 0.75,
+            "text": "更新：发布计划V2"
+          }
+        }
+      }
+    }
   ]
 }

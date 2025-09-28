@@ -1,13 +1,11 @@
 # moved from text2mem/models_service.py
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 import os
 from dataclasses import dataclass
 import logging
 import json
-import re
-import uuid
 from datetime import datetime
 
 logger = logging.getLogger("text2mem.models_service")
@@ -64,13 +62,6 @@ class BaseGenerationModel(ABC):
     def generate(self, prompt: str, **kwargs) -> GenerationResult: ...
     @abstractmethod
     def generate_structured(self, prompt: str, schema: Dict[str, Any], **kwargs) -> GenerationResult: ...
-
-
-class StructuredSplitError(ValueError):
-    def __init__(self, message: str, trace_id: Optional[str] = None, prompt_snippet: Optional[str] = None):
-        super().__init__(message)
-        self.trace_id = trace_id or str(uuid.uuid4())
-        self.prompt_snippet = prompt_snippet
 
 
 class DummyEmbeddingModel(BaseEmbeddingModel):
@@ -221,7 +212,24 @@ Content: {text}
         return self.generation_model.generate(prompt, max_tokens=50, lang=lang)
 
     def analyze_split_points(self, text: str, strategy: str = "auto_by_patterns", lang: str | None = None) -> GenerationResult:
-        raise NotImplementedError("analyze_split_points has been deprecated; use split() with a strategy instead")
+        lang = (lang or "en").lower()
+        if lang == "zh":
+            prompt = f"""分析以下文本的结构，建议分割点。策略：{strategy}
+
+文本：
+{text}
+
+请返回分割位置的索引列表，例如：[100, 250, 400]
+"""
+        else:
+            prompt = f"""Analyze the structure of the following text and suggest split points. Strategy: {strategy}
+
+Text:
+{text}
+
+Return index positions for splits, e.g., [100, 250, 400]
+"""
+        return self.generation_model.generate(prompt, max_tokens=120, lang=lang)
 
     # -------------------------------
     # Service-level structured helpers
@@ -252,7 +260,7 @@ Content: {text}
                 pass
         return None
 
-    def generate_json(self, prompt: str, expect: str = "object", max_tokens: int = 512, lang: Optional[str] = None, timeout: Optional[float] = None) -> GenerationResult:
+    def generate_json(self, prompt: str, expect: str = "object", max_tokens: int = 512, lang: Optional[str] = None) -> GenerationResult:
         """High-level structured generation.
         - Prefer provider's structured API when present (e.g., OpenAI's JSON mode).
         - Otherwise, add minimal instruction and parse JSON loosely.
@@ -263,7 +271,7 @@ Content: {text}
         schema_hint = {"type": "array", "items": {"type": "object"}} if expect == "array" else {"type": "object"}
         try:
             if hasattr(self.generation_model, "generate_structured") and callable(getattr(self.generation_model, "generate_structured")):
-                base_result = self.generation_model.generate_structured(prompt, schema_hint, max_tokens=max_tokens, lang=lang or "en", timeout=timeout)
+                base_result = self.generation_model.generate_structured(prompt, schema_hint, max_tokens=max_tokens, lang=lang or "en")
             else:
                 raise AttributeError("no structured support")
         except Exception:
@@ -273,7 +281,7 @@ Content: {text}
             else:
                 instr = "Output a JSON {} only, with no explanation or prefix/suffix.".format("array" if expect == "array" else "object")
             prompt2 = f"{prompt}\n\n{instr}"
-            base_result = self.generation_model.generate(prompt2, max_tokens=max_tokens, lang=lang or "en", timeout=timeout)
+            base_result = self.generation_model.generate(prompt2, max_tokens=max_tokens, lang=lang or "en")
 
         parsed = self._parse_json_loose(base_result.text, expect=expect)
         if parsed is not None:
@@ -289,294 +297,180 @@ Content: {text}
         # Last resort: return as-is
         return base_result
 
-    # -------------------------------
-    # New split() unified entry
-    # -------------------------------
-    def split(
-        self,
-        text: str,
-        strategy: str = "by_sentences",
-        params: Optional[Dict[str, Any]] = None,
-        lang: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """Unified split interface: by_sentences | by_chunks | custom.
+    def split_custom(self, text: str, instruction: str, max_splits: int = 10, lang: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Split text via model with structured preference and robust fallbacks.
 
-        Returns list of {text, title?, range?} in document order, deduped, truncated to params.max_splits (default 100).
+        Contract for outputs: list of segments, each is a dict with:
+          - text: string (required)
+          - title: optional string
+          - range: optional [start, end] character indices in the original text
+
+        Strategy:
+          1) Try structured JSON via generate_json(expect='array') with a minimal schema.
+          2) If unavailable, try to parse JSON from model output.
+          3) Fallback to plain-text lines parsing.
+          4) Normalize: trim, cap to max_splits, deduplicate, and approximate missing ranges.
         """
-        if not isinstance(text, str):
-            raise ValueError("text must be a string")
-        params = params or {}
-        max_splits_global = params.get("max_splits") if isinstance(params, dict) else None
-        if not isinstance(max_splits_global, int) or max_splits_global <= 0:
-            max_splits_global = 100
+        lang = (lang or "en").lower()
 
-        strategy = (strategy or "by_sentences").lower()
-        lang = (lang or params.get("lang") or "en").lower()
-        if lang == "auto":
-            lang = self._detect_lang_simple(text)
-
-        if strategy == "by_sentences":
-            seg_conf = (params.get("by_sentences") if isinstance(params, dict) else None) or {}
-            seg_lang = (seg_conf.get("lang") or lang or "auto").lower()
-            if seg_lang == "auto":
-                seg_lang = self._detect_lang_simple(text)
-            max_sentences = seg_conf.get("max_sentences")
-            if max_sentences is not None and (not isinstance(max_sentences, int) or max_sentences <= 0):
-                raise ValueError("by_sentences.max_sentences must be a positive integer or None")
-            items = self._split_by_sentences(text, seg_lang, max_sentences)
-            items = self._dedupe_order(items)
-            return items[:max_splits_global]
-
-        if strategy == "by_chunks":
-            ch_conf = (params.get("by_chunks") if isinstance(params, dict) else None) or {}
-            chunk_size = ch_conf.get("chunk_size")
-            num_chunks = ch_conf.get("num_chunks")
-            if num_chunks is not None:
-                if not isinstance(num_chunks, int) or num_chunks <= 0:
-                    raise ValueError("by_chunks.num_chunks must be a positive integer")
-                items = self._split_by_num_chunks(text, num_chunks)
-            else:
-                if chunk_size is None:
-                    chunk_size = 500
-                if not isinstance(chunk_size, int) or chunk_size <= 0:
-                    raise ValueError("by_chunks.chunk_size must be a positive integer")
-                items = self._split_by_chunk_size(text, chunk_size)
-            items = self._dedupe_order(items)
-            return items[:max_splits_global]
-
-        if strategy == "custom":
-            cu_conf = (params.get("custom") if isinstance(params, dict) else None) or {}
-            instruction = cu_conf.get("instruction")
-            if not instruction or not isinstance(instruction, str):
-                raise ValueError("custom.instruction is required and must be a string")
-            llm_max_splits = cu_conf.get("max_splits")
-            if not isinstance(llm_max_splits, int) or llm_max_splits <= 0:
-                llm_max_splits = 10
-
-            prompt = self._build_custom_prompt(text=text, instruction=instruction, max_splits=llm_max_splits, lang=lang)
-            schema = {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "title": {"type": "string"},
-                        "text": {"type": "string", "minLength": 1},
-                        "range": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                            "minItems": 2,
-                            "maxItems": 2,
-                        },
-                    },
-                    "oneOf": [
-                        {"required": ["text"]},
-                        {"required": ["range"]},
-                    ],
-                },
-            }
-            # Call structured generation only; errors bubble up as StructuredSplitError
-            timeout_sec = 20.0
-            try:
-                timeout_sec = float(cu_conf.get("timeout", timeout_sec))
-            except Exception:
-                pass
-            try:
-                res = self.generation_model.generate_structured(prompt, schema=schema, max_tokens=min(1024, max(256, len(text)//4)), lang=lang, timeout=timeout_sec)
-                self.debug_last_split_prompt = prompt
-                self.debug_last_split_raw_output = res.text
-            except Exception as e:
-                raise StructuredSplitError(f"structured generation failed: {type(e).__name__}: {e}", prompt_snippet=prompt[:500])
-
-            data = self._parse_json_loose(res.text, expect="array")
-            if not isinstance(data, list):
-                raise StructuredSplitError("model did not return an array", prompt_snippet=prompt[:500])
-            items = self._normalize_split_items(data, text, llm_max_splits)
-            items = self._dedupe_order(items)
-            return items[:max_splits_global]
-
-        raise ValueError("strategy must be one of: by_sentences|by_chunks|custom")
-
-    # -------------------------------
-    # Helpers for split
-    # -------------------------------
-    def _detect_lang_simple(self, text: str) -> str:
-        if re.search(r"[\u4e00-\u9fff]|[。！？；：]", text or ""):
-            return "zh"
-        return "en"
-
-    def _split_by_sentences(self, text: str, lang: str, max_sentences: Optional[int]) -> List[Dict[str, Any]]:
-        if not text:
-            return []
+        # Preferred: structured JSON generation
         if lang == "zh":
-            # Split on Chinese sentence enders, keep delimiters.
-            parts = re.split(r"([。！？；])", text)
+            prompt = (
+                "请将下面的文本按指令切分为不超过 {n} 段，返回一个 JSON 数组。\n"
+                "每个元素为对象，字段：title(可选)、text(必填)、range(可选，原文中的[start,end]索引)。\n"
+                "指令：{instr}\n\n"
+                "文本：\n{content}\n"
+            ).format(n=max_splits, instr=(instruction or "按主题切分"), content=text)
         else:
-            parts = re.split(r"([.!?])", text)
-        # Recombine delimiter with sentence
-        sentences: List[str] = []
-        buf = ""
-        for i in range(0, len(parts), 2):
-            seg = parts[i]
-            delim = parts[i+1] if i+1 < len(parts) else ""
-            chunk = (seg or "") + (delim or "")
-            if chunk:
-                sentences.append(chunk)
-        if not sentences:
-            sentences = [text]
-        # Merge by max_sentences
-        if max_sentences is None:
-            blocks = sentences
-        else:
-            blocks = []
-            for i in range(0, len(sentences), max_sentences):
-                blocks.append("".join(sentences[i:i+max_sentences]))
-        # Align ranges with rolling find
-        return self._align_ranges_by_find(text, [{"text": b} for b in blocks])
+            prompt = (
+                "Split the text into at most {n} segments according to the instruction and return a JSON array.\n"
+                "Each item is an object with fields: title(optional), text(required), range(optional [start,end] indices).\n"
+                "Instruction: {instr}\n\n"
+                "Text:\n{content}\n"
+            ).format(n=max_splits, instr=(instruction or "split by topics"), content=text)
 
-    def _split_by_chunk_size(self, text: str, chunk_size: int) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
-        i = 0
-        n = len(text)
-        while i < n:
-            j = min(n, i + chunk_size)
-            items.append({"text": text[i:j], "range": [i, j]})
-            i = j
-        return items
+        schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "text": {"type": "string"},
+                    "range": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "minItems": 2,
+                        "maxItems": 2,
+                    },
+                },
+                "required": ["text"],
+            },
+        }
 
-    def _split_by_num_chunks(self, text: str, num_chunks: int) -> List[Dict[str, Any]]:
-        n = len(text)
-        if num_chunks <= 1 or n == 0:
-            return [{"text": text, "range": [0, n]}] if text else []
-        base = n // num_chunks
-        rem = n % num_chunks
-        items: List[Dict[str, Any]] = []
-        start = 0
-        for k in range(num_chunks):
-            size = base + (1 if k < rem else 0)
-            end = start + size
-            items.append({"text": text[start:end], "range": [start, end]})
-            start = end
-        return items
+        try:
+            # Use generate_json to prefer provider's structured mode when available
+            structured = self.generate_json(prompt, expect="array", max_tokens=min(512, max(128, len(text)//5)), lang=lang)
+            self.debug_last_split_prompt = prompt
+            self.debug_last_split_raw_output = getattr(structured, "text", None)
+            parsed = self._parse_json_loose(structured.text, expect="array")
+        except Exception:
+            parsed = None
 
-    def _build_custom_prompt(self, text: str, instruction: str, max_splits: int, lang: str) -> str:
-        if (lang or "en").lower() == "zh":
-            return (
-                "请将下面的文本按指令切分为不超过 {n} 段，并**仅**返回一个 JSON 数组（不添加任何解释）。\n\n"
-                "每个数组元素是一个对象，字段规范如下（请严格遵守）：\n"
-                "- \"title\": 可选字符串，小标题\n"
-                "- \"text\": 可选字符串，表示该段的原文内容\n"
-                "- \"range\": 可选整数数组 [start, end]（半开区间，按原文字符索引）\n"
-                "- 以上三者中，至少提供 \"text\" 或 \"range\" 之一；禁止输出除上述以外的字段。\n"
-                "- 结果中的段落顺序必须与原文一致，禁止打乱或改写原文内容。\n\n"
-                "指令：\n{instr}\n\n文本：\n{text}\n"
-            ).format(n=max_splits, instr=instruction, text=text)
-        return (
-            "Split the following text into at most {n} segments and return a JSON ARRAY ONLY (no explanations).\n\n"
-            "Each item MUST be an OBJECT with the following fields (strict):\n"
-            "- \"title\": optional string (subtitle)\n"
-            "- \"text\":  optional string (verbatim content of the segment)\n"
-            "- \"range\": optional integer array [start, end) with character indices from the original text\n"
-            "- Provide AT LEAST ONE of \"text\" or \"range\"; DO NOT include any fields other than the above.\n"
-            "- Preserve the original order of the text; do not paraphrase.\n\n"
-            "Instruction:\n{instr}\n\nText:\n{text}\n"
-        ).format(n=max_splits, instr=instruction, text=text)
+        segments: List[Dict[str, Any]] = []
+        if isinstance(parsed, list):
+            for it in parsed[:max_splits]:
+                if isinstance(it, dict):
+                    seg_text = (it.get("text") or it.get("content") or "").strip()
+                    if not seg_text:
+                        # allow extracting any non-empty str value
+                        for v in it.values():
+                            if isinstance(v, str) and v.strip():
+                                seg_text = v.strip(); break
+                    if not seg_text:
+                        continue
+                    title = it.get("title") if isinstance(it.get("title"), str) else None
+                    rng = it.get("range") if isinstance(it.get("range"), list) and len(it.get("range")) == 2 else None
+                    segments.append({"text": seg_text, "title": title, "range": rng})
+                elif isinstance(it, str) and it.strip():
+                    segments.append({"text": it.strip()})
 
-    def _normalize_split_items(self, items: List[Any], source_text: str, max_splits: int) -> List[Dict[str, Any]]:
-        """Enforce schema, project to {text?, title?, range?}, fill text from range, align missing ranges, drop invalid, cap to max_splits."""
-        normalized: List[Dict[str, Any]] = []
-        for it in items:
-            if not isinstance(it, dict):
-                continue
-            # Strip unknown fields; keep only whitelist
-            title = it.get("title") if isinstance(it.get("title"), str) else None
-            text = it.get("text") if isinstance(it.get("text"), str) else None
-            rng = it.get("range") if isinstance(it.get("range"), list) and len(it.get("range")) == 2 else None
-            if rng is not None:
-                try:
-                    s, e = int(rng[0]), int(rng[1])
-                    s = max(0, min(s, len(source_text)))
-                    e = max(s, min(e, len(source_text)))
-                    rng = [s, e]
-                except Exception:
-                    rng = None
-            if not text and rng is not None:
-                s, e = rng
-                text = source_text[s:e]
-            if not text and rng is None:
-                # Must provide at least text or range
-                continue
-            if text is not None and len(text) == 0:
-                continue
-            normalized.append({"title": title, "text": text, "range": rng})
-            if len(normalized) >= max_splits:
-                break
-        # Align ranges for items missing range but with text
-        aligned = self._align_ranges_by_find(source_text, normalized)
-        return aligned[:max_splits]
-
-    def _align_ranges_by_find(self, doc: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        pos = 0
-        out: List[Dict[str, Any]] = []
-        for it in items:
-            t = (it.get("text") or "") if isinstance(it.get("text"), str) else ""
-            rng = it.get("range") if isinstance(it.get("range"), list) and len(it.get("range")) == 2 else None
-            if rng is not None:
-                s, e = int(rng[0]), int(rng[1])
-                s = max(0, min(s, len(doc)))
-                e = max(s, min(e, len(doc)))
-                out.append({**it, "range": [s, e], "text": t or doc[s:e]})
-                pos = e
-                continue
-            if not t:
-                # Nothing to align
-                out.append({**it, "range": None})
-                continue
-            idx = doc.find(t, pos)
-            if idx == -1:
-                # try compact match without spaces
-                compact_t = "".join(t.split())
-                compact_doc = "".join(doc[pos:].split())
-                idx2 = compact_doc.find(compact_t)
-                if idx2 == -1:
-                    out.append({**it, "range": None})
+        if not segments:
+            # Fallback: plain generation + heuristics
+            plain_prompt = (
+                f"Split the following text into at most {max_splits} plain-text segments, one per line.\n\n{text}\n"
+                if lang != "zh"
+                else f"请将下面的文本切分为不超过 {max_splits} 段，按行输出纯文本。\n\n{text}\n"
+            )
+            self.debug_last_split_prompt = plain_prompt
+            res = self.generation_model.generate(plain_prompt, max_tokens=min(256, max(64, len(text)//6)), lang=lang)
+            self.debug_last_split_raw_output = res.text
+            out = (res.text or "").strip()
+            lines = [ln.strip(" \t-•*#.") for ln in out.splitlines()]
+            lines = [ln for ln in lines if ln]
+            seen = set(); unique: List[str] = []
+            for ln in lines:
+                key = ln[:160]
+                if key in seen:
                     continue
-                out.append({**it, "range": None})
-                continue
-            s = idx
-            e = idx + len(t)
-            pos = e
-            out.append({**it, "range": [s, e]})
-        return out
+                seen.add(key)
+                unique.append(ln)
+                if len(unique) >= max_splits:
+                    break
+            segments = [{"text": s} for s in unique]
 
-    def _dedupe_order(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicates while preserving order (by text+range key). Drop empty text."""
-        seen: set = set()
-        out: List[Dict[str, Any]] = []
-        for it in items:
-            original_text = it.get("text") or ""
-            # Use strip only for emptiness check, but preserve original text content
-            if not original_text.strip():
-                continue
-            rng = it.get("range") if isinstance(it.get("range"), list) else None
-            key = (original_text, tuple(rng) if rng else None)
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append({"text": original_text, "title": it.get("title"), "range": rng})
-        return out
+        # Normalize: approximate ranges for segments without range
+        def _approx_ranges(doc: str, segs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            pos = 0
+            norm: List[Dict[str, Any]] = []
+            for seg in segs:
+                t = (seg.get("text") or "").strip()
+                if not t:
+                    continue
+                rng = seg.get("range")
+                if isinstance(rng, list) and len(rng) == 2 and all(isinstance(x, int) for x in rng):
+                    start, end = max(0, rng[0]), max(0, rng[1])
+                    if start <= end <= len(doc):
+                        norm.append({**seg, "range": [start, end]}); continue
+                # naive forward search to avoid picking earlier duplicate chunks
+                idx = doc.find(t, pos)
+                if idx == -1:
+                    # try a looser search by collapsing spaces
+                    compact_t = "".join(t.split())
+                    compact_doc = "".join(doc[pos:].split())
+                    idx2 = compact_doc.find(compact_t)
+                    if idx2 != -1:
+                        # can't reliably map back; keep no range
+                        norm.append({**seg, "range": None})
+                        continue
+                    norm.append({**seg, "range": None})
+                    continue
+                start = idx
+                end = idx + len(t)
+                pos = end
+                norm.append({**seg, "range": [start, end]})
+            return norm[:max_splits]
+
+        segments = _approx_ranges(text, segments)
+        if os.getenv("TEXT2MEM_DEBUG_SPLIT") == "1":
+            print("==== DEBUG split_custom normalized (begin) ====")
+            try:
+                print(json.dumps(segments, ensure_ascii=False)[:2000])
+            except Exception:
+                print("<non-text output>")
+            print("==== DEBUG split_custom normalized (end) ====")
+        return segments
+
+    def assess_importance(self, text: str, context: Optional[str] = None, lang: str | None = None) -> GenerationResult:
+        lang = (lang or "en").lower()
+        if lang == "zh":
+            prompt = f"""评估以下内容的重要性等级（低/中/高/紧急）。
+
+内容：{text}
+"""
+            if context:
+                prompt += f"\n上下文：{context}"
+        else:
+            prompt = f"""Assess the importance level of the following content (low/normal/high/urgent).
+
+Content: {text}
+"""
+            if context:
+                prompt += f"\nContext: {context}"
+        return self.generation_model.generate(prompt, max_tokens=20, lang=lang)
+
 
 class PromptTemplates:
-    SUMMARIZE_TEMPLATE = (
-        "请为以下记忆内容生成简洁摘要：\n\n"
-        "记忆内容：\n"
-        "{content}\n\n"
-        "要求：\n"
-        "- 保留关键信息\n"
-        "- 控制在{max_tokens}个token以内\n"
-        "{focus_instruction}\n\n"
-        "摘要："
-    )
+    SUMMARIZE_TEMPLATE = """请为以下记忆内容生成简洁摘要：
+
+记忆内容：
+{content}
+
+要求：
+- 保留关键信息
+- 控制在{max_tokens}个token以内
+{focus_instruction}
+
+摘要："""
 
 
 _models_service_instance: Optional[ModelsService] = None

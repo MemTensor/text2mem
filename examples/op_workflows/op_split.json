@@ -3,11 +3,48 @@
   "steps": [
     {
       "name": "Seed: Encode long text",
-      "ir": {"stage":"ENC","op":"Encode","args":{"payload":{"text":"# 标题\n第一段内容……\n\n# 第二节\n第二段内容更长……\n\n# 第三节\n第三段内容。"},"tags":["doc","long"],"type":"note"}}
+      "ir": {
+        "_comment": "我从知识库导出了一篇很长的项目复盘稿《渠道增长季度复盘》，正文有三个章节：背景、数据表现、后续动作。为了后面切片检索，先把全文存进记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "# 渠道增长季度复盘\n本季度渠道新增用户同比增长 16%，主要来自校园联动和合作社群。\n\n# 数据表现\n- 校园渠道带来 7.2 万新增，转化率 12%。\n- 自媒体渠道增长 8%，但复购率偏低，需要后续养成计划。\n- 支付漏斗在移动端第二步有 18% 流失。\n\n# 后续动作\n1. 10 月前优化支付验证流程并灰度上线。\n2. 与高校社团签署常态化合作协议。\n3. 自媒体渠道尝试会员留存激励方案。"
+          },
+          "tags": ["doc", "long"],
+          "type": "note",
+          "time": "2025-09-15T21:00:00+08:00",
+          "source": "knowledge_base",
+          "facets": {
+            "subject": "渠道增长组",
+            "topic": "季度复盘"
+          }
+        }
+      }
     },
     {
-  "name": "Split by sentences (auto)",
-  "ir": {"stage":"STO","op":"Split","target":{"filter":{"has_tags":["long"],"limit":100}},"args":{"strategy":"by_sentences","params":{"by_sentences":{"lang":"zh","max_sentences":10}},"inherit_all":true}}
+      "name": "Split by sentences (auto)",
+      "ir": {
+        "_comment": "运营同学希望这篇复盘拆成句子级别的片段，方便做问答引用。请对带 long 标签的记忆按中文句子切分，并继承原有元数据。",
+        "stage": "STO",
+        "op": "Split",
+        "target": {
+          "filter": {
+            "has_tags": ["long"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "strategy": "by_sentences",
+          "params": {
+            "by_sentences": {
+              "lang": "zh",
+              "max_sentences": 10
+            }
+          },
+          "inherit_all": true
+        }
+      }
     }
   ]
 }

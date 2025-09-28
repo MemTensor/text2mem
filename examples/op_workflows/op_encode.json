@@ -2,14 +2,23 @@
   "name": "Op Workflow - Encode",
   "steps": [
     {
-      "name": "Encode a single memory",
+      "name": "Encode memory from meeting recap",
       "ir": {
+        "_comment": "语音速记（会议刚散）：我这边刚开完渠道增长复盘。新客同比 +16%，主要靠校园联动活动；支付漏斗还是掉单，10 月 5 日前得提交优化方案；别忘了下周五前安排支付路径可用性测试，负责人是林钰，结果下次周会上要带。\n补充背景：这是我在 Slack 语音频道随手记下的重点，怕忘了那些截止时间。\n帮我把这段速记整理成结构化记忆，方便后面追踪行动项。",
         "stage": "ENC",
         "op": "Encode",
         "args": {
-          "payload": {"text": "演示：这是一次用于 encode 的测试记忆。"},
-          "tags": ["demo", "encode"],
-          "type": "note"
+          "payload": {
+            "text": "【渠道复盘要点】\n1. 新客增长同比 +16%，核心驱动是校园联动活动；\n2. 转化瓶颈出在支付流程，需在 10 月 5 日前给出优化方案；\n3. 行动项：下周五前安排支付路径可用性测试（负责人：林钰），并在下一次周会同步结果。"
+          },
+          "tags": ["会议", "复盘"],
+          "type": "event",
+          "facets": {
+            "time": "2025-09-26T16:00:00+08:00",
+            "subject": "渠道增长组",
+            "topic": "季度复盘"
+          },
+          "source": "manual_entry"
         }
       }
     }

@@ -1,9 +1,82 @@
 {
   "name": "Op Workflow - Delete via Search",
   "steps": [
-    {"name":"Seed: Encode OKR note A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR: 清理冗余任务与数据"},"tags":["OKR","cleanup"],"type":"note","time":"2024-01-10T09:00:00"}}},
-  {"name":"Seed: unrelated journal (noise)","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"随记：周末去超市买菜和看电影"},"tags":["life"],"type":"note","time":"2024-01-10T20:00:00"}}},
-    {"name":"Seed: Encode OKR note B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：讨论 OKR 清理策略"},"tags":["meeting","OKR"],"type":"note","time":"2024-01-11T10:00:00"}}},
-  {"name":"Delete using semantic search target (soft)","ir":{"stage":"STO","op":"Delete","target":{"search":{"intent":{"query":"OKR 清理"},"limit":2}},"args":{"soft":true}}}
+    {
+      "name": "Seed: Encode OKR note A",
+      "ir": {
+        "_comment": "1 月 10 日早会上我在 Notion 里写下 OKR 草案：‘OKR: 清理冗余任务与数据’，担心后面忘记目标，所以先同步到记忆库。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "OKR: 清理冗余任务与数据"},
+          "tags": ["OKR", "cleanup"],
+          "type": "note",
+          "time": "2024-01-10T09:00:00+08:00",
+          "source": "notion_doc",
+          "facets": {
+            "subject": "Q1 OKR",
+            "topic": "数据治理"
+          }
+        }
+      }
+    },
+    {
+      "name": "Seed: unrelated journal (noise)",
+      "ir": {
+        "_comment": "当天晚上在 Day One 写了个生活随记：‘周末去超市买菜和看电影’，也被同步进记忆库，后面检索要过滤掉。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "随记：周末去超市买菜和看电影"},
+          "tags": ["life"],
+          "type": "note",
+          "time": "2024-01-10T20:00:00+08:00",
+          "source": "dayone_journal"
+        }
+      }
+    },
+    {
+      "name": "Seed: Encode OKR note B",
+      "ir": {
+        "_comment": "第二天晨会纪要里提到‘会议记录：讨论 OKR 清理策略’，我从飞书文档复制过来做补充记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "会议记录：讨论 OKR 清理策略"},
+          "tags": ["meeting", "OKR"],
+          "type": "note",
+          "time": "2024-01-11T10:00:00+08:00",
+          "source": "feishu_doc",
+          "facets": {
+            "subject": "数据平台周会",
+            "topic": "OKR 清理"
+          }
+        }
+      }
+    },
+    {
+      "name": "Delete using semantic search target (soft)",
+      "ir": {
+        "_comment": "OKR 已经执行完毕，负责人在 Slack 上让我清掉所有‘OKR 清理’相关的过期记忆，避免后续检索噪音。请用语义搜索找到后软删除，生活随记不要动。",
+        "stage": "STO",
+        "op": "Delete",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "OKR 清理"
+            },
+            "overrides": {
+              "limit": 2,
+              "hydration": "ids"
+            },
+            "limit": 2
+          }
+        },
+        "args": {
+          "soft": true,
+          "reason": "阶段性 OKR 完成"
+        }
+      }
+    }
   ]
 }

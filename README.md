@@ -34,7 +34,7 @@ res = engine.execute({
 print(res.success, res.data)
 ```
 
-注意：请使用 `service_factory` 或 `text2mem.services.models_service_mock`；已移除旧的 `models_service_providers` 别名。
+注意：兼容入口 `text2mem.services.models_service_mock.create_models_service` 仍然可用，但推荐使用 `service_factory`。
 
 ---
 
@@ -170,7 +170,7 @@ python manage.py
 | 演示 | demo | 单步/全操作跑通 | `python manage.py demo --full --mode mock --perf --json` |
 | 快链 | features | Encode→Retrieve→Summarize 串联 | `python manage.py features --mode mock` |
 | IR | ir | 执行单条 | `python manage.py ir --inline '{"stage":"RET","op":"Retrieve","args":{"k":2}}'` |
-| 工作流 | workflow | 执行 workflow JSON | `python manage.py workflow examples/workflows/workflow_project_management.json` |
+| 工作流 | workflow | 执行 workflow JSON | `python manage.py workflow examples/real_world_scenarios/workflow_project_management.json` |
 | 工作流 | list-workflows | 列出示例 | `python manage.py list-workflows` |
 | 交互 | repl | 简化命令循环 | `python manage.py repl` |
 | 会话 | session | 脚本/粘贴 JSON / 切库 / 输出模式 | `python manage.py session --mode mock --output full` |

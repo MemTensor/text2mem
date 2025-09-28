@@ -1,13 +1,21 @@
 {
-  "_comment": "请将所有标签为‘长文’和‘报告’的记忆按中文句子切分，每条最多3句，分片继承全部原信息（最多10条）。",
+  "_comment": "知识运营：季度分析报告太长了（标签是长文和报告），请按中文句子分成不超过 3 句的片段，后续要给模型做摘要。",
   "stage": "STO",
   "op": "Split",
   "target": {
-  "filter": {"has_tags": ["长文", "报告"], "limit": 10}
+    "filter": {
+      "has_tags": ["长文", "报告"],
+      "limit": 10
+    }
   },
   "args": {
     "strategy": "by_sentences",
-  "params": { "by_sentences": { "lang": "zh", "max_sentences": 3 } },
-  "inherit_all": true
+    "params": {
+      "by_sentences": {
+        "lang": "zh",
+        "max_sentences": 3
+      }
+    },
+    "inherit_all": true
   }
 }

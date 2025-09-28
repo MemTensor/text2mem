@@ -1,18 +1,133 @@
 {
   "name": "Op Workflow - Update via Search",
   "steps": [
-    {"name":"Seed: Encode search target A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"OKR 提升 Q3 转化率"},"tags":["OKR","target"],"type":"note"}}},
-    {"name":"Seed: Encode search target B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：围绕 OKR 指标讨论方案"},"tags":["meeting"],"type":"note"}}},
-    {"name":"Update using semantic search target","ir":{"stage":"STO","op":"Update","target":{"search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":2}},"args":{"set":{"weight":0.8}}}},
-
-    {"name":"Update via search + filter (tags + time)","ir":{"stage":"STO","op":"Update","target":{
-      "search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":3},
-      "filter":{"has_tags":["OKR"],"time_range":{"relative":"last","amount":7,"unit":"days"},"limit":3}
-    },"args":{"set":{"topic":"需求讨论"}}}},
-
-    {"name":"Update via search + filter (type + weight range)","ir":{"stage":"STO","op":"Update","target":{
-      "search":{"intent":{"query":"会议纪要"},"overrides":{"k":8},"limit":4},
-      "filter":{"type":"note","weight_gte":0.5,"limit":4}
-    },"args":{"set":{"subject":"OKR 复盘","weight":0.6}}}}
+    {
+      "name": "Seed: Encode search target A",
+      "ir": {
+        "_comment": "OKR 规划文档里写了目标‘OKR 提升 Q3 转化率’，我把这句同步进记忆以便追踪。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "OKR 提升 Q3 转化率"},
+          "tags": ["OKR", "target"],
+          "type": "note",
+          "time": "2025-05-01T08:30:00+08:00",
+          "source": "okr_sheet",
+          "facets": {
+            "subject": "Q3 OKR",
+            "topic": "转化率"
+          }
+        }
+      }
+    },
+    {
+      "name": "Seed: Encode search target B",
+      "ir": {
+        "_comment": "周会录音里提到‘会议记录：围绕 OKR 指标讨论方案’，我把重点整理成记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "会议记录：围绕 OKR 指标讨论方案"},
+          "tags": ["meeting"],
+          "type": "note",
+          "time": "2025-05-02T10:00:00+08:00",
+          "source": "meeting_transcript",
+          "facets": {
+            "subject": "指标讨论会",
+            "topic": "转化率方案"
+          }
+        }
+      }
+    },
+    {
+      "name": "Update using semantic search target",
+      "ir": {
+        "_comment": "增长负责人希望 Q3 转化率目标在检索时优先返回，让我把相关记忆的权重提升。请用语义搜索定位后将 weight 调到 0.8。",
+        "stage": "STO",
+        "op": "Update",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "OKR 提升 Q3 转化率"
+            },
+            "overrides": {
+              "k": 5,
+              "hydration": "ids"
+            },
+            "limit": 2
+          }
+        },
+        "args": {
+          "set": {
+            "weight": 0.8
+          }
+        }
+      }
+    },
+    {
+      "name": "Update via search + filter (tags + time)",
+      "ir": {
+        "_comment": "最近一周新增的 OKR 讨论都需要打上‘需求讨论’主题，方便知识库筛选。请结合语义搜索和时间窗口过滤后更新 topic 字段。",
+        "stage": "STO",
+        "op": "Update",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "OKR转化率"
+            },
+            "overrides": {
+              "k": 5,
+              "hydration": "ids"
+            },
+            "limit": 3
+          },
+          "filter": {
+            "has_tags": ["OKR"],
+            "time_range": {
+              "relative": "last",
+              "amount": 7,
+              "unit": "days"
+            },
+            "limit": 3
+          }
+        },
+        "args": {
+          "set": {
+            "topic": "需求讨论"
+          }
+        }
+      }
+    },
+    {
+      "name": "Update via search + filter (type + weight range)",
+      "ir": {
+        "_comment": "另一个需求是把权重太高的会议纪要降级并加上新的 subject。请先用‘会议纪要’搜索，再筛选 note 类型且 weight≥0.5 的记录，然后把 subject 改为‘OKR 复盘’，权重调到 0.6。",
+        "stage": "STO",
+        "op": "Update",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "会议纪要"
+            },
+            "overrides": {
+              "k": 8,
+              "hydration": "ids"
+            },
+            "limit": 4
+          },
+          "filter": {
+            "type": "note",
+            "weight_gte": 0.5,
+            "limit": 4
+          }
+        },
+        "args": {
+          "set": {
+            "subject": "OKR 复盘",
+            "weight": 0.6
+          }
+        }
+      }
+    }
   ]
 }

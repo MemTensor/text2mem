@@ -1,7 +1,43 @@
 {
   "name": "Op Workflow - Demote",
   "steps": [
-    {"name":"Seed: Encode note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"旧信息：过时的需求草案"},"tags":["old","archive"],"type":"note"}}},
-    {"name":"Demote: archive","ir":{"stage":"STO","op":"Demote","target":{"filter":{"has_tags":["archive"],"limit":100}},"args":{"archive":true}}}
+    {
+      "name": "Seed: Encode note",
+      "ir": {
+        "_comment": "去年 11 月的 Jira Epic 里还有一份‘过时的需求草案’，内容已经被新版方案替换，但我当时为了留档先塞进记忆库。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "旧信息：过时的需求草案"
+          },
+          "tags": ["old", "archive"],
+          "type": "note",
+          "time": "2024-11-18T14:00:00+08:00",
+          "source": "jira_epic",
+          "facets": {
+            "subject": "支付重构 V0",
+            "topic": "废弃需求"
+          }
+        }
+      }
+    },
+    {
+      "name": "Demote: archive",
+      "ir": {
+        "_comment": "产品运营提醒我：旧版需求草案只作为归档保留，不该出现在默认检索里。请把所有带 archive 标签的记忆降级到归档层级。",
+        "stage": "STO",
+        "op": "Demote",
+        "target": {
+          "filter": {
+            "has_tags": ["archive"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "archive": true
+        }
+      }
+    }
   ]
 }

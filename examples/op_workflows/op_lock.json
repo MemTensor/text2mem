@@ -1,7 +1,44 @@
 {
   "name": "Op Workflow - Lock",
   "steps": [
-    {"name":"Seed: Encode sensitive note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"敏感会议记录：包含客户隐私"},"tags":["sensitive","meeting"],"type":"note"}}},
-    {"name":"Lock read-only","ir":{"stage":"STO","op":"Lock","target":{"filter":{"has_tags":["sensitive"],"limit":100}},"args":{"mode":"read_only","reason":"保护敏感记录"}}}
+    {
+      "name": "Seed: Encode sensitive note",
+      "ir": {
+        "_comment": "客户成功团队把一段保密会议的纪要发给我，上面写着‘敏感会议记录：包含客户隐私’，我为了后续回顾先存入记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "敏感会议记录：包含客户隐私"
+          },
+          "tags": ["sensitive", "meeting"],
+          "type": "note",
+          "time": "2025-02-20T13:00:00+08:00",
+          "source": "confidential_minutes",
+          "facets": {
+            "subject": "VIP 客户",
+            "topic": "隐私需求"
+          }
+        }
+      }
+    },
+    {
+      "name": "Lock read-only",
+      "ir": {
+        "_comment": "法务要求这批敏感纪要只能查阅不可修改，避免误操作。请把所有 sensitive 标签的记忆锁成只读状态，并备注原因。",
+        "stage": "STO",
+        "op": "Lock",
+        "target": {
+          "filter": {
+            "has_tags": ["sensitive"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "mode": "read_only",
+          "reason": "保护敏感记录"
+        }
+      }
+    }
   ]
 }

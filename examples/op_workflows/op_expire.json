@@ -1,7 +1,44 @@
 {
   "name": "Op Workflow - Expire",
   "steps": [
-    {"name":"Seed: Encode temp note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"临时笔记：仅保留一周"},"tags":["temp"],"type":"note"}}},
-    {"name":"Expire with TTL","ir":{"stage":"STO","op":"Expire","target":{"filter":{"has_tags":["temp"],"limit":100}},"args":{"ttl":"P7D","on_expire":"soft_delete"}}}
+    {
+      "name": "Seed: Encode temp note",
+      "ir": {
+        "_comment": "客服团队在飞书里发了一条通知：‘临时笔记：仅保留一周’（用于短期活动），我先放进记忆以便随时查阅。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "临时笔记：仅保留一周"
+          },
+          "tags": ["temp"],
+          "type": "note",
+          "time": "2025-04-01T09:30:00+08:00",
+          "source": "feishu_announcement",
+          "facets": {
+            "subject": "春季促销",
+            "topic": "临时提醒"
+          }
+        }
+      }
+    },
+    {
+      "name": "Expire with TTL",
+      "ir": {
+        "_comment": "活动结束后，运营同学希望这些临时笔记一周后自动失效。请给所有 temp 标签的记忆设置 7 天 TTL，过期时做软删除。",
+        "stage": "STO",
+        "op": "Expire",
+        "target": {
+          "filter": {
+            "has_tags": ["temp"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "ttl": "P7D",
+          "on_expire": "soft_delete"
+        }
+      }
+    }
   ]
 }

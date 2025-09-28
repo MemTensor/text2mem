@@ -1,7 +1,46 @@
 {
   "name": "Op Workflow - Promote with Remind",
   "steps": [
-    {"name":"Seed: Encode task","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"准备季度汇报材料"},"tags":["task","Q3"],"type":"task"}}},
-    {"name":"Promote: add RRULE remind","ir":{"stage":"STO","op":"Promote","target":{"filter":{"has_tags":["task"],"limit":50}},"args":{"remind":{"rrule":"FREQ=WEEKLY;BYDAY=MO","until":"2025-12-31T23:59:59Z"}}}}
+    {
+      "name": "Seed: Encode task",
+      "ir": {
+        "_comment": "主管在 Jira 里指派我‘准备季度汇报材料’，我把任务同步到记忆里，方便后面触发提醒。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "准备季度汇报材料"
+          },
+          "tags": ["task", "Q3"],
+          "type": "task",
+          "time": "2025-06-17T08:45:00+08:00",
+          "source": "jira_task",
+          "facets": {
+            "subject": "Q3 汇报",
+            "topic": "经营分析"
+          }
+        }
+      }
+    },
+    {
+      "name": "Promote: add RRULE remind",
+      "ir": {
+        "_comment": "为了每周跟进材料进度，主管要求在周一上午提醒我更新。请把 task 标签的记录加上每周一的重复提醒，直到 2025 年底。",
+        "stage": "STO",
+        "op": "Promote",
+        "target": {
+          "filter": {
+            "has_tags": ["task"],
+            "limit": 50
+          }
+        },
+        "args": {
+          "remind": {
+            "rrule": "FREQ=WEEKLY;BYDAY=MO",
+            "until": "2025-12-31T23:59:59Z"
+          }
+        }
+      }
+    }
   ]
 }

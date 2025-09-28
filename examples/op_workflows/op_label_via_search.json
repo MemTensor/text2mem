@@ -1,8 +1,67 @@
 {
   "name": "Op Workflow - Label via Search",
   "steps": [
-    {"name":"Seed: Encode note for search","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"产品文档：OKR 方案"},"tags":["doc"],"type":"note"}}},
-    {"name":"Seed: Encode another note","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"周会回顾：检查 OKR 进展"},"tags":["meeting"],"type":"note"}}},
-  {"name":"Label using semantic search target","ir":{"stage":"STO","op":"Label","target":{"search":{"intent":{"query":"OKR"},"overrides":{"k":5},"limit":5}},"args":{"tags":["重点","跟进"]}}}
+    {
+      "name": "Seed: Encode note for search",
+      "ir": {
+        "_comment": "产品运营在知识库里上传了‘产品文档：OKR 方案’，我复制摘要放进记忆，后面方便检索。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "产品文档：OKR 方案"},
+          "tags": ["doc"],
+          "type": "note",
+          "time": "2025-03-05T11:00:00+08:00",
+          "source": "wiki_page",
+          "facets": {
+            "subject": "OKR 方案",
+            "topic": "产品规划"
+          }
+        }
+      }
+    },
+    {
+      "name": "Seed: Encode another note",
+      "ir": {
+        "_comment": "周三同步会上主持人说‘周会回顾：检查 OKR 进展’，我把录音里这段重点整理出来。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "周会回顾：检查 OKR 进展"},
+          "tags": ["meeting"],
+          "type": "note",
+          "time": "2025-03-05T17:30:00+08:00",
+          "source": "meeting_transcript",
+          "facets": {
+            "subject": "产品周会",
+            "topic": "OKR 追踪"
+          }
+        }
+      }
+    },
+    {
+      "name": "Label using semantic search target",
+      "ir": {
+        "_comment": "事业部总监想要快速筛选 OKR 重点，让我把所有跟 OKR 相关的记忆统一贴上‘重点/跟进’标签。请用语义搜索抓取前 5 条再追加标签。",
+        "stage": "STO",
+        "op": "Label",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "OKR"
+            },
+            "overrides": {
+              "k": 5,
+              "hydration": "ids"
+            },
+            "limit": 5
+          }
+        },
+        "args": {
+          "tags": ["重点", "跟进"],
+          "mode": "add"
+        }
+      }
+    }
   ]
 }

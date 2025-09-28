@@ -3,19 +3,20 @@
 Project manager for Text2Mem
 
 Commands:
-  - status: quick environment status
-  - config: write a .env file (--provider [ollama|openai])
-  - setup-ollama: pull default models via ollama (if installed)
+	- status: quick environment status
+	- config: write a .env file (--provider [mock|ollama|openai])
+	- setup-ollama: pull default models via ollama (if installed)
 	- setup-openai: create/update .env for OpenAI usage
-	- workflow: run a workflow JSON (examples/workflows/*.json)
-  - test: run tests (pytest), or smoke integration if pytest absent
+		- workflow: run a workflow JSON (examples/real_world_scenarios/*.json)
+	- test: run tests (pytest), or smoke integration if pytest absent
 	- models-info: show resolved provider/models from current env
 	- models-smoke [mode]: minimal embed+generate smoke (mock|ollama|openai|auto)
 	- features [--mode ...] [--db ...]: run encode/retrieve/summarize flow
 	- ir [--mode ...] (--file path.json | --inline '{...}') [--db ...]: execute a single IR
+	- demo [--mode ...] [--db ...] [--set workflows|individual]: batch-run curated examples
 	- list-workflows: list bundled workflow files
 	- repl [--mode ...] [--db ...]: interactive shell to run commands (embed/gen/ir/...)
-		- bench-planning --input file.jsonl [--out report.json]: validate schemas against IR v1
+	- bench-planning --input file.jsonl [--out report.json]: validate schemas against IR v1
 """
 import os, sys, subprocess, re, json, argparse, time
 from pathlib import Path
@@ -212,42 +213,123 @@ def cmd_ir():
 	echo(f"✅ 执行成功 | {preview}{'…' if len(preview)>=400 else ''}")
 	return 0
 
+
 def cmd_run_demo():
-	"""运行演示：基于 examples/op_workflows 中的最小可执行工作流。
-	用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set basic|ops]
-	- basic: 运行一个小型 Encode->Retrieve->Summarize
-	- ops: 依次运行每个单操作工作流（带前置种子）
+	"""运行演示：批量执行预置流程或单条 IR 示例。
+	用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set workflows|individual|scenarios]
+	- workflows: 依次运行 examples/op_workflows 下的多步骤操作工作流
+	- individual: 逐个执行 examples/ir_operations 下的单条 IR 示例
+	- scenarios: 依次运行 examples/real_world_scenarios 下的现实情境工作流
 	"""
 	parser = argparse.ArgumentParser(prog='manage.py demo', add_help=False)
 	parser.add_argument('--mode', choices=['mock','ollama','openai','auto'], default=None)
 	parser.add_argument('--db', dest='db_path', default=None)
-	parser.add_argument('--set', choices=['basic','ops'], default='ops')
+	parser.add_argument('--set', choices=['workflows','individual','scenarios'], default='workflows')
 	try:
 		args = parser.parse_args(sys.argv[2:])
 	except SystemExit:
-		echo('用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set basic|ops]'); return 2
+		echo('用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set workflows|individual|scenarios]'); return 2
 
 	service, engine = _build_engine_and_adapter(args.mode, args.db_path)
 	echo(f"🧠 模型服务: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
 	echo(f"🗄️  数据库: {args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db'}")
 
-	if args.set == 'basic':
-		run_basic_demo(echo, engine)
+	from text2mem.core.engine import Text2MemEngine
+	from text2mem.adapters.sqlite_adapter import SQLiteAdapter
+	# Rebuild engine to ensure same service but fresh adapter DB path
+	adapter = SQLiteAdapter(args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db', models_service=service)
+	engine = Text2MemEngine(adapter=adapter, models_service=service)
+
+	import json as _json
+
+	def _echo_ir_result(ir_obj, out):
+		op = ir_obj.get('op') if isinstance(ir_obj, dict) else None
+		if op == 'Encode':
+			rid = None
+			if isinstance(out, dict):
+				rid = out.get('inserted_id') or out.get('id')
+			echo(f"   ✅ id={rid} dim={out.get('embedding_dim') if isinstance(out, dict) else 'n/a'}")
+		elif op == 'Retrieve':
+			if isinstance(out, list):
+				rows = out
+			elif isinstance(out, dict):
+				rows = out.get('rows') or out.get('matches') or []
+			else:
+				rows = []
+			echo(f"   ✅ rows={len(rows)}")
+		elif op == 'Summarize':
+			summary = ''
+			if isinstance(out, dict):
+				summary = str(out.get('summary',''))
+			echo(f"   📝 {summary[:160]}{'…' if len(summary)>160 else ''}")
+		else:
+			affected = None
+			if isinstance(out, dict):
+				affected = out.get('affected_rows') or out.get('updated_rows') or out.get('success_count')
+			if affected is not None:
+				echo(f"   ✅ affected={affected}")
+			else:
+				echo("   ✅ 完成")
+
+	ran = 0
+	if args.set == 'individual':
+		ir_dir = ROOT / 'examples' / 'ir_operations'
+		files = sorted(ir_dir.glob('*.json'))
+		if not files:
+			echo('ℹ️ 未找到 examples/ir_operations 下的示例。'); return 0
+		for path in files:
+			ir = _json.loads(path.read_text(encoding='utf-8'))
+			echo(f"🚀 执行 {path.name} -> {ir.get('op')} ({ir.get('stage')})")
+			try:
+				res = engine.execute(ir)
+			except Exception as e:
+				echo(f"❌ 执行失败: {e}"); return 1
+			if not getattr(res, 'success', False):
+				echo(f"❌ 失败: {res.error}"); return 1
+			out = res.data or {}
+			_echo_ir_result(ir, out)
+			ran += 1
+		echo(f"🎉 demo 完成，共执行 {ran} 步")
 		return 0
 
-	# ops: run curated op workflows
+	if args.set == 'scenarios':
+		wf_dir = ROOT / 'examples' / 'real_world_scenarios'
+		files = sorted(wf_dir.glob('*.json'))
+		if not files:
+			echo('ℹ️ 未找到 examples/real_world_scenarios 下的工作流。'); return 0
+		for path in files:
+			data = _json.loads(path.read_text(encoding='utf-8'))
+			steps = data.get('steps', [])
+			echo(f"🚀 运行 {path.name} | 步骤 {len(steps)}")
+			for i, step in enumerate(steps, start=1):
+				ir = step.get('ir') or step
+				title = step.get('name') or step.get('description') or f'step {i}'
+				echo(f"➡️  [{path.name}] {title} -> {ir.get('op')}")
+				try:
+					res = engine.execute(ir)
+				except Exception as e:
+					echo(f"❌ 执行失败: {e}"); return 1
+				if not getattr(res, 'success', False):
+					echo(f"❌ 失败: {res.error}"); return 1
+				out = res.data or {}
+				_echo_ir_result(ir, out)
+				ran += 1
+		echo(f"🎉 demo 完成，共执行 {ran} 步")
+		return 0
+
+	# workflows: run curated op workflows
 	wf_dir = ROOT / 'examples' / 'op_workflows'
 	files = [
 		'op_encode.json',
 		'op_label.json',
 		'op_label_search.json',
-	'op_label_via_search.json',
+		'op_label_via_search.json',
 		'op_promote.json',
 		'op_promote_search.json',
 		'op_demote.json',
 		'op_update.json',
 		'op_delete_search.json',
-	'op_update_via_search.json',
+		'op_update_via_search.json',
 		'op_delete.json',
 		'op_lock.json',
 		'op_expire.json',
@@ -257,14 +339,6 @@ def cmd_run_demo():
 		'op_retrieve.json',
 		'op_summarize.json',
 	]
-	from text2mem.core.engine import Text2MemEngine
-	from text2mem.adapters.sqlite_adapter import SQLiteAdapter
-	# Rebuild engine to ensure same service but fresh adapter DB path
-	adapter = SQLiteAdapter(args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db', models_service=service)
-	engine = Text2MemEngine(adapter=adapter, models_service=service)
-
-	import json as _json
-	ran = 0
 	for name in files:
 		path = wf_dir / name
 		if not path.exists():
@@ -283,22 +357,7 @@ def cmd_run_demo():
 			if not getattr(res, 'success', False):
 				echo(f"❌ 失败: {res.error}"); return 1
 			out = res.data or {}
-			op = ir.get('op')
-			if op == 'Encode':
-				rid = out.get('inserted_id') or out.get('id')
-				echo(f"   ✅ id={rid} dim={out.get('embedding_dim')}")
-			elif op == 'Retrieve':
-				rows = out.get('rows') if isinstance(out, dict) else []
-				echo(f"   ✅ rows={len(rows)}")
-			elif op == 'Summarize':
-				s = str(out.get('summary',''))
-				echo(f"   📝 {s[:160]}{'…' if len(s)>160 else ''}")
-			else:
-				affected = out.get('affected_rows') or out.get('updated_rows')
-				if affected is not None:
-					echo(f"   ✅ affected={affected}")
-				else:
-					echo("   ✅ 完成")
+			_echo_ir_result(ir, out)
 			ran += 1
 	echo(f"🎉 demo 完成，共执行 {ran} 步")
 	return 0
@@ -306,7 +365,7 @@ def cmd_run_demo():
 
 def cmd_list_workflows():
 	"""列出内置工作流文件。"""
-	candidates = [ROOT/"examples"/"workflows", ROOT/"examples"/"op_workflows", ROOT/"text2mem"/"examples"]
+	candidates = [ROOT/"examples"/"real_world_scenarios", ROOT/"examples"/"op_workflows", ROOT/"text2mem"/"examples"]
 	files = []
 	for d in candidates:
 		if d.exists():
@@ -535,49 +594,16 @@ def cmd_session():
 		line = line.strip()
 		if not line:
 			return
-		# 若整行是 JSON（IR/数组/op_workflow）直接尝试执行
+		# 若整行是 JSON（IR）直接尝试执行
 		if line[0] in '{[':
-			import re
 			try:
 				obj = json.loads(line)
-				# 1. op_workflow 格式 {"steps": [...]}
-				if isinstance(obj, dict) and "steps" in obj and isinstance(obj["steps"], list):
-					echo(f"检测到 op_workflow 格式，批量执行 {len(obj['steps'])} 步")
-					for i, step in enumerate(obj["steps"], 1):
-						ir = step.get("ir") if isinstance(step, dict) and "ir" in step else step
-						if isinstance(ir, dict) and ir.get("op"):
-							echo(f"➡️ step {i}: {ir.get('op')}")
-							exec_ir(ir)
-					return
-				# 2. 直接数组格式 [{"op": ...}, ...]
-				if isinstance(obj, list):
-					echo(f"检测到 IR 数组，批量执行 {len(obj)} 步")
-					for i, ir in enumerate(obj, 1):
-						if isinstance(ir, dict) and ir.get("op"):
-							echo(f"➡️ step {i}: {ir.get('op')}")
-							exec_ir(ir)
-					return
-				# 3. 单条 IR dict
-				if isinstance(obj, dict) and obj.get("op"):
+				if isinstance(obj, dict) and obj.get('op'):
 					history.append(line)
 					exec_ir(obj)
 					return
-			except Exception as e:
-				# 尝试堆叠 IR 分割
-				matches = re.findall(r'\{.*?\}', line, re.DOTALL)
-				if matches and len(matches) > 1:
-					echo(f"检测到堆叠 IR 格式，批量执行 {len(matches)} 步")
-					for i, chunk in enumerate(matches, 1):
-						try:
-							ir = json.loads(chunk)
-							if isinstance(ir, dict) and ir.get("op"):
-								echo(f"➡️ step {i}: {ir.get('op')}")
-								exec_ir(ir)
-						except Exception as e2:
-							echo(f"❌ 第{i}步解析失败: {e2}")
-					return
-				echo(f"❌ JSON 解析失败: {e}")
-				return
+			except Exception:
+				pass  # 继续按普通命令解析
 		history.append(line)
 		parts = line.split(' ', 1)
 		cmd = parts[0]

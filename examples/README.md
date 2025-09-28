@@ -40,9 +40,9 @@
   - python manage.py repl --db ./text2mem.db
   - 在提示符粘贴 ir_operations/*.json 内容回车执行
 - 运行工作流：
-  - python manage.py workflow examples/workflows/workflow_meeting_notes.json --mode mock --db ./text2mem.db
-  - python manage.py workflow examples/workflows/workflow_project_management.json --mode mock --db ./text2mem.db
-  - python manage.py workflow examples/workflows/workflow_knowledge_management.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/real_world_scenarios/workflow_meeting_notes.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/real_world_scenarios/workflow_project_management.json --mode mock --db ./text2mem.db
+  - python manage.py workflow examples/real_world_scenarios/workflow_knowledge_management.json --mode mock --db ./text2mem.db
 - 运行最小操作工作流：
   - python manage.py workflow examples/op_workflows/op_delete.json --mode mock --db ./text2mem.db
   - python manage.py workflow examples/op_workflows/op_label.json --mode mock --db ./text2mem.db

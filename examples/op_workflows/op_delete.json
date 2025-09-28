@@ -4,19 +4,26 @@
     {
       "name": "Seed: Encode OKR note (within time range)",
       "ir": {
+        "_comment": "7 月底整理 Confluence 时发现旧版《Q3 增长 OKR 提交稿》，里面写着‘OKR：Q3 增长 20%’这条初稿。我怕历史版本丢失临时先存入记忆，留个档。",
         "stage": "ENC",
         "op": "Encode",
         "args": {
           "payload": {"text": "OKR：Q3 增长 20%"},
           "tags": ["OKR", "Q3"],
           "type": "note",
-          "time": "2025-08-10T10:00:00+08:00"
+          "time": "2025-08-10T10:00:00+08:00",
+          "source": "confluence_archive",
+          "facets": {
+            "subject": "Q3 初稿",
+            "topic": "增长目标"
+          }
         }
       }
     },
     {
       "name": "Delete by tag + time range",
       "ir": {
+        "_comment": "现在 OKR 定稿已经是‘增长 18%’版本，之前那条 20% 的初稿会干扰检索。请把 7-8 月之间带 OKR 标签的草稿删除，只保留最新结果。",
         "stage": "STO",
         "op": "Delete",
         "target": {"filter": {"has_tags": ["OKR"], "time_range": {"start": "2025-07-01T00:00:00+08:00", "end": "2025-08-31T23:59:59+08:00"}, "limit": 100}},

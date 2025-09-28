@@ -1,9 +1,81 @@
 {
   "name": "Op Workflow - Promote via Search",
   "steps": [
-  {"name":"Seed: Encode target note A","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"关键任务：完善 OKR 复盘机制"},"tags":["OKR","priority"],"type":"note"}}},
-  {"name":"Seed: unrelated diary","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"生活随记：今天跑步 5 公里"},"tags":["life"],"type":"note"}}},
-  {"name":"Seed: Encode target note B","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议纪要：OKR 指标推进计划"},"tags":["meeting","OKR"],"type":"note"}}},
-  {"name":"Promote using semantic search target","ir":{"stage":"STO","op":"Promote","target":{"search":{"intent":{"query":"OKR"},"limit":3}},"args":{"weight":0.9}}}
+    {
+      "name": "Seed: Encode target note A",
+      "ir": {
+        "_comment": "OKR 回顾会后我在 Miro 卡片上写了‘关键任务：完善 OKR 复盘机制’，保存进记忆以便后续跟踪。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "关键任务：完善 OKR 复盘机制"},
+          "tags": ["OKR", "priority"],
+          "type": "note",
+          "time": "2025-04-12T16:00:00+08:00",
+          "source": "miro_board",
+          "facets": {
+            "subject": "OKR 复盘",
+            "topic": "关键任务"
+          }
+        }
+      }
+    },
+    {
+      "name": "Seed: unrelated diary",
+      "ir": {
+        "_comment": "晚饭后我在 Apple Health 记了句‘生活随记：今天跑步 5 公里’，这条当噪声使用。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "生活随记：今天跑步 5 公里"},
+          "tags": ["life"],
+          "type": "note",
+          "time": "2025-04-12T20:30:00+08:00",
+          "source": "apple_health"
+        }
+      }
+    },
+    {
+      "name": "Seed: Encode target note B",
+      "ir": {
+        "_comment": "周会纪要里写着‘会议纪要：OKR 指标推进计划’，我从飞书文档复制要点存档。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {"text": "会议纪要：OKR 指标推进计划"},
+          "tags": ["meeting", "OKR"],
+          "type": "note",
+          "time": "2025-04-13T09:00:00+08:00",
+          "source": "feishu_doc",
+          "facets": {
+            "subject": "周会纪要",
+            "topic": "指标推进"
+          }
+        }
+      }
+    },
+    {
+      "name": "Promote using semantic search target",
+      "ir": {
+        "_comment": "OKR 负责人想要在检索时让关键任务优先出现，让我用语义搜索抓到 OKR 相关记忆并统一把权重拉高。跑步日记不用管。",
+        "stage": "STO",
+        "op": "Promote",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "OKR"
+            },
+            "overrides": {
+              "limit": 3,
+              "hydration": "ids"
+            },
+            "limit": 3
+          }
+        },
+        "args": {
+          "weight": 0.9
+        }
+      }
+    }
   ]
 }

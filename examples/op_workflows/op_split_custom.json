@@ -4,6 +4,7 @@
     {
       "name": "Seed: Encode long text",
       "ir": {
+        "_comment": "为了准备分享，我从论文草稿里拷贝了《Text2Mem 项目背景》一章，包括背景、研究、方法等部分，整段都比较长，先整体存入记忆。",
         "stage": "ENC",
         "op": "Encode",
         "args": {
@@ -11,13 +12,20 @@
             "text": "# 项目背景\n本项目旨在构建一个通用的记忆操作语言，以支持不同类型的智能体在信息存储与检索上的统一接口。\n在过去的实验中，我们发现缺乏统一规范会导致重复造轮子，系统间难以互通。\n\n# 相关研究\n当前大多数记忆系统分散在各自的实现中，例如有些注重知识图谱，有些侧重向量数据库。但这些方案缺乏统一的抽象层，使得迁移和扩展性差。\n\n# 我们的方法\n我们提出 Text2Mem IR，用于抽象编码（ENC）、存储（STO）、检索（RET）三个阶段。IR 提供统一 schema 来描述操作，从而兼容不同的后端引擎与配置。\n\n# 实验与结果\n我们在多个基准数据集上测试，发现 IR 能够简化 pipeline 设计，并提升记忆检索的准确率和复用率。\n\n# 总结与展望\n未来工作包括：1) 更复杂的权限控制；2) 生命周期管理；3) 支持更多的检索方式。"
           },
           "tags": ["doc", "long"],
-          "type": "note"
+          "type": "note",
+          "time": "2025-08-22T19:00:00+08:00",
+          "source": "paper_draft",
+          "facets": {
+            "subject": "Text2Mem 论文",
+            "topic": "背景章节"
+          }
         }
       }
     },
     {
       "name": "Split by custom (LLM structured)",
       "ir": {
+        "_comment": "准备排版讲义时需要按章节拆分这份草稿。我想让模型按 Markdown 标题切块并带上原文。",
         "stage": "STO",
         "op": "Split",
         "target": {
@@ -30,7 +38,7 @@
           "strategy": "custom",
           "params": {
             "custom": {
-              "instruction": "请按标题切分文本。每个片段必须包含原文内容，并返回 JSON 数组。每个对象包含字段：title(可选), text(必填), range(可选[start,end])。",
+              "instruction": "请把原文按 Markdown 标题拆成片段，保留原句文本。",
               "max_splits": 10
             }
           },

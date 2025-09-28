@@ -3,11 +3,41 @@
   "steps": [
     {
       "name": "Seed: Encode note",
-      "ir": {"stage":"ENC","op":"Encode","args":{"payload":{"text":"关键行动项：准备发布计划"},"tags":["pm","action"],"type":"note"}}
+      "ir": {
+        "_comment": "产品发布群里我记录了一条 TODO：‘关键行动项：准备发布计划’，担心遗漏先存进记忆。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "关键行动项：准备发布计划"
+          },
+          "tags": ["pm", "action"],
+          "type": "note",
+          "time": "2025-05-06T09:00:00+08:00",
+          "source": "slack_channel",
+          "facets": {
+            "subject": "6 月发布",
+            "topic": "行动项"
+          }
+        }
+      }
     },
     {
       "name": "Promote: set weight",
-      "ir": {"stage":"STO","op":"Promote","target":{"filter":{"has_tags":["action"],"limit":100}},"args":{"weight":0.9}}
+      "ir": {
+        "_comment": "发布协调人让我们把关键行动项顶到最高优先级，以便检索排序更靠前。请把所有 action 标签的记忆权重提升到 0.9。",
+        "stage": "STO",
+        "op": "Promote",
+        "target": {
+          "filter": {
+            "has_tags": ["action"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "weight": 0.9
+        }
+      }
     }
   ]
 }

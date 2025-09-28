@@ -62,60 +62,25 @@ class OllamaGenerationModel(BaseGenerationModel):
             raise ImportError("需要安装 httpx 以支持 Ollama API")
         self.model_name = model_name
         self.base_url = base_url.rstrip('/')
-        # Default a longer timeout for generation client to 120s; requests may override.
         self.client = httpx.Client(timeout=120.0)
-        logger.info(f"✅ Ollama生成模型初始化: {self.model_name} @ {self.base_url}")
-    def _post_with_deadline(self, url: str, payload: dict, timeout: float):
-        """Run httpx POST in a worker thread and enforce a hard deadline.
-
-        If the request exceeds the timeout, close and recreate the client, then raise TimeoutError.
-        """
-        import threading, time, queue
-        q: "queue.Queue[tuple[bool, any]]" = queue.Queue(maxsize=1)  # (ok, value|exc)
-
-        def _worker():
-            try:
-                resp = self.client.post(
-                    url,
-                    json=payload,
-                    timeout=httpx.Timeout(timeout, connect=min(timeout, 10.0), read=timeout, write=timeout),
-                )
-                q.put((True, resp))
-            except Exception as e:
-                q.put((False, e))
-
-        t = threading.Thread(target=_worker, daemon=True)
-        t.start()
-        t.join(timeout)
-        if t.is_alive():
-            try:
-                # Hard-cancel by closing the client; recreate for future requests.
-                self.client.close()
-            except Exception:
-                pass
-            try:
-                self.client = httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0, read=30.0, write=30.0))
-            except Exception:
-                pass
-            raise TimeoutError(f"Ollama request exceeded hard deadline of {timeout}s")
-        ok, value = q.get()
-        if not ok:
-            raise value
-        return value
+        logger.info(f"✅ Ollama生成模型初始化: {model_name} @ {base_url}")
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
         try:
-            timeout = float(kwargs.get("timeout", 30.0))
-            payload = {
-                "model": self.model_name,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": kwargs.get("temperature", 0.7),
-                    "top_p": kwargs.get("top_p", 0.9),
-                    "num_predict": kwargs.get("max_tokens", 512),
+            timeout = kwargs.get("timeout", 30.0)
+            response = self.client.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": kwargs.get("temperature", 0.7),
+                        "top_p": kwargs.get("top_p", 0.9),
+                        "num_predict": kwargs.get("max_tokens", 512),
+                    },
                 },
-            }
-            response = self._post_with_deadline(f"{self.base_url}/api/generate", payload, timeout)
+                timeout=timeout,
+            )
             response.raise_for_status()
             data = response.json()
             generated_text = data["response"]
@@ -147,19 +112,22 @@ class OllamaGenerationModel(BaseGenerationModel):
             f"- title: 可选，字符串\n- text: 可选，字符串\n- range: 可选，[start,end] 两个整数，表示在原文中的范围\n"
         )
         try:
-            timeout = float(kwargs.get("timeout", 30.0))
-            payload = {
-                "model": self.model_name,
-                "prompt": structured_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": kwargs.get("temperature", 0.2),
-                    "top_p": kwargs.get("top_p", 0.9),
-                    "num_predict": kwargs.get("max_tokens", 512),
-                    "format": "json",
+            timeout = kwargs.get("timeout", 30.0)
+            response = self.client.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model_name,
+                    "prompt": structured_prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": kwargs.get("temperature", 0.2),
+                        "top_p": kwargs.get("top_p", 0.9),
+                        "num_predict": kwargs.get("max_tokens", 512),
+                        "format": "json",
+                    },
                 },
-            }
-            response = self._post_with_deadline(f"{self.base_url}/api/generate", payload, timeout)
+                timeout=timeout,
+            )
             response.raise_for_status()
             data = response.json()
             generated_text = data.get("response", "").strip()

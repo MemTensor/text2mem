@@ -4,22 +4,35 @@
     {
       "name": "Seed: Encode a work note",
       "ir": {
+        "_comment": "我刚把下周的工作行动项整理好，先存一条带工作、待跟进标签的记忆。",
         "stage": "ENC",
         "op": "Encode",
         "args": {
-          "payload": {"text": "今天处理了几个工作任务，准备下周计划。"},
-          "tags": ["工作", "待办"],
-          "type": "note"
+          "payload": {
+            "text": "【下周重点】\n- 周三前完成新手引导改版评审；\n- 跟进客服关于退款流程的反馈；\n- 周五与数据同学确认新版漏斗埋点。"
+          },
+          "tags": ["工作", "待跟进"],
+          "type": "note",
+          "time": "2025-09-27T19:30:00+08:00"
         }
       }
     },
     {
       "name": "Label: add priority tags",
       "ir": {
+        "_comment": "请把所有带工作和待跟进标签的事项追加重要、优先、跟进标签，方便看板筛选。",
         "stage": "STO",
         "op": "Label",
-        "target": {"filter": {"has_tags": ["工作"], "limit": 100}},
-        "args": {"tags": ["重要", "优先", "跟进"]}
+        "target": {
+          "filter": {
+            "has_tags": ["工作", "待跟进"],
+            "limit": 50
+          }
+        },
+        "args": {
+          "tags": ["重要", "优先", "跟进"],
+          "mode": "add"
+        }
       }
     }
   ]

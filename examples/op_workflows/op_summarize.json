@@ -1,8 +1,65 @@
 {
   "name": "Op Workflow - Summarize",
   "steps": [
-    {"name":"Seed: Encode meeting notes","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：讨论需求与下一步"},"tags":["meeting","summary"],"type":"note"}}},
-    {"name":"Seed: Encode more notes","ir":{"stage":"ENC","op":"Encode","args":{"payload":{"text":"会议记录：确定行动项和负责人"},"tags":["meeting","summary"],"type":"note"}}},
-    {"name":"Summarize by tags","ir":{"stage":"RET","op":"Summarize","target":{"filter":{"has_tags":["meeting","summary"],"limit":100}},"args":{"focus":"会议要点","max_tokens":120}}}
+    {
+      "name": "Seed: Encode meeting notes",
+      "ir": {
+        "_comment": "需求评审会上我在飞书文档记录了一段：‘会议记录：讨论需求与下一步’，主要覆盖需求范围与风险。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "会议记录：讨论需求与下一步。团队对移动端支付页改版的范围达成一致，需要先补齐埋点与可用性测试。林钰负责确认埋点方案，赵晨跟进测试排期。"
+          },
+          "tags": ["meeting", "summary"],
+          "type": "note",
+          "time": "2025-07-09T14:00:00+08:00",
+          "source": "feishu_doc",
+          "facets": {
+            "subject": "需求评审",
+            "topic": "支付改版"
+          }
+        }
+      }
+    },
+    {
+      "name": "Seed: Encode more notes",
+      "ir": {
+        "_comment": "同一场会议后半段录音里我补充了行动人：‘会议记录：确定行动项和负责人’，需要一起摘要。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "会议记录：确定行动项和负责人。行动项包括：1) 7 月 15 日前出支付漏斗优化方案（负责人：林钰）；2) 设计团队在 7 月 12 日前交付新版流程稿（负责人：张祎）；3) 数据团队评估埋点改动对 dashboard 的影响（负责人：周明）。"
+          },
+          "tags": ["meeting", "summary"],
+          "type": "note",
+          "time": "2025-07-09T14:40:00+08:00",
+          "source": "meeting_transcript",
+          "facets": {
+            "subject": "需求评审",
+            "topic": "行动项"
+          }
+        }
+      }
+    },
+    {
+      "name": "Summarize by tags",
+      "ir": {
+        "_comment": "产品负责人想快速回顾这场评审的核心结论，让我汇总 meeting+summary 标签的记忆，重点突出要点和行动人。",
+        "stage": "RET",
+        "op": "Summarize",
+        "target": {
+          "filter": {
+            "has_tags": ["meeting", "summary"],
+            "limit": 100
+          }
+        },
+        "args": {
+          "focus": "会议要点和行动项",
+          "max_tokens": 120
+        }
+      }
+    }
   ]
 }

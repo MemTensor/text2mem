@@ -1,13 +1,16 @@
 {
-  "_comment": "请将所有标签为‘会议记录’和‘项目A’的记忆合并为主记录，并软删除子条目，操作由项目经理发起。",
+  "_comment": "项目经理：项目 A 的会议纪要有多条重复，请把标签包含会议记录和项目A的记忆合并到主记录，并把子项软删除。",
   "stage": "STO",
   "op": "Merge",
   "target": {
-  "filter": {"has_tags": ["会议记录", "项目A"], "limit": 10}
+    "filter": {
+      "has_tags": ["会议记录", "项目A"],
+      "limit": 10
+    }
   },
   "args": {
-  "strategy": "merge_into_primary",
-  "soft_delete_children": true
+    "strategy": "merge_into_primary",
+    "soft_delete_children": true
   },
   "meta": {
     "actor": "project_manager",

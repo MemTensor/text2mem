@@ -1,20 +1,23 @@
 {
-  "_comment": "请删除所有标签为 'OKR' 且时间在 2025年7月1日至8月31日之间的记忆（最多100条），原因：清理过时的OKR记录。",
+  "_comment": "运营负责人：我们已经确认 9 月版的 OKR 方案了，请把 7-8 月间标签含 OKR 和 草稿 的旧记忆软删除，避免干扰后续检索。",
   "stage": "STO",
   "op": "Delete",
   "target": {
     "filter": {
-      "has_tags": ["OKR"],
-      "time_range": {"start": "2025-07-01T00:00:00+08:00", "end": "2025-08-31T23:59:59+08:00"},
+      "has_tags": ["OKR", "草稿"],
+      "time_range": {
+        "start": "2025-07-01T00:00:00+08:00",
+        "end": "2025-08-31T23:59:59+08:00"
+      },
       "limit": 100
     }
   },
   "args": {
     "soft": true,
-    "reason": "清理过时的OKR记录"
+    "reason": "清理过期的 OKR 草稿"
   },
   "meta": {
-    "actor": "admin",
-    "timestamp": "2025-08-27T15:30:00+08:00"
+    "actor": "operations_lead",
+    "timestamp": "2025-09-18T09:30:00+08:00"
   }
 }

@@ -1,11 +1,15 @@
 {
-  "_comment": "请检索与‘OKR’相关的记忆，返回前5条，包含id、内容、时间和标签。",
+  "_comment": "产品经理：我想快速回顾最近一次 OKR 评审里大家的争论，请用语义检索帮我找出和 OKR 对齐、指标调整 相关的记忆，两分钟后要给老板汇报。",
   "stage": "RET",
   "op": "Retrieve",
   "target": {
     "search": {
-      "intent": { "query": "OKR" },
-      "overrides": { "k": 5 }
+      "intent": {
+        "query": "OKR 对齐 指标 调整",
+        "context": "近期 OKR 评审"
+      },
+      "overrides": { "k": 5 },
+      "limit": 5
     }
   },
   "args": {
