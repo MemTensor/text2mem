@@ -10,7 +10,12 @@
     "op": { "$ref": "#/$defs/Op" },
     "target": { "$ref": "#/$defs/Target" },
     "args": { "type": "object" },
-  "meta": {
+    "_comment": {
+      "type": "string",
+      "description": "Optional human-readable note; ignored by engine execution.",
+      "x-description-zh": "可选注释，仅用于可读性，执行时忽略。"
+    },
+    "meta": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -90,7 +95,14 @@
             ],
             "properties": {
               "tags": { "$ref": "#/$defs/Tags" },
-              "facets": { "$ref": "#/$defs/Facets" }
+              "facets": { "$ref": "#/$defs/Facets" },
+              "mode": {
+                "type": "string",
+                "enum": ["add", "replace", "remove"],
+                "default": "add",
+                "description": "Tag application mode: add (append), replace (overwrite existing), or remove (delete from matching entries).",
+                "x-description-zh": "标签操作模式：add 追加，replace 覆盖原有，remove 从匹配项删除。"
+              }
             }
           }
         }
@@ -210,7 +222,8 @@
             "properties": {
               "archive": { "type": "boolean", "description": "Archive: prototype lowers weight; result clamped to [0,1]. Mutually exclusive with weight/weight_delta.", "x-description-zh": "归档：原型实现为降低权重；结果夹紧到 [0,1]。与 weight/weight_delta 互斥。" },
               "weight": { "type": "number", "minimum": 0, "maximum": 1, "description": "Set absolute weight in [0,1]. Mutually exclusive with archive and weight_delta.", "x-description-zh": "设置绝对权重（范围 [0,1]）。与 archive、weight_delta 互斥。" },
-              "weight_delta": { "type": "number", "description": "Relative change (positive up / negative down); result is clamped to [0,1] when writing.", "x-description-zh": "相对调整（正上/负下）；写入时结果会夹紧到 [0,1]。" }
+              "weight_delta": { "type": "number", "description": "Relative change (positive up / negative down); result is clamped to [0,1] when writing.", "x-description-zh": "相对调整（正上/负下）；写入时结果会夹紧到 [0,1]。" },
+              "reason": { "type": "string", "description": "Optional human explanation for the demotion.", "x-description-zh": "可选的降权原因说明。" }
             }
           }
         }
@@ -577,7 +590,12 @@
       "oneOf": [ { "required": ["query"] }, { "required": ["vector"] } ],
       "properties": {
         "query": { "type": "string" },
-        "vector": { "$ref": "#/$defs/Embedding" }
+        "vector": { "$ref": "#/$defs/Embedding" },
+        "context": {
+          "type": "string",
+          "description": "Optional natural language context or instruction to steer retrieval.",
+          "x-description-zh": "可选的检索上下文/指令，帮助限定搜索语义。"
+        }
       }
     },
     "SearchOverrides": {

@@ -1,135 +1,121 @@
 <div align="center">
 
-<h1>Text2Mem · 结构化记忆 IR 执行与检索引擎</h1>
+# Text2Mem · Structured Memory Engine / 结构化记忆引擎
 
-<b>IR Schema v1 → 校验 → 强类型解析 → 存储/检索/模型推理 → 统一结果</b>
+**IR Schema → Validation → Strongly-Typed Execution → Storage / Retrieval / Reasoning → Unified Result**  
+**IR 架构 → 校验 → 强类型执行 → 存储 / 检索 / 推理 → 统一结果**
 
 </div>
 
 ---
 
-## 新增：Provider vs Service 职责划分（v0.2）
+## Contents · 目录
 
-- Provider（提供者）只负责“模型接口实现”：EmbeddingModel / GenerationModel（如 Mock、Ollama、OpenAI）。
-- Service 负责“编排与能力复用”：统一封装 encode/semantic_search/summarize/label/split 等高阶能力。
-- 工厂入口：通过 `text2mem.services.service_factory.create_models_service` 选择 provider 并组装 `ModelsService`。
-
-最简代码示例：
-
-```python
-from text2mem.services.service_factory import create_models_service
-from text2mem.adapters.sqlite_adapter import SQLiteAdapter
-from text2mem.core.engine import Text2MemEngine
-
-# 根据环境变量/参数自动选择 mock/ollama/openai
-service = create_models_service(mode="auto")
-adapter = SQLiteAdapter("./text2mem.db", models_service=service)
-engine = Text2MemEngine(adapter=adapter, models_service=service)
-
-res = engine.execute({
-	"stage": "ENC",
-	"op": "Encode",
-	"args": {"payload": {"text": "hello text2mem"}}
-})
-print(res.success, res.data)
-```
-
-注意：兼容入口 `text2mem.services.models_service_mock.create_models_service` 仍然可用，但推荐使用 `service_factory`。
+- [Why Text2Mem · 为什么需要 Text2Mem](#why-text2mem--为什么需要-text2mem)
+- [Core Capabilities · 核心能力](#core-capabilities--核心能力)
+- [Architecture · 架构概览](#architecture--架构概览)
+- [Quick Start · 快速开始](#quick-start--快速开始)
+- [CLI Guide · 命令行指南](#cli-guide--命令行指南)
+- [IR Semantics · IR 操作语义](#ir-semantics--ir-操作语义)
+- [Example Workflows · 示例工作流](#example-workflows--示例工作流)
+- [Testing · 测试](#testing--测试)
+- [Roadmap · 发展路线](#roadmap--发展路线)
+- [Contributing · 参与共建](#contributing--参与共建)
 
 ---
 
-## 0. 为什么存在？
-在构建个人/团队知识库、AI 记忆层或 Agent 长期上下文时，容易出现：操作语义碎片化、数据演化缺乏中间表示、模型调用和存储耦合。Text2Mem 通过一套 IR（Intermediate Representation）抽象 13 类记忆操作，打通：规范 → 校验 → 执行 → 结果，可作为：
+## Why Text2Mem · 为什么需要 Text2Mem
 
-- 原型：快速验证“记忆层”设计合理性
-- 内核：嵌入到更大 Agent/Workflow 系统
-- 教学：演示如何用 IR 统一操作域
+**EN**  
+Modern agents and assistants struggle with long-term memory: operations are ad-hoc, data evolution lacks a stable intermediate form, and model invocations are tightly coupled to storage. Text2Mem addresses these issues with a single IR (Intermediate Representation) that captures thirteen memory operations end-to-end, from schema to execution. Use it as a prototyping sandbox, a drop-in memory core, or a teaching reference for structured agent memory.
 
----
-
-## 1. 总览特性
-
-| 维度 | 能力 |
-|------|------|
-| IR 抽象 | Encode / Retrieve / Summarize / Label / Update / Merge / Split / Promote / Demote / Lock / Expire / Delete / Clarify(预留) |
-| 数据层 | SQLite 原型（统一字段 + 软删除 + 聚合统计）|
-| 模型层 | Embedding + Generation 双通道，可 mock / Ollama / OpenAI 切换 |
-| 校验 | JSON Schema + Pydantic v2 双重保证（结构 + 语义）|
-| CLI | 单条 IR / Demo / Workflow / REPL / Session（脚本步进 + JSON 粘贴 + 动态切库）|
-| 输出 | brief / full JSON；demo 汇总性能与操作序列 |
-| 可扩展 | 适配器接口 / 模型服务接口 / IR Args 映射 / dry_run SQL 观察 |
+**中文**  
+在构建个人 / 团队知识库、Agent 长期记忆层时，常见痛点是：操作语义碎片化、数据演化缺乏中间表示、模型调用与存储耦合。Text2Mem 提供一套统一的 IR，覆盖十三种记忆操作，并贯通“规范 → 校验 → 执行 → 结果”。可以作为记忆层原型、生产内核或教学范例。
 
 ---
 
-## 2. 目录与核心组件
+## Core Capabilities · 核心能力
+
+| Dimension (EN) | 能力维度 (ZH) | Highlights |
+| -------------- | ------------- | ---------- |
+| IR Abstraction | IR 抽象 | Encode / Retrieve / Summarize / Label / Update / Merge / Split / Promote / Demote / Lock / Expire / Delete / Clarify (reserved) |
+| Storage Layer | 数据层 | SQLite 原型，统一字段、软删除、聚合统计 |
+| Model Layer | 模型层 | Embedding + Generation 双通道，可在 Mock / Ollama / OpenAI 之间切换 |
+| Validation | 校验 | JSON Schema + Pydantic v2 双重保障（结构 + 语义） |
+| CLI Tooling | 命令行 | 单条 IR、Demo、Workflow、REPL、Session，多模式输出 |
+| Extensibility | 可扩展 | 适配器 / 模型服务接口 / IR Args 映射 / dry-run SQL 观察 |
+
+Additional split of Provider vs Service (v0.2): providers implement raw model calls (mock, Ollama, OpenAI), while services orchestrate higher-level capabilities like encode, semantic search, summarize, label, split, etc. See `text2mem.services.service_factory.create_models_service` for entry points.  
+Provider 与 Service 职责分离（v0.2）：Provider 实现模型接口（mock / Ollama / OpenAI），Service 负责编排 encode、语义检索、摘要、打标签、拆分等能力，入口在 `text2mem.services.service_factory.create_models_service`。
+
+---
+
+## Architecture · 架构概览
 
 ```
 Text2Mem/
-├─ manage.py                # 统一命令入口
+├─ manage.py                # Unified CLI entry / 命令入口
 ├─ text2mem/
 │  ├─ core/
-│  │  ├─ engine.py          # Text2MemEngine：装配 schema + adapter + models_service
-│  │  └─ models.py          # IR & Args 强类型模型 (Pydantic)
+│  │  ├─ engine.py          # Text2MemEngine: compose schema + adapter + service
+│  │  └─ models.py          # Strongly-typed IR & Args (Pydantic)
 │  ├─ adapters/
-│  │  ├─ base.py            # BaseAdapter / ExecutionResult 协议
-│  │  └─ sqlite_adapter.py  # 全量 IR 操作原型实现
-│  ├─ services/             # 模型服务抽象（embedding / generation / 语义检索）
-│  ├─ schema/               # text2mem-ir-v1.json
-│  └─ validate.py           # JSON Schema 校验封装
-├─ scripts/                 # CLI 复用：demo 运行 / env 生成 / 分组配置
-├─ examples/                # sample_ir_* / workflow_* 示例
-├─ tests/                   # 单元 + 适配器 + 引擎 + 模型校验
+│  │  ├─ base.py            # Adapter protocol / 适配器协议
+│  │  └─ sqlite_adapter.py  # SQLite reference implementation
+│  ├─ services/             # Model orchestration / 模型服务
+│  ├─ schema/               # text2mem-ir-v1.json (JSON Schema)
+│  └─ validate.py           # JSON Schema utilities
+├─ scripts/                 # CLI helpers & demos / 命令辅助脚本
+├─ examples/                # Sample IRs & workflows / 示例
+├─ tests/                   # Unit tests / 单元测试
 └─ README.md
 ```
 
-### 2.1 引擎 (core/engine.py)
-职责：
-- 载入 schema → 可选 schema 校验
-- IR → Pydantic → adapter.execute
-- 包装结果 ExecutionResult
+**Engine (`core/engine.py`)**  
+- EN: Loads schema → optional validation → Pydantic parsing → adapter execution → wraps `ExecutionResult`.  
+- 中文：负责载入 Schema，可选校验，解析 IR 并调用适配器执行，返回 `ExecutionResult`。
 
-### 2.2 模型 (core/models.py)
-- IR(stage, op, target, args, meta)
-- 各操作 Args 互斥/必选验证（TimeRange XOR, EncodePayload one-of, Promote 互斥等）
-- `IR.parse_args_typed()` 映射操作 → 对应 Args 类型
+**Models (`core/models.py`)**  
+- EN: Defines IR structure, per-op args with mutual exclusions, and typed parsing.  
+- 中文：定义 IR 结构与各操作参数的互斥 / 必填校验，并提供强类型解析能力。
 
-### 2.3 适配器 (adapters)
-- `BaseAdapter.execute(IR) -> ExecutionResult`
-- SQLiteAdapter：实现 12/13 操作（Clarify 预留）+ dry_run + 语义检索（向量维度过滤）
-- 附带辅助：统计 / dump / optimize / db_info
+**Adapters**  
+- EN: `BaseAdapter.execute(IR) -> ExecutionResult`; SQLite adapter implements 12/13 ops, plus dry-run and semantic search.  
+- 中文：`BaseAdapter.execute(IR)` 返回执行结果；SQLite 适配器实现 12/13 操作，支持 dry-run 与语义检索。
 
-### 2.4 模型服务 (services)
-- 抽象 encode / summarize / semantic_search / suggest_labels 等
-- 可创建 mock (无依赖)、ollama、本地 openai
-
-### 2.5 CLI 设计
-- manage.py：命令分组 + usage 分层 + session 扩展状态（output mode / current db / script ptr）
-- demo：收集每步耗时，支持 json 汇总
+**Services**  
+- EN: Abstract embedding, generation, semantic search, label suggestion. Switch providers via factory.  
+- 中文：封装嵌入、生成、语义检索、标签建议等能力，通过工厂快速切换 Provider。
 
 ---
 
-## 3. 安装与环境
+## Quick Start · 快速开始
 
-### 3.1 Conda 推荐
+### 1. Create Environment · 创建环境
+
 ```bash
 conda env create -f environment.yml
 conda activate text2mem
 ```
 
-### 3.2 直接安装
+Or install directly · 或直接安装：
+
 ```bash
 pip install -e .
-# 可选：云端模型
+# Optional providers / 可选模型依赖
 pip install openai>=1.6.0
 ```
 
-### 3.3 模型服务配置
-Mock（默认开发）：
+### 2. Configure Model Providers · 配置模型服务
+
+Mock (default development) · Mock（默认开发）:
+
 ```bash
 python manage.py demo --mode mock
 ```
 
-Ollama `.env` 示例：
+Ollama `.env`:
+
 ```
 TEXT2MEM_EMBEDDING_PROVIDER=ollama
 TEXT2MEM_EMBEDDING_MODEL=nomic-embed-text
@@ -137,7 +123,8 @@ TEXT2MEM_GENERATION_PROVIDER=ollama
 TEXT2MEM_GENERATION_MODEL=qwen2:0.5b
 ```
 
-OpenAI：
+OpenAI:
+
 ```bash
 export OPENAI_API_KEY=sk-xxx
 export TEXT2MEM_EMBEDDING_PROVIDER=openai
@@ -146,195 +133,142 @@ export TEXT2MEM_GENERATION_PROVIDER=openai
 export TEXT2MEM_GENERATION_MODEL=gpt-3.5-turbo
 ```
 
-编程方式（不依赖 CLI）选择模型服务：
+Programmatic factory usage · 代码直接选择 Provider：
 
 ```python
 from text2mem.services.service_factory import create_models_service
-service = create_models_service(mode="openai")  # 或者 "ollama" / "mock" / "auto"
+service = create_models_service(mode="auto")  # mock / ollama / openai / auto
 ```
 
----
+### 3. Minimal Example · 最小示例
 
-## 4. CLI 使用速览
-
-查看帮助：
-```bash
-python manage.py
-```
-
-| 类别 | 命令 | 说明 | 常用示例 |
-|------|------|------|----------|
-| 环境 | status | 检测依赖/模型可用 | `python manage.py status` |
-| 环境 | models-info | 当前模型配置 | `python manage.py models-info` |
-| 配置 | set-env KEY VALUE | 写入/更新 .env | `python manage.py set-env TEXT2MEM_EMBEDDING_MODEL nomic-embed-text` |
-| 演示 | demo | 单步/全操作跑通 | `python manage.py demo --full --mode mock --perf --json` |
-| 快链 | features | Encode→Retrieve→Summarize 串联 | `python manage.py features --mode mock` |
-| IR | ir | 执行单条 | `python manage.py ir --inline '{"stage":"RET","op":"Retrieve","args":{"k":2}}'` |
-| 工作流 | workflow | 执行 workflow JSON | `python manage.py workflow examples/real_world_scenarios/workflow_project_management.json` |
-| 工作流 | list-workflows | 列出示例 | `python manage.py list-workflows` |
-| 交互 | repl | 简化命令循环 | `python manage.py repl` |
-| 会话 | session | 脚本/粘贴 JSON / 切库 / 输出模式 | `python manage.py session --mode mock --output full` |
-| 验证 | models-smoke | 最小 embed+generate | `python manage.py models-smoke --mode mock` |
-| 测试 | test | 运行 pytest | `python manage.py test` |
-
-### 4.1 Demo
-```bash
-# 轻量 3 操作示例
-python manage.py demo --mode mock
-# 全量 12 操作 + 性能/JSON 输出
-python manage.py demo --full --mode mock --perf --json
-```
-
-### 4.2 Session 进阶
-脚本内容 (script.txt)：
-```
-encode 记录一次产品讨论
-retrieve 讨论
-{"stage":"RET","op":"Retrieve","args":{"query":"产品","k":3}}
-summarize 产品讨论
-```
-运行：
-```bash
-python manage.py session --mode mock --script script.txt --output brief
-next   # 逐条执行
-run    # 一次执行剩余
-output full
-switch-db ./test_session.db
-```
-可用子命令：list / next / run / encode / retrieve / summarize / ir / switch-db / output full|brief / history / save / quit + 直接粘贴原始 IR JSON 行
-
-### 4.3 Dry-Run（查看 SQL）
-当前 `dry_run` 通过 IR.meta.dry_run 触发（部分操作支持）：
-```bash
-python manage.py ir --inline '{"stage":"ENC","op":"Encode","meta":{"dry_run":true},"args":{"payload":{"text":"测试 dry"}}}'
-```
-
----
-
-## 5. IR 操作语义
-
-| 操作 | 核心意图 | 关键字段片段 | 典型场景 |
-|------|----------|-------------|----------|
-| Encode | 写入新记忆 | payload(text/url/structured) | 采集输入 / 笔记持久化 |
-| Label | 补充标签/特性 | tags / facets / auto_generate_tags | 后处理分类 |
-| Update | 修改字段 | set.{...} | 修正内容、优先级 |
-| Merge | 合并 | strategy / primary_id | 去重聚合 |
-| Split | 拆分 | strategy / spans / inherit | 长文切片 |
-| Promote | 抬升权重 | weight / weight_delta / remind | 提醒/强化记忆 |
-| Demote | 降级/归档 | archive / weight / weight_delta | 过时内容降级 |
-| Lock | 保护 | mode / policy | 防止误改 |
-| Expire | 过期策略 | ttl / until / on_expire | 生命周期治理 |
-| Delete | 删除 | soft / time_range | 清理空间 |
-| Retrieve | 检索 | query / order_by / include | 向量 + 过滤搜索 |
-| Summarize | 汇总 | focus / max_tokens | 上下文概要 |
-| Clarify | 补充信息 | （预留） | 多轮澄清 |
-
-阶段 (stage) 约束：
-ENC: Encode
-STO: Label / Update / Merge / Split / Promote / Demote / Lock / Expire / Delete
-RET: Retrieve / Summarize / (Encode 允许即写即取)
-
----
-
-## 6. 典型数据流
-1. CLI / 调用方 传入 dict/JSON IR
-2. (可选) JSON Schema validate
-3. Pydantic 强类型解析 → Args 校验
-4. Adapter 派发：操作 → _exec_xxx
-5. 模型服务（可选）调用：embedding / LLM summarize / label suggestion / semantic_search
-6. 组装 dict → ExecutionResult(success,data,error,meta)
-
-失败处理：
-- Pydantic 校验失败：抛 ValidationError（调用侧捕获）
-- Adapter 内部异常：捕获并返回 ExecutionResult(success=False,error=...)
-
----
-
-## 7. 扩展指南
-
-### 7.1 新增存储适配器
 ```python
-from text2mem.adapters.base import BaseAdapter, ExecutionResult
-
-class MyAdapter(BaseAdapter):
-	def execute(self, ir):
-		# 解析 ir.op 并执行
-		return ExecutionResult(success=True, data={"ok": True})
-```
-在引擎装配：
-```python
+from text2mem.services.service_factory import create_models_service
+from text2mem.adapters.sqlite_adapter import SQLiteAdapter
 from text2mem.core.engine import Text2MemEngine
-engine = Text2MemEngine(adapter=MyAdapter())
+
+service = create_models_service(mode="auto")
+adapter = SQLiteAdapter("./text2mem.db", models_service=service)
+engine = Text2MemEngine(adapter=adapter, models_service=service)
+
+res = engine.execute({
+    "stage": "ENC",
+    "op": "Encode",
+    "args": {"payload": {"text": "hello text2mem"}}
+})
+print(res.success, res.data)
 ```
-
-### 7.2 添加 Clarify 操作（示例思路）
-1. models.py 增加 ClarifyArgs + Op 枚举
-2. schema 增加对应 definition
-3. sqlite_adapter.py 添加 `_exec_clarify`
-4. demo / session 增加命令入口
-
-### 7.3 自定义语义检索策略
-- 替换 models_service.semantic_search 实现（例如引入 Faiss / pgvector）
-- Adapter `_exec_retrieve` 调用保持不变
 
 ---
 
-## 8. 测试体系
-运行：
+## CLI Guide · 命令行指南
+
+Run `python manage.py` for full help.  
+执行 `python manage.py` 查看完整帮助。
+
+| Category · 类别 | Command · 命令 | Description · 说明 | Example · 示例 |
+|----------------|----------------|-------------------|----------------|
+| Environment | `status` | Check dependencies & provider readiness / 检测依赖与模型状态 | `python manage.py status` |
+| Environment | `models-info` | Show current provider config / 查看当前模型配置 | `python manage.py models-info` |
+| Config | `set-env KEY VALUE` | Update `.env` entries / 更新环境变量 | `python manage.py set-env TEXT2MEM_EMBEDDING_MODEL nomic-embed-text` |
+| Demo | `demo` | Run light/full demo / 运行轻量或全量演示 | `python manage.py demo --full --mode mock` |
+| Shortcut | `features` | Encode→Retrieve→Summarize pipeline / 快链示例 | `python manage.py features --mode mock` |
+| Single IR | `ir` | Execute inline JSON / 执行单条 IR | `python manage.py ir --inline '{"stage":"RET","op":"Retrieve","args":{"include":["text"]}}'` |
+| Workflow | `workflow` | Execute workflow file / 执行工作流文件 | `python manage.py workflow examples/real_world_scenarios/workflow_sales_qbr.json` |
+| Workflow | `list-workflows` | List bundled workflows / 列出内置示例 | `python manage.py list-workflows` |
+| Interactive | `repl` | Lightweight command loop / 交互式命令行 |
+| Session | `session` | Scripted execution, DB switch, output modes / 脚本执行、切库、输出模式 |
+| Validation | `models-smoke` | Minimal embed + generate sanity check / 最小模型连通性 |
+| Testing | `test` | Run pytest suite / 运行测试 |
+
+### Demo / Session Tips · Demo 与 Session 提示
+
+- `demo --perf --json` collects latency stats and full JSON output.  
+  使用 `demo --perf --json` 可收集耗时统计与完整输出。
+- `session` supports inline commands (`next`, `run`) and raw IR JSON pasting.  
+  `session` 支持逐条执行、批量运行与直接粘贴 IR。
+- `meta.dry_run=true` reveals SQL for supported operations.  
+  设置 `meta.dry_run=true` 可以查看部分操作的 SQL 计划。
+
+---
+
+## IR Semantics · IR 操作语义
+
+| Operation | 场景意图 | Key Args 关键字段 | Notes 说明 |
+|-----------|----------|-------------------|-----------|
+| Encode | Write new memory / 写入记忆 | `payload(text|url|structured)` | Supports skip embedding, facets, permissions |
+| Label | Add tags/facets / 标签补充 | `tags`, `facets`, `mode` | `mode` = add / replace / remove |
+| Update | Modify fields / 修改字段 | `set.{...}` | Enforces non-empty set |
+| Merge | Merge entries / 合并 | `strategy`, `primary_id` | Optional re-embedding |
+| Split | Break content / 拆分 | `strategy`, `params` | Sentence/chunk/custom |
+| Promote | Raise importance / 提升权重 | `weight`, `weight_delta`, `remind` | Reminder uses RFC5545 RRULE |
+| Demote | Lower importance / 降权归档 | `archive`, `weight`, `weight_delta`, `reason` | Weight range [0,1] |
+| Lock | Protect entries / 保护 | `mode`, `policy` | Allow/deny operations, reviewers, expiry |
+| Expire | Lifecycle / 生命周期 | `ttl`, `until`, `on_expire` | Supports soft/hard delete, demote |
+| Delete | Remove entries / 删除 | `older_than`, `time_range`, `soft` | Confirmation required for wide ops |
+| Retrieve | Semantic search / 语义检索 | `intent(query|vector|context)`, `overrides` | Requires `limit` when targeting STO stage |
+| Summarize | Generate summary / 摘要 | `focus`, `max_tokens` | Tied to generation provider |
+| Clarify (reserved) | Follow-up questions / 澄清 | TBD | 预留扩展 |
+
+Stage conventions · 阶段约束：
+- ENC → Encode (write-after-read allowed for prototyping)  
+  ENC 阶段主要负责写入（原型阶段允许写后即读）。
+- STO → Mutations (Label, Update, Merge, Split, Promote, Demote, Lock, Expire, Delete)  
+  STO 阶段包含所有写入 / 变更操作。
+- RET → Retrieve, Summarize (and optional Encode for test loops)  
+  RET 阶段负责检索与摘要。
+
+---
+
+## Example Workflows · 示例工作流
+
+- `examples/op_workflows/` — single-operation playbooks with rich comments.  
+  单操作工作流示例，涵盖 encode / label / retrieve 等典型场景。
+- `examples/real_world_scenarios/` — multi-step scenarios grounded in sales, SRE, and executive workflows (`workflow_sales_qbr.json`, `workflow_incident_postmortem.json`, `workflow_investor_update.json`).  
+  真实业务场景工作流，涵盖销售 QBR、故障复盘、投资人更新。
+- `examples/ir_operations/` — atomic IR samples validated by schema tests.  
+  单条 IR 示例，全部通过 JSON Schema 校验。
+
+Use `python manage.py workflow <file>` to run any scenario end-to-end.  
+通过 `python manage.py workflow <文件路径>` 串行执行工作流。
+
+---
+
+## Testing · 测试
+
+**EN**  
+Run the full pytest suite (schema validation, engine behaviour, adapter logic, service contracts):
+
 ```bash
 python manage.py test
 ```
-已覆盖：
-- 模型参数校验互斥/必选
-- 引擎基本执行 & 异步包装
-- 适配器核心操作（Encode / Retrieve / Merge / Split / Promote / Expire / Lock / Summarize）
-- 嵌入生成元信息（维度/模型/提供商推断）
 
-建议补充（Roadmap 内测阶段）：
-- Delete (soft/hard) / Demote 案例
-- dry_run SQL 快照
-- Retrieve include 非法字段
-- Split custom_spans 异常
-- Expire until 分支
+**中文**  
+使用 `python manage.py test` 运行完整测试，覆盖 Schema 校验、引擎执行、适配器逻辑与服务协议。
 
 ---
 
-## 9. 性能与注意事项
-- SQLite 原型未加向量索引，语义检索 O(n)；规模放大需外置向量库
-- embedding 维度不匹配会被跳过（返回 note）
-- dry_run 模式仅部分操作支持（逐步补齐）
+## Roadmap · 发展路线
+
+- [ ] Generate grouped `.env` templates & missing-entry hints / 配置命令输出分组 `.env` 与缺失项提示
+- [ ] Implement Clarify end-to-end & extend demos / 完成 Clarify 全链路并纳入 Demo
+- [ ] Session enhancements: batch JSON, variable injection, range execution / Session 支持批量 JSON、变量注入、区间执行
+- [ ] Full dry-run coverage across write operations / 覆盖所有写操作的 dry-run
+- [ ] HTTP / gRPC service wrappers (FastAPI / gRPC proto) / 提供 HTTP / gRPC 服务封装
+- [ ] External vector stores & long-form support (Faiss / Chroma / pgvector) / 接入向量库与长文本支持
+- [ ] Additional storage adapters (Postgres, cloud KV) / 拓展更多存储适配器
 
 ---
 
-## 10. FAQ
-Q: 为什么 Encode 可以在 RET 阶段？
-A: 便于“写后立即检索”链路测试，原型允许放宽；生产可强制 ENC。
+## Contributing · 参与共建
 
-Q: Clarify 何时加入？
-A: 模型提示模板稳定后；当前保留结构位置。
+**EN**  
+Issues and pull requests are welcome. Please include reproducible steps or sample IRs when reporting bugs. Schema and workflow contributions should pass `python manage.py test` to ensure compliance.
 
-Q: 能否批量 IR？
-A: Session 可逐行；后续计划支持 JSON 数组批量。
-
-Q: 如何避免全表操作风险？
-A: 可在 adapter `_where_from_target` 增加 require_target 防护（Roadmap）。
+**中文**  
+欢迎提交 Issue 和 PR！报告问题时附上可复现步骤或样例 IR；贡献 Schema 或工作流时，请务必通过 `python manage.py test`，以确保兼容性与稳定性。
 
 ---
 
-## 11. Roadmap
-- [ ] config 命令生成分组 .env + 缺失项提示
-- [ ] Clarify 全链路实现 + Demo 纳入
-- [ ] session 支持批量 JSON / 变量替换 / run 区间
-- [ ] dry_run 覆盖全部写操作
-- [ ] HTTP / gRPC 服务封装（FastAPI / gRPC proto）
-- [ ] 外部向量/长文本扩展（Faiss / Chroma / pgvector）
-- [ ] 多存储适配（Postgres / 云 KV）
-
----
-
-## 12. 变更日志
-详见 `docs/CHANGELOG.md`
-
----
-
-欢迎反馈与 PR，共建轻量记忆 IR 生态。
+**Feedback & Collaboration · 反馈与合作**  
+Feel free to reach out with ideas, integrations, or real-world scenarios. 一起建设轻量、可信赖的记忆 IR 生态。

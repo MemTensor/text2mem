@@ -1,0 +1,75 @@
+{
+  "name": "Scenario - Sales QBR Follow-up",
+  "steps": [
+    {
+      "name": "Capture QBR call highlights",
+      "ir": {
+  "_comment": "客户成功经理刘美刚和 Acme Industries 的 CIO 完成 QBR，gong 转写里还有 pipeline 预测和安全合规问答，我先把最关键的待办和风险摘出来入库，晚上要交付复盘。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "Acme Q3 QBR 摘要：1) CIO 担心 MSA 续签要在 10 月 5 日前走完审批；2) 他们想要自动化新客户报表导出；3) 当前续约风险集中在亚太团队未开票的 3 个合同。"
+          },
+          "tags": ["account:acme-industries", "meeting:qbr", "owner:liu-mei"],
+          "type": "customer_note",
+          "time": "2025-09-27T16:30:00+08:00",
+          "source": "gong_recording",
+          "facets": {
+            "subject": "Acme 2025 Q3 QBR",
+            "topic": "renewal_risk"
+          }
+        }
+      }
+    },
+    {
+      "name": "Label follow-up owners",
+      "ir": {
+  "_comment": "为了让销售运营团队和解决方案顾问都能及时检索到这批待办，除了 Asana 任务里保留的细节，我在记忆里追加 follow-up 标签并标注收入归属团队。",
+        "stage": "STO",
+        "op": "Label",
+        "target": {
+          "filter": {
+            "has_tags": ["account:acme-industries", "meeting:qbr"],
+            "limit": 50
+          }
+        },
+        "args": {
+          "tags": ["follow-up", "q4-pipeline", "team:revenue-ops"],
+          "mode": "add"
+        },
+        "meta": {
+          "actor": "revops-bot",
+          "timestamp": "2025-09-27T17:05:00+08:00"
+        }
+      }
+    },
+    {
+      "name": "Summarize next steps for standup",
+      "ir": {
+  "_comment": "销售总监要在第二天早会拿到一段可直接朗读的更新，虽然 Slack 频道里还有更长的讨论线索，这里先聚合最核心的跟进事项和依赖人。",
+        "stage": "RET",
+        "op": "Summarize",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "Acme QBR follow-ups",
+              "context": "sales leadership standup"
+            },
+            "overrides": {
+              "k": 6
+            },
+            "limit": 6
+          }
+        },
+        "args": {
+          "focus": "提炼待办、风险、依赖人，控制在 120 秒可读。"
+        },
+        "meta": {
+          "actor": "sales-director",
+          "lang": "zh"
+        }
+      }
+    }
+  ]
+}

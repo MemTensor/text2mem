@@ -1,0 +1,87 @@
+{
+  "name": "Scenario - Incident Postmortem Archive",
+  "steps": [
+    {
+      "name": "Capture timeline from war room",
+      "ir": {
+  "_comment": "SRE 工程师凌博在 SEV-1 网络抖动结束后，把指挥频道里的关键时间线整理入库，Slack 原串里还有 CPU 指标截图和 DB failover 讨论，这里先沉淀时间线供后续写 Postmortem。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "2025-09-28 API P1 事件时间线：20:07 监控报警，20:12 切换到备用负载均衡，20:28 发现上海边缘节点路由配置缺失，20:41 修复发布，20:48 恢复 95% 成功率。待办：与网络团队核查变更流程，评估自动化回滚。"
+          },
+          "tags": ["incident:p1-network", "postmortem", "owner:sre-ling"],
+          "type": "war_room_timeline",
+          "time": "2025-09-28T22:30:00+08:00",
+          "source": "slack_war_room",
+          "facets": {
+            "subject": "2025-09-28 API Outage",
+            "topic": "incident_response"
+          },
+          "location": "cn-shanghai"
+        }
+      }
+    },
+    {
+      "name": "Lock incident records",
+      "ir": {
+  "_comment": "防止其他团队误改时间线，原始频道还有不少临时 checklist，我先把这批事件记录设成只读，仅允许检索和摘要。",
+        "stage": "STO",
+        "op": "Lock",
+        "target": {
+          "filter": {
+            "has_tags": ["incident:p1-network"],
+            "time_range": {
+              "start": "2025-09-28T00:00:00+08:00",
+              "end": "2025-10-05T23:59:59+08:00"
+            },
+            "limit": 200
+          }
+        },
+        "args": {
+          "mode": "read_only",
+          "reason": "SEV-1 时间线需保持原样供法务与领导审阅",
+          "policy": {
+            "allow": ["Retrieve", "Summarize"],
+            "deny": ["Update", "Delete"],
+            "reviewers": ["oncall_manager", "sre_lead"],
+            "expires": "2025-12-31T23:59:59+08:00"
+          }
+        },
+        "meta": {
+          "actor": "sre-ling",
+          "timestamp": "2025-09-29T00:05:00+08:00"
+        }
+      }
+    },
+    {
+      "name": "Summarize remediation focus",
+      "ir": {
+  "_comment": "CTO 办公室要一段英文摘要，邮件里还附了客户侧的投诉记录，我得先把核心影响和跟进计划梳理给领导易读。",
+        "stage": "RET",
+        "op": "Summarize",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "2025-09-28 API outage follow-up",
+              "context": "executive briefing"
+            },
+            "overrides": {
+              "k": 8,
+              "order_by": "time_desc"
+            },
+            "limit": 8
+          }
+        },
+        "args": {
+          "focus": "Highlight root cause, customer impact, and assigned remediation owners."
+        },
+        "meta": {
+          "actor": "cto-office",
+          "lang": "en"
+        }
+      }
+    }
+  ]
+}

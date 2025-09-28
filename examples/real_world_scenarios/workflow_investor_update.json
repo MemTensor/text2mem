@@ -1,0 +1,78 @@
+{
+  "name": "Scenario - Investor Update Prep",
+  "steps": [
+    {
+      "name": "Log CFO's metric rundown",
+      "ir": {
+  "_comment": "CEO 周一早上先把 CFO 发来的核心经营指标记入系统，邮件里还有 Excel 附件的详细分部数据，这里先抓重点免得准备投资人更新时反复翻邮件。",
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+          "payload": {
+            "text": "Q3 Week 12 指标：ARR 计入 42.6M，同比增长 18%；净留存率 118%；本周新增 3 家企业客户，其中 2 家来自合作渠道。风险：美国区两个续约谈判推迟到 10 月底。"
+          },
+          "tags": ["investor-update", "metric", "owner:ceo"],
+          "type": "executive_note",
+          "time": "2025-09-29T08:15:00+08:00",
+          "source": "notion_board",
+          "facets": {
+            "subject": "Q3 Investor Update",
+            "topic": "financials"
+          }
+        }
+      }
+    },
+    {
+      "name": "Retrieve recent investor talking points",
+      "ir": {
+  "_comment": "准备对比前几周的更新，Notion 页面里还有去年的更新稿，这里先检索最近几周提过的亮点和风险，避免重复对外沟通。",
+        "stage": "RET",
+        "op": "Retrieve",
+        "target": {
+          "search": {
+            "intent": {
+              "query": "investor update talking points",
+              "context": "monthly stakeholder email"
+            },
+            "overrides": {
+              "k": 12,
+              "order_by": "time_desc"
+            },
+            "limit": 12
+          }
+        },
+        "args": {
+          "include": ["id", "text", "time", "tags", "weight"]
+        },
+        "meta": {
+          "actor": "ceo-office",
+          "lang": "en"
+        }
+      }
+    },
+    {
+      "name": "Schedule weekly reminder to polish draft",
+      "ir": {
+  "_comment": "CEO 想在每周一 9 点收到提醒，除了 Calendar 里已有的彩排会议，记忆里加个提醒检查 investor-update 草稿是否更新。",
+        "stage": "STO",
+        "op": "Promote",
+        "target": {
+          "filter": {
+            "has_tags": ["investor-update", "draft"],
+            "limit": 30
+          }
+        },
+        "args": {
+          "remind": {
+            "rrule": "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            "until": "2025-12-01T09:00:00+08:00"
+          }
+        },
+        "meta": {
+          "actor": "ceo-office",
+          "timestamp": "2025-09-29T08:30:00+08:00"
+        }
+      }
+    }
+  ]
+}
