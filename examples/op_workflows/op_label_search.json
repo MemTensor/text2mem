@@ -13,10 +13,8 @@
 					"type": "note",
 					"time": "2025-03-01T10:00:00+08:00",
 					"source": "notion_doc",
-					"facets": {
-						"subject": "上线流程优化",
-						"topic": "质量门禁"
-					}
+					"subject": "上线流程优化",
+					"topic": "质量门禁"
 				}
 			}
 		},
@@ -47,10 +45,8 @@
 					"type": "note",
 					"time": "2025-03-03T09:15:00+08:00",
 					"source": "meeting_notes",
-					"facets": {
-						"subject": "周会",
-						"topic": "OKR 辅导"
-					}
+					"subject": "周会",
+					"topic": "OKR 辅导"
 				}
 			}
 		},
@@ -81,10 +77,9 @@
 							"query": "OKR"
 						},
 						"overrides": {
-							"limit": 2,
-							"hydration": "ids"
-								},
-								"limit": 2
+							"k": 10
+						},
+						"limit": 2
 					}
 				},
 				"args": {

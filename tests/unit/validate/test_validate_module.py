@@ -37,11 +37,12 @@ def test_validate_ir_helper():
     ok = {
         "stage": "RET",
         "op": "Retrieve",
+        "target": {"ids": "abc"},
         "args": {}
     }
     res = validate_ir(ok, schema)
     assert res.valid
 
-    bad = {"stage": "RET", "op": "Retrieve", "args": {"include": ["unknown_field"]}}
+    bad = {"stage": "RET", "op": "Retrieve", "target": {"ids": "abc"}, "args": {"include": ["unknown_field"]}}
     res2 = validate_ir(bad, schema)
     assert not res2.valid and res2.error

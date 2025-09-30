@@ -1,13 +1,16 @@
 # text2mem/adapters/sqlite_adapter.py
 from __future__ import annotations
-import json, sqlite3, re
-from datetime import datetime
-from typing import Any, Dict, Tuple
+import json, logging, re, sqlite3
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Tuple, Optional
 from text2mem.adapters.base import BaseAdapter, ExecutionResult
 from text2mem.core.models import IR, EncodeArgs, UpdateArgs, DeleteArgs, RetrieveArgs, Target, Filters
 from text2mem.core.models import LabelArgs, PromoteArgs, DemoteArgs, SummarizeArgs
 from text2mem.core.models import MergeArgs, SplitArgs, LockArgs, ExpireArgs # , ClarifyArgs
 from text2mem.services.models_service import ModelsService, get_models_service
+
+logger = logging.getLogger(__name__)
+
 
 DDL = """
 CREATE TABLE IF NOT EXISTS memory (
@@ -39,6 +42,14 @@ CREATE TABLE IF NOT EXISTS memory (
     auto_frequency TEXT,
     next_auto_update_at TEXT,
     expire_at TEXT,
+    expire_action TEXT,
+    expire_reason TEXT,
+
+    -- Lock metadata
+    lock_mode TEXT,
+    lock_reason TEXT,
+    lock_policy TEXT,
+    lock_expires TEXT,
 
     -- Permissions
     read_perm_level TEXT,
@@ -53,7 +64,21 @@ CREATE TABLE IF NOT EXISTS memory (
 );
 """
 
-def _json(obj): return json.dumps(obj, ensure_ascii=False) if obj is not None else None
+MIGRATION_COLUMNS: dict[str, str] = {
+    "embedding_dim": "INTEGER",
+    "embedding_model": "TEXT",
+    "embedding_provider": "TEXT",
+    "expire_action": "TEXT",
+    "expire_reason": "TEXT",
+    "lock_mode": "TEXT",
+    "lock_reason": "TEXT",
+    "lock_policy": "TEXT",
+    "lock_expires": "TEXT",
+}
+
+
+def _json(obj):
+    return json.dumps(obj, ensure_ascii=False) if obj is not None else None
 
 class SQLiteAdapter(BaseAdapter):
     def __init__(self, path: str = ":memory:", models_service: ModelsService = None):
@@ -62,24 +87,128 @@ class SQLiteAdapter(BaseAdapter):
         self.conn.executescript(DDL)
         self.models_service = models_service or get_models_service()
 
-        # 迁移：确保新列存在
+        self._ensure_schema_columns()
+
+    def _ensure_schema_columns(self) -> None:
+        """Perform lightweight migrations to backfill newly added columns."""
+
         try:
             cur = self.conn.execute("PRAGMA table_info(memory)")
-            cols = {row[1] for row in cur.fetchall()}
-            alters = []
-            if "embedding_dim" not in cols:
-                alters.append("ALTER TABLE memory ADD COLUMN embedding_dim INTEGER")
-            if "embedding_model" not in cols:
-                alters.append("ALTER TABLE memory ADD COLUMN embedding_model TEXT")
-            if "embedding_provider" not in cols:
-                alters.append("ALTER TABLE memory ADD COLUMN embedding_provider TEXT")
-            for sql in alters:
+            existing = {row[1] for row in cur.fetchall()}
+        except sqlite3.Error as exc:
+            logger.warning("无法获取 memory 表结构信息，跳过列迁移: %s", exc)
+            return
+
+        pending = {
+            column: definition
+            for column, definition in MIGRATION_COLUMNS.items()
+            if column not in existing
+        }
+
+        if not pending:
+            return
+
+        for column, definition in pending.items():
+            sql = f"ALTER TABLE memory ADD COLUMN {column} {definition}"
+            try:
                 self.conn.execute(sql)
-            if alters:
-                self.conn.commit()
+            except sqlite3.OperationalError as exc:
+                logger.warning("新增列失败 %s: %s", column, exc)
+        self.conn.commit()
+
+    # ---------- lock helpers ----------
+    def _lock_perm_values(self, mode: str) -> tuple[Optional[str], Optional[str]]:
+        if mode == "read_only":
+            return "locked_read_only", "locked_no_write"
+        if mode == "no_delete":
+            return "locked_no_delete", "locked_no_delete"
+        if mode == "append_only":
+            return "locked_append_only", "locked_append_only"
+        if mode == "custom":
+            return "locked_custom", "locked_custom"
+        return None, None
+
+    def _parse_lock_policy(self, policy_json: str | None) -> Dict[str, Any]:
+        if not policy_json:
+            return {}
+        try:
+            data = json.loads(policy_json)
+            return data if isinstance(data, dict) else {}
         except Exception:
-            # 兼容旧SQLite或其它异常，忽略迁移失败以不阻塞
-            pass
+            return {}
+
+    def _lock_is_expired(self, expires: str | None) -> bool:
+        if not expires:
+            return False
+        try:
+            ts = datetime.fromisoformat(expires.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        now = datetime.now(timezone.utc)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return ts <= now
+
+    def _assert_operation_allowed(self, ir: IR, where: str, params: tuple[Any, ...]):
+        """Raise if any targeted row is locked against the current operation."""
+        if ir.op == "Lock":
+            return
+        sql = f"SELECT id, lock_mode, lock_policy, lock_expires FROM memory WHERE {where}"
+        rows = self.conn.execute(sql, params).fetchall()
+        if not rows:
+            return
+        actor = getattr(ir.meta, "actor", None) if ir.meta else None
+        for row in rows:
+            row_dict = dict(row)
+            mode = row_dict.get("lock_mode")
+            if not mode or mode == "disabled":
+                continue
+            expires = row_dict.get("lock_expires")
+            if self._lock_is_expired(expires):
+                continue
+            policy = self._parse_lock_policy(row_dict.get("lock_policy"))
+
+            # custom reviewer check
+            reviewers = policy.get("reviewers") if isinstance(policy.get("reviewers"), list) else None
+            if reviewers and actor not in reviewers:
+                raise PermissionError(f"记忆 {row_dict['id']} 已锁定，需要 reviewer 才能执行 {ir.op}")
+
+            if mode == "read_only":
+                raise PermissionError(f"记忆 {row_dict['id']} 已锁定为只读，无法执行 {ir.op}")
+            if mode == "no_delete" and ir.op == "Delete":
+                raise PermissionError(f"记忆 {row_dict['id']} 已锁定禁止删除")
+            if mode == "append_only" and ir.op in {"Update","Delete","Promote","Demote","Merge","Split","Lock","Expire"}:
+                raise PermissionError(f"记忆 {row_dict['id']} 锁定为 append_only，禁止执行 {ir.op}")
+            if mode == "custom":
+                allow = policy.get("allow") if isinstance(policy.get("allow"), list) else None
+                deny = policy.get("deny") if isinstance(policy.get("deny"), list) else None
+                if allow and ir.op not in allow:
+                    raise PermissionError(f"记忆 {row_dict['id']} 自定义策略仅允许 {allow}，不允许 {ir.op}")
+                if deny and ir.op in deny:
+                    raise PermissionError(f"记忆 {row_dict['id']} 自定义策略禁止 {ir.op}")
+
+    def _parse_iso_duration(self, duration: str) -> timedelta:
+        pattern = r"P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?"
+        match = re.fullmatch(pattern, duration)
+        if not match:
+            raise ValueError(f"无效的 ISO8601 时长: {duration}")
+        years, months, weeks, days, hours, minutes, seconds = match.groups()
+        total = timedelta(0)
+        if years:
+            total += timedelta(days=365 * int(years))
+        if months:
+            total += timedelta(days=30 * int(months))
+        if weeks:
+            total += timedelta(weeks=int(weeks))
+        if days:
+            total += timedelta(days=int(days))
+        if hours:
+            total += timedelta(hours=int(hours))
+        if minutes:
+            total += timedelta(minutes=int(minutes))
+        if seconds:
+            total += timedelta(seconds=int(seconds))
+        return total
 
     # ---------- helpers ----------
     def _where_from_target(self, target: Target | None) -> Tuple[str, tuple]:
@@ -182,6 +311,18 @@ class SQLiteAdapter(BaseAdapter):
             if getattr(f, 'topic', None):
                 clauses.append("topic = ?")
                 params.append(f.topic)
+            if getattr(f, 'facet_subject', None):
+                clauses.append("subject = ?")
+                params.append(f.facet_subject)
+            if getattr(f, 'facet_location', None):
+                clauses.append("location = ?")
+                params.append(f.facet_location)
+            if getattr(f, 'facet_topic', None):
+                clauses.append("topic = ?")
+                params.append(f.facet_topic)
+            if getattr(f, 'facet_time', None):
+                clauses.append("time = ?")
+                params.append(f.facet_time)
             if getattr(f, 'weight_gte', None) is not None:
                 clauses.append("weight >= ?")
                 params.append(f.weight_gte)
@@ -199,113 +340,6 @@ class SQLiteAdapter(BaseAdapter):
         if target.all:
             pass
 
-        if not clauses:
-            return "1=1", ()
-        return " AND ".join(clauses), tuple(params)
-
-        # search: resolve to IDs for non-Retrieve ops; allow intersection with filter/ids
-        if target.search is not None:
-            try:
-                ids = self._resolve_search_ids(target)
-            except Exception:
-                ids = []
-            if not ids:
-                return "0=1", ()  # no matches; guard wide writes
-            placeholders = ",".join(["?"] * len(ids))
-            # if also has filter/ids, we AND them together by wrapping the rest as base
-            base_ids_sql = f"id IN ({placeholders})"
-            clauses: list[str] = [base_ids_sql]
-            params: list[Any] = list(ids)
-            # Merge additional filters (excluding search)
-            if target.ids is not None or target.filter is not None or target.all:
-                base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
-                base_where, base_params = self._where_from_target(base_target)
-                if base_where and base_where != "1=1":
-                    clauses.append(f"({base_where})")
-                    params.extend(list(base_params))
-            return " AND ".join(clauses), tuple(params)
-
-        clauses: list[str] = []
-        params: list[Any] = []
-
-        # ids: 单个或列表
-        if target.ids is not None:
-            ids = target.ids
-            if isinstance(ids, list):
-                placeholders = ",".join(["?"] * len(ids))
-                clauses.append(f"id IN ({placeholders})")
-                params.extend(ids)
-            else:
-                clauses.append("id = ?")
-                params.append(ids)
-
-        # filter: 支持 has_tags / not_tags / type / time_range（相对或绝对）以及扩展字段
-        if target.filter is not None:
-            f: Filters = target.filter
-            if f.has_tags:
-                for t in f.has_tags:
-                    clauses.append("tags LIKE ?")
-                    params.append(f'%"{t}"%')
-            if f.not_tags:
-                for t in f.not_tags:
-                    clauses.append("(tags IS NULL OR tags NOT LIKE ?)")
-                    params.append(f'%"{t}"%')
-            if f.type:
-                clauses.append("type = ?")
-                params.append(f.type)
-            if f.time_range:
-                tr = f.time_range
-                if getattr(tr, 'start', None) and getattr(tr, 'end', None):
-                    clauses.append("time >= ? AND time <= ?")
-                    params.extend([tr.start, tr.end])
-                elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
-                    from datetime import datetime, timedelta, timezone
-                    now = datetime.now(timezone.utc)
-                    amount = int(tr.amount)
-                    unit = tr.unit
-                    delta = None
-                    if unit == 'minutes':
-                        delta = timedelta(minutes=amount)
-                    elif unit == 'hours':
-                        delta = timedelta(hours=amount)
-                    elif unit == 'days':
-                        delta = timedelta(days=amount)
-                    elif unit == 'weeks':
-                        delta = timedelta(weeks=amount)
-                    elif unit == 'months':
-                        delta = timedelta(days=30*amount)
-                    elif unit == 'years':
-                        delta = timedelta(days=365*amount)
-                    if delta is not None:
-                        if tr.relative == 'last':
-                            start = (now - delta).isoformat()
-                            end = now.isoformat()
-                        else:  # 'next'
-                            start = now.isoformat()
-                            end = (now + delta).isoformat()
-                        clauses.append("time >= ? AND time <= ?")
-                        params.extend([start, end])
-            if getattr(f, 'subject', None):
-                clauses.append("subject = ?")
-                params.append(f.subject)
-            if getattr(f, 'location', None):
-                clauses.append("location = ?")
-                params.append(f.location)
-            if getattr(f, 'topic', None):
-                clauses.append("topic = ?")
-                params.append(f.topic)
-            if getattr(f, 'weight_gte', None) is not None:
-                clauses.append("weight >= ?")
-                params.append(f.weight_gte)
-            if getattr(f, 'weight_lte', None) is not None:
-                clauses.append("weight <= ?")
-                params.append(f.weight_lte)
-            if getattr(f, 'expire_before', None):
-                clauses.append("expire_at IS NOT NULL AND expire_at < ?")
-                params.append(f.expire_before)
-            if getattr(f, 'expire_after', None):
-                clauses.append("expire_at IS NOT NULL AND expire_at > ?")
-                params.append(f.expire_after)
         if not clauses:
             return "1=1", ()
         return " AND ".join(clauses), tuple(params)
@@ -500,6 +534,10 @@ class SQLiteAdapter(BaseAdapter):
         wh, ps = self._where_from_target(ir.target)
         # avoid soft-deleted
         wh = f"({wh}) AND deleted=0"
+        try:
+            self._assert_operation_allowed(ir, wh, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
         updates, vals = [], []
         # Determine language preference: meta.lang -> env TEXT2MEM_LANG -> en
         import os
@@ -580,12 +618,24 @@ class SQLiteAdapter(BaseAdapter):
         wh, ps = self._where_from_target(ir.target)
         # avoid soft-deleted
         wh = f"({wh}) AND deleted=0"
+        try:
+            self._assert_operation_allowed(ir, wh, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
         sets, vals = [], []
         d = args.set.model_dump(exclude_none=True)
         for k, v in d.items():
             col = {"facets":"facets","tags":"tags"}.get(k, k)
             if k in {"tags","facets","read_whitelist","read_blacklist","write_whitelist","write_blacklist"}:
-                sets.append(f"{col}=?"); vals.append(_json(v))
+                if k == "facets":
+                    src = v if isinstance(v, dict) else {}
+                    facets_dict = {kk: vv for kk, vv in src.items() if vv is not None}
+                    sets.append("facets=?"); vals.append(_json(facets_dict))
+                    for fk in ("subject","time","location","topic"):
+                        if fk in facets_dict:
+                            sets.append(f"{fk}=?"); vals.append(facets_dict[fk])
+                else:
+                    sets.append(f"{col}=?"); vals.append(_json(v))
             elif k == "embedding":
                 # 拒绝通过 Update 写入embedding，返回安全错误
                 raise ValueError("安全策略：禁止通过 Update 直接写入 embedding")
@@ -606,6 +656,10 @@ class SQLiteAdapter(BaseAdapter):
         wh, ps = self._where_from_target(ir.target)
         # avoid soft-deleted
         wh = f"({wh}) AND deleted=0"
+        try:
+            self._assert_operation_allowed(ir, wh, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
         sets, vals = [], []
         
         # 处理 weight 绝对值
@@ -650,6 +704,10 @@ class SQLiteAdapter(BaseAdapter):
         wh, ps = self._where_from_target(ir.target)
         # avoid soft-deleted
         wh = f"({wh}) AND deleted=0"
+        try:
+            self._assert_operation_allowed(ir, wh, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
         sets, vals = [], []
         
         # 处理 archive 参数（原型：降级为低权重）
@@ -687,73 +745,75 @@ class SQLiteAdapter(BaseAdapter):
 
     def _exec_delete(self, ir: IR, args: DeleteArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
-        # avoid soft-deleted unless hard deleting
-        if args.soft:
-            wh = f"({wh}) AND deleted=0"
-        extra = []
-        # Support absolute or relative time range filters
-        if args.time_range:
-            tr = args.time_range
-            if getattr(tr, 'start', None) and getattr(tr, 'end', None):
-                extra.append("time >= ? AND time <= ?")
-                ps += (tr.start, tr.end)
-            elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
-                # compute absolute start/end based on now
-                from datetime import datetime, timedelta, timezone
-                now = datetime.now(timezone.utc)
-                amount = int(tr.amount)
-                unit = tr.unit
-                delta = None
-                if unit == 'minutes':
-                    delta = timedelta(minutes=amount)
-                elif unit == 'hours':
-                    delta = timedelta(hours=amount)
-                elif unit == 'days':
-                    delta = timedelta(days=amount)
-                elif unit == 'weeks':
-                    delta = timedelta(weeks=amount)
-                elif unit == 'months':
-                    # approx: 30 days
-                    delta = timedelta(days=30*amount)
-                elif unit == 'years':
-                    delta = timedelta(days=365*amount)
-                if tr.relative == 'last' and delta is not None:
-                    start = (now - delta).isoformat()
-                    end = now.isoformat()
-                    extra.append("time >= ? AND time <= ?")
-                    ps += (start, end)
-                elif tr.relative == 'next' and delta is not None:
-                    start = now.isoformat()
-                    end = (now + delta).isoformat()
-                    extra.append("time >= ? AND time <= ?")
-                    ps += (start, end)
-        # Support older_than as a relative cutoff (time < now - duration)
-        if getattr(args, 'older_than', None):
-            from datetime import datetime, timedelta, timezone
-            import re
-            # Simple ISO8601 duration parser for PnYnMnDTnHnMnS (subset)
-            dur = args.older_than
-            total = timedelta(0)
-            m = re.fullmatch(r"P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?", dur)
-            if m:
-                y, mo, w, d, h, mi, s = m.groups()
-                if y: total += timedelta(days=365*int(y))
-                if mo: total += timedelta(days=30*int(mo))
-                if w: total += timedelta(weeks=int(w))
-                if d: total += timedelta(days=int(d))
-                if h: total += timedelta(hours=int(h))
-                if mi: total += timedelta(minutes=int(mi))
-                if s: total += timedelta(seconds=int(s))
-                cutoff = (datetime.now(timezone.utc) - total).isoformat()
-                extra.append("time < ?")
-                ps += (cutoff,)
-        sql = f"UPDATE memory SET deleted=1 WHERE {wh}" if args.soft else f"DELETE FROM memory WHERE {wh}"
-        if extra:
-            sql = sql.replace(" WHERE ", f" WHERE {' AND '.join(extra)} AND ")
+        if wh == "0=1":
+            final_where = wh
+            params: list[Any] = list(ps)
+        else:
+            clauses: list[str] = []
+            params = list(ps)
+            if wh and wh != "1=1":
+                clauses.append(f"({wh})")
+            if args.soft:
+                clauses.append("deleted=0")
+
+            def _iso(dt: datetime) -> str:
+                return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+            if args.time_range:
+                tr = args.time_range
+                if getattr(tr, "start", None) and getattr(tr, "end", None):
+                    clauses.append("time >= ? AND time <= ?")
+                    params.extend([tr.start, tr.end])
+                elif getattr(tr, "relative", None) and getattr(tr, "amount", None) and getattr(tr, "unit", None):
+                    now = datetime.now(timezone.utc)
+                    amount = int(tr.amount)
+                    unit = tr.unit
+                    delta = None
+                    if unit == "minutes":
+                        delta = timedelta(minutes=amount)
+                    elif unit == "hours":
+                        delta = timedelta(hours=amount)
+                    elif unit == "days":
+                        delta = timedelta(days=amount)
+                    elif unit == "weeks":
+                        delta = timedelta(weeks=amount)
+                    elif unit == "months":
+                        delta = timedelta(days=30 * amount)
+                    elif unit == "years":
+                        delta = timedelta(days=365 * amount)
+                    if delta is not None:
+                        if tr.relative == "last":
+                            start = _iso(now - delta)
+                            end = _iso(now)
+                        else:  # "next"
+                            start = _iso(now)
+                            end = _iso(now + delta)
+                        clauses.append("time >= ? AND time <= ?")
+                        params.extend([start, end])
+
+            if getattr(args, "older_than", None):
+                delta = self._parse_iso_duration(args.older_than)
+                cutoff = _iso(datetime.now(timezone.utc) - delta)
+                clauses.append("time < ?")
+                params.append(cutoff)
+
+            final_where = " AND ".join(clauses) if clauses else "1=1"
+
+        try:
+            self._assert_operation_allowed(ir, final_where, tuple(params))
+        except PermissionError as err:
+            raise ValueError(str(err))
+
+        sql = (
+            f"UPDATE memory SET deleted=1 WHERE {final_where}"
+            if args.soft
+            else f"DELETE FROM memory WHERE {final_where}"
+        )
         if ir.meta and ir.meta.dry_run:
-            return {"sql": sql, "params": ps}
-        cur = self.conn.execute(sql, ps); self.conn.commit()
-        return {"affected_rows": cur.rowcount, "soft": args.soft}
+            return {"sql": sql, "params": tuple(params)}
+        cur = self.conn.execute(sql, tuple(params))
+        self.conn.commit()
+        return {"affected_rows": cur.rowcount, "soft": args.soft, "reason": args.reason}
 
     def _exec_summarize(self, ir: IR, args: SummarizeArgs) -> ExecutionResult:
         wh, ps = self._where_from_target(ir.target)
@@ -812,9 +872,14 @@ class SQLiteAdapter(BaseAdapter):
     def _exec_merge(self, ir: IR, args: MergeArgs) -> ExecutionResult:
         """合并记忆操作（仅支持 merge_into_primary）"""
         wh, ps = self._where_from_target(ir.target)
+        where_clause = f"({wh}) AND deleted=0"
+        try:
+            self._assert_operation_allowed(ir, where_clause, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
 
         # 获取目标记忆
-        sql = f"SELECT * FROM memory WHERE {wh} AND deleted=0"
+        sql = f"SELECT * FROM memory WHERE {where_clause}"
         rows = [dict(r) for r in self.conn.execute(sql, ps).fetchall()]
 
         if not rows:
@@ -827,8 +892,11 @@ class SQLiteAdapter(BaseAdapter):
             # 预览：若未跳过，将会对主记忆进行重嵌入
             return {"message": f"模拟合并 {len(rows)} 条记忆", "strategy": "merge_into_primary", "would_reembed": (not getattr(args, 'skip_reembedding', False))}
 
-        # 主记忆选择：显式 primary_id 或第一条
-        primary_id = args.primary_id or str(rows[0]["id"])
+        # 主记忆选择：显式 primary_id 或第一条（默认 "auto" 表示自动）
+        if args.primary_id in (None, "auto"):
+            primary_id = str(rows[0]["id"])
+        else:
+            primary_id = str(args.primary_id)
         primary = next((r for r in rows if str(r["id"]) == primary_id), None)
         if not primary:
             return {"error": f"找不到主记忆 ID: {primary_id}", "merged_count": 0}
@@ -1111,78 +1179,83 @@ class SQLiteAdapter(BaseAdapter):
         }
 
     def _exec_lock(self, ir: IR, args: LockArgs) -> ExecutionResult:
-        """锁定记忆操作"""
         wh, ps = self._where_from_target(ir.target)
-        
-        # 在SQLite原型中，我们通过添加特殊字段来模拟锁定
-        # 实际系统中应该有专门的权限表
-        lock_info = {
+        wh = f"({wh}) AND deleted=0"
+
+        policy_dict = args.policy.model_dump(exclude_none=True) if args.policy else None
+        lock_policy_json = _json(policy_dict) if policy_dict else None
+        lock_expires = policy_dict.get("expires") if policy_dict else None
+
+        if args.mode == "disabled":
+            lock_mode = None
+            lock_reason = None
+            lock_policy_json = None
+            lock_expires = None
+            policy_dict = None
+            read_perm = None
+            write_perm = None
+        else:
+            lock_mode = args.mode
+            lock_reason = args.reason
+            read_perm, write_perm = self._lock_perm_values(args.mode)
+
+        if ir.meta and ir.meta.dry_run:
+            return {
+                "preview": "lock",
+                "mode": args.mode,
+                "policy": policy_dict,
+                "where": wh,
+                "params": ps,
+            }
+
+        sql = (
+            "UPDATE memory SET lock_mode = ?, lock_reason = ?, lock_policy = ?, lock_expires = ?, "
+            "read_perm_level = ?, write_perm_level = ? WHERE "
+            f"{wh}"
+        )
+        values = (lock_mode, lock_reason, lock_policy_json, lock_expires, read_perm, write_perm)
+        cur = self.conn.execute(sql, values + ps)
+        self.conn.commit()
+        return {
+            "affected_rows": cur.rowcount,
             "mode": args.mode,
             "reason": args.reason,
-            "policy": args.policy,
-            "locked_at": datetime.now().isoformat()
+            "policy": policy_dict,
         }
-        
-        if ir.meta and ir.meta.dry_run:
-            return {"message": f"模拟锁定记忆", "mode": args.mode}
-        
-        # 更新记忆的锁定状态（通过read_perm_level字段模拟）
-        update_sql = f"""
-        UPDATE memory 
-        SET read_perm_level = ?, write_perm_level = ?
-        WHERE {wh} AND deleted=0
-        """
-        
-        if args.mode == "read_only":
-            read_perm = "locked_read_only"
-            write_perm = "locked_no_write"
-        else:  # append_only
-            read_perm = "locked_read_only"
-            write_perm = "locked_append_only"
-        
-        cursor = self.conn.execute(update_sql, (read_perm, write_perm) + ps)
-        affected_rows = cursor.rowcount
-        
-        self.conn.commit()
-        return {"affected_rows": affected_rows, "mode": args.mode, "reason": args.reason}
 
     def _exec_expire(self, ir: IR, args: ExpireArgs) -> ExecutionResult:
         """设置记忆过期"""
         wh, ps = self._where_from_target(ir.target)
-        
-        # 计算过期时间
-        if args.until:
-            expire_time = args.until
-        else:  # ttl
-            # 简化处理：将ISO8601 duration转换为过期时间
-            # 实际应用需要更完善的duration解析
-            from datetime import datetime, timedelta
-            try:
-                # 简单解析，如 "P7D" -> 7天
-                if args.ttl.startswith("P") and args.ttl.endswith("D"):
-                    days = int(args.ttl[1:-1])
-                    expire_time = (datetime.now() + timedelta(days=days)).isoformat()
-                else:
-                    # 默认7天后过期
-                    expire_time = (datetime.now() + timedelta(days=7)).isoformat()
-            except:
-                expire_time = (datetime.now() + timedelta(days=7)).isoformat()
-        
+        wh = f"({wh}) AND deleted=0"
+
+        try:
+            self._assert_operation_allowed(ir, wh, ps)
+        except PermissionError as err:
+            raise ValueError(str(err))
+
+        if args.expire_at:
+            expire_at = args.expire_at
+        else:
+            delta = self._parse_iso_duration(args.ttl)
+            expire_at = (datetime.now(timezone.utc) + delta).isoformat().replace("+00:00", "Z")
+
+        update_sql = (
+            "UPDATE memory SET expire_at = ?, expire_action = ?, expire_reason = ? "
+            f"WHERE {wh}"
+        )
+        params = (expire_at, args.on_expire, args.reason) + ps
+
         if ir.meta and ir.meta.dry_run:
-            return {"message": f"模拟设置过期时间", "expire_time": expire_time}
-        
-        # 更新过期时间
-        update_sql = f"""
-        UPDATE memory 
-        SET expire_at = ?
-        WHERE {wh} AND deleted=0
-        """
-        
-        cursor = self.conn.execute(update_sql, (expire_time,) + ps)
-        affected_rows = cursor.rowcount
-        
+            return {"sql": update_sql, "params": params}
+
+        cur = self.conn.execute(update_sql, params)
         self.conn.commit()
-        return {"affected_rows": affected_rows, "expire_time": expire_time, "on_expire": args.on_expire}
+        return {
+            "affected_rows": cur.rowcount,
+            "expire_time": expire_at,
+            "on_expire": args.on_expire,
+            "reason": args.reason,
+        }
 
     # def _exec_clarify(self, ir: IR, args: ClarifyArgs) -> ExecutionResult:
     #     """澄清操作"""
@@ -1349,7 +1422,7 @@ class SQLiteAdapter(BaseAdapter):
             "time_asc": "time ASC",
             "weight_desc": "weight DESC",
         }[order_by]
-        limit = 50
+        limit = 100 if target is None else 50
         if target and target.filter and target.filter.limit:
             limit = target.filter.limit  # type: ignore
         sql = f"SELECT * FROM memory WHERE {wh} ORDER BY {order_sql} LIMIT ?"
@@ -1357,7 +1430,10 @@ class SQLiteAdapter(BaseAdapter):
         if ir.meta and ir.meta.dry_run:
             return {"sql": sql, "params": params}
         rows = [dict(r) for r in self.conn.execute(sql, params).fetchall()]
-        return {"rows": rows, "count": len(rows), "mode": "traditional"}
+        result: dict[str, Any] = {"rows": rows, "count": len(rows), "mode": "traditional"}
+        if target is None:
+            result["warnings"] = ["Default limit applied (100) because Retrieve target was omitted."]
+        return result
 
     # ---------- main dispatch ----------
     def execute(self, ir: IR) -> ExecutionResult:

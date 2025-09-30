@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from text2mem.adapters.base import ExecutionResult
 
 
@@ -147,6 +150,36 @@ def test_lock_read_only(engine, seed_memories):
     "args": {},
     }).get("rows", [])[0]
     assert row.get("write_perm_level") == "locked_no_write"
+    assert row.get("lock_mode") == "read_only"
+    assert row.get("lock_reason") == "冻结测试"
+
+
+def test_delete_blocked_by_lock(engine):
+    data = exec_ok(engine, {
+        "stage": "ENC",
+        "op": "Encode",
+        "args": {
+            "payload": {"text": "Please keep"},
+            "type": "note",
+            "tags": ["KeepMe"],
+            "time": "2024-01-01T00:00:00Z",
+        },
+    })
+    rid = data.get("inserted_id")
+    exec_ok(engine, {
+        "stage": "STO",
+        "op": "Lock",
+        "target": {"ids": str(rid)},
+    "args": {"mode": "no_delete", "reason": "safety"},
+    })
+    res = engine.execute({
+        "stage": "STO",
+        "op": "Delete",
+        "target": {"ids": str(rid)},
+    "args": {"older_than": "P1D"},
+    })
+    assert not res.success
+    assert "禁止删除" in (res.error or "")
 
 
 def test_expire_sets_time(engine, seed_memories):
@@ -166,6 +199,24 @@ def test_expire_sets_time(engine, seed_memories):
     assert row2.get("expire_at")
 
 
+def test_expire_sets_action_and_reason(engine, seed_memories):
+    ids = seed_memories(["Expire detail"], tags=["ExpireDetail"], mtype="note")
+    exec_ok(engine, {
+        "stage": "STO",
+        "op": "Expire",
+        "target": {"ids": str(ids[0])},
+    "args": {"ttl": "P1D", "on_expire": "archive", "reason": "cleanup"},
+    })
+    row = exec_ok(engine, {
+        "stage": "RET",
+        "op": "Retrieve",
+        "target": {"ids": str(ids[0])},
+    "args": {},
+    }).get("rows", [])[0]
+    assert row.get("expire_action") == "archive"
+    assert row.get("expire_reason") == "cleanup"
+
+
 def test_summarize_focus(engine, seed_memories):
     seed_memories(["Alpha 总结 1", "Alpha 总结 2"], tags=["Alpha"], mtype="note")
     out = exec_ok(engine, {
@@ -175,3 +226,70 @@ def test_summarize_focus(engine, seed_memories):
     "args": {"focus": "项目概览", "max_tokens": 120},
     })
     assert isinstance(out.get("summary", ""), str)
+
+
+def test_delete_by_ids_without_time_filters(engine, seed_memories):
+    ids = seed_memories(["单条删除测试"], tags=["DeleteId"], mtype="note")
+    out = exec_ok(engine, {
+        "stage": "STO",
+        "op": "Delete",
+        "target": {"ids": str(ids[0])},
+        "args": {"soft": True},
+    })
+    assert out.get("affected_rows") == 1
+    rows = exec_ok(engine, {
+        "stage": "RET",
+        "op": "Retrieve",
+        "target": {"ids": str(ids[0])},
+        "args": {},
+    }).get("rows", [])
+    assert rows == []
+
+
+def test_lock_append_only_blocks_update(engine, seed_memories):
+    ids = seed_memories(["Append 记录"], tags=["AppendLock"], mtype="note")
+    exec_ok(engine, {
+        "stage": "STO",
+        "op": "Lock",
+        "target": {"ids": str(ids[0])},
+        "args": {"mode": "append_only", "reason": "仅允许追加"},
+    })
+    res = engine.execute({
+        "stage": "STO",
+        "op": "Update",
+        "target": {"ids": str(ids[0])},
+        "args": {"set": {"text": "should fail"}},
+    })
+    assert not res.success
+    assert "append_only" in (res.error or "")
+
+
+def test_retrieve_without_target_rejected(engine):
+    with pytest.raises(ValidationError) as exc:
+        engine.execute({
+            "stage": "RET",
+            "op": "Retrieve",
+            "args": {},
+        })
+    assert "target" in str(exc.value)
+
+
+def test_retrieve_all_requires_confirmation(engine, seed_memories):
+    seed_memories(["Retrieve all"], tags=["All"], mtype="note")
+    with pytest.raises(ValidationError) as exc:
+        engine.execute({
+            "stage": "RET",
+            "op": "Retrieve",
+            "target": {"all": True},
+            "args": {},
+        })
+    assert "confirmation" in str(exc.value)
+
+    data = exec_ok(engine, {
+        "stage": "RET",
+        "op": "Retrieve",
+        "target": {"all": True},
+        "args": {},
+        "meta": {"confirmation": True},
+    })
+    assert data.get("rows") is not None

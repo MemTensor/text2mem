@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 import json
+import os
 from typing import List, Dict, Any, Optional, Union
 
 try:
@@ -66,12 +67,21 @@ class OllamaGenerationModel(BaseGenerationModel):
         logger.info(f"✅ Ollama生成模型初始化: {model_name} @ {base_url}")
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
         try:
+            lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
+            if lang == "zh":
+                language_hint = "请使用中文回答。"
+            elif lang == "en":
+                language_hint = "Please respond in English."
+            else:
+                language_hint = f"Please respond in {lang}."
+            prompt_payload = f"{language_hint}\n\n{prompt}" if language_hint else prompt
+
             timeout = kwargs.get("timeout", 30.0)
             response = self.client.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": self.model_name,
-                    "prompt": prompt,
+                    "prompt": prompt_payload,
                     "stream": False,
                     "options": {
                         "temperature": kwargs.get("temperature", 0.7),
@@ -105,12 +115,21 @@ class OllamaGenerationModel(BaseGenerationModel):
         - Some models respond more reliably with a short, explicit instruction.
         - Fallback parsing is handled by the caller if needed.
         """
+        lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
+        if lang == "zh":
+            language_hint = "请使用中文回答。"
+        elif lang == "en":
+            language_hint = "Please respond in English."
+        else:
+            language_hint = f"Please respond in {lang}."
+
         # 统一用简洁提示，请求返回 JSON 数组（元素可包含 title/text/range），不强制输出给定schema
         structured_prompt = (
             f"{prompt}\n\n"
             f"仅输出一个 JSON 数组，不要添加任何解释、注释或前后缀。数组元素为对象，字段可包含：\n"
             f"- title: 可选，字符串\n- text: 可选，字符串\n- range: 可选，[start,end] 两个整数，表示在原文中的范围\n"
         )
+        structured_prompt = f"{language_hint}\n\n{structured_prompt}" if language_hint else structured_prompt
         try:
             timeout = kwargs.get("timeout", 30.0)
             response = self.client.post(

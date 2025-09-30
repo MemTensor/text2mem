@@ -13,6 +13,7 @@
     }
   },
   "args": {
+    "older_than": "P60D",
     "soft": true,
     "reason": "清理过期的 OKR 草稿"
   },

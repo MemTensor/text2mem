@@ -199,7 +199,8 @@
                   "rrule": { "type": "string", "description": "RFC5545 RRULE", "x-description-zh": "RFC5545 RRULE 规则字符串" },
                   "until": { "type": "string", "format": "date-time" }
                 }
-              }
+              },
+              "reason": { "type": "string", "description": "Optional human explanation for the demotion.", "x-description-zh": "可选的升权原因说明。" }
             }
           }
         }
@@ -252,10 +253,13 @@
     {
       "if": { "properties": { "op": { "const": "Retrieve" } }, "required": ["op"] },
       "then": {
+        "required": ["target"],
         "properties": {
           "stage": { "const": "RET" },
           "args": {
             "type": "object",
+            "description": "Optional include list; target selection is required at the top level.",
+            "x-description-zh": "可选 include 字段；顶层必须提供 target 来限定检索范围。",
             "additionalProperties": false,
             "properties": {
               "include": { "$ref": "#/$defs/IncludeList" }
@@ -477,6 +481,31 @@
           }
         ]
       }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "stage": { "const": "RET" },
+          "target": {
+            "properties": {
+              "all": { "const": true }
+            },
+            "required": ["all"]
+          }
+        },
+        "required": ["target"]
+      },
+      "then": {
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": { "confirmation": { "const": true } },
+            "required": ["confirmation"]
+          }
+        },
+        "required": ["meta"]
+      }
     }
   ],
 
@@ -621,8 +650,8 @@
     "Target": {
       "type": "object",
       "additionalProperties": false,
-  "description": "Target selector (choose one): ids | filter | search | all. Note: In STO stage, filter/search require limit; for all, meta.dry_run=true or meta.confirmation=true is required.",
-  "x-description-zh": "目标选择器（四选一）：ids | filter | search | all。注意：STO 阶段使用 filter/search 必须提供 limit；使用 all 时需 meta.dry_run=true 或 meta.confirmation=true。",
+  "description": "Target selector (choose one): ids | filter | search | all. Note: In STO stage, filter/search require limit; for all, meta.dry_run=true or meta.confirmation=true is required. In RET stage, using all requires meta.confirmation=true.",
+  "x-description-zh": "目标选择器（四选一）：ids | filter | search | all。注意：STO 阶段使用 filter/search 必须提供 limit；使用 all 时需 meta.dry_run=true 或 meta.confirmation=true。RET 阶段若使用 all，需设置 meta.confirmation=true。",
       "properties": {
         "ids": {
           "oneOf": [

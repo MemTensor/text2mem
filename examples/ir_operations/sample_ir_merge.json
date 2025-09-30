@@ -10,6 +10,7 @@
   },
   "args": {
     "strategy": "merge_into_primary",
+    "primary_id": "auto",
     "soft_delete_children": true
   },
   "meta": {

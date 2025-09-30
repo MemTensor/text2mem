@@ -55,6 +55,10 @@ class Filters(BaseModel):
     subject: Optional[str] = None
     location: Optional[str] = None
     topic: Optional[str] = None
+    facet_subject: Optional[str] = None
+    facet_time: Optional[str] = None
+    facet_location: Optional[str] = None
+    facet_topic: Optional[str] = None
     weight_gte: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     weight_lte: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     expire_before: Optional[str] = None
@@ -238,7 +242,7 @@ class UpdateArgs(BaseModel):
 
 class MergeArgs(BaseModel):
     strategy: Literal["merge_into_primary"] = "merge_into_primary"
-    primary_id: Optional[str] = None
+    primary_id: str = "auto"
     soft_delete_children: bool = True
     skip_reembedding: bool = False
 
@@ -261,6 +265,13 @@ class PromoteArgs(BaseModel):
         if self.weight is not None:
             if not (0.0 <= self.weight <= 1.0):
                 raise ValueError("Promote.weight 必须在 [0,1] 区间内")
+        if self.weight_delta is not None:
+            try:
+                delta = float(self.weight_delta)
+            except (TypeError, ValueError):
+                raise ValueError("Promote.weight_delta 必须是数值类型")
+            if not (-1.0 <= delta <= 1.0):
+                raise ValueError("Promote.weight_delta 建议在 [-1,1] 区间内，以避免权重越界")
         return self
 
 class DemoteArgs(BaseModel):
@@ -280,6 +291,13 @@ class DemoteArgs(BaseModel):
         if self.weight is not None:
             if not (0.0 <= self.weight <= 1.0):
                 raise ValueError("Demote.weight 必须在 [0,1] 区间内")
+        if self.weight_delta is not None:
+            try:
+                delta = float(self.weight_delta)
+            except (TypeError, ValueError):
+                raise ValueError("Demote.weight_delta 必须是数值类型")
+            if not (-1.0 <= delta <= 1.0):
+                raise ValueError("Demote.weight_delta 建议在 [-1,1] 区间内，以避免权重越界")
         return self
 
 class DeleteArgs(BaseModel):
@@ -393,49 +411,61 @@ class SplitArgs(BaseModel):
                     raise ValueError("custom.max_splits 必须为 >=1 的整数")
         return self
 
-class LockArgs(BaseModel):
-    mode: Literal["read_only","append_only"] = "read_only"
-    reason: Optional[str] = None
-    policy: Optional[Dict[str, Any]] = None
+class LockPolicy(BaseModel):
+    allow: Optional[List[Op]] = None
+    deny: Optional[List[Op]] = None
+    reviewers: Optional[List[str]] = None
+    expires: Optional[str] = None
+
     @model_validator(mode="after")
     def validate_policy(self):
-        if self.policy:
-            allowed_keys = ["allow", "deny", "reviewers", "expires"]
-            for key in self.policy:
-                if key not in allowed_keys:
-                    raise ValueError(f"policy 只能包含以下字段：{', '.join(allowed_keys)}，发现无效字段: '{key}'")
-            if "allow" in self.policy and not isinstance(self.policy["allow"], list):
-                raise ValueError("policy.allow 必须是操作列表")
-            if "deny" in self.policy and not isinstance(self.policy["deny"], list):
-                raise ValueError("policy.deny 必须是操作列表")
-            if "reviewers" in self.policy and not isinstance(self.policy["reviewers"], list):
-                raise ValueError("policy.reviewers 必须是字符串列表")
-            if "expires" in self.policy:
-                try:
-                    from datetime import datetime
-                    datetime.fromisoformat(self.policy["expires"].replace('Z', '+00:00'))
-                except (ValueError, AttributeError):
-                    raise ValueError(f"policy.expires 必须是有效的ISO8601格式时间")
+        if self.allow is not None and not isinstance(self.allow, list):
+            raise ValueError("policy.allow 必须是操作列表")
+        if self.deny is not None and not isinstance(self.deny, list):
+            raise ValueError("policy.deny 必须是操作列表")
+        if self.reviewers is not None and not isinstance(self.reviewers, list):
+            raise ValueError("policy.reviewers 必须是字符串列表")
+        if self.expires:
+            try:
+                from datetime import datetime
+
+                datetime.fromisoformat(self.expires.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                raise ValueError("policy.expires 必须是有效的ISO8601格式时间")
         return self
+
+
+class LockArgs(BaseModel):
+    mode: Literal["read_only","no_delete","append_only","disabled","custom"] = "read_only"
+    reason: Optional[str] = None
+    policy: Optional[LockPolicy] = None
+
+    @model_validator(mode="after")
+    def validate_custom_mode(self):
+        if self.mode == "custom" and self.policy is None:
+            raise ValueError("Lock 模式为 custom 时必须提供 policy")
+        return self
+
     def is_read_only(self) -> bool:
         return self.mode == "read_only"
-    def is_append_only(self) -> bool:
-        return self.mode == "append_only"
 
 class ExpireArgs(BaseModel):
     ttl: Optional[str] = None
-    until: Optional[str] = None
-    on_expire: Literal["soft_delete","hard_delete","demote","anonymize"] = "soft_delete"
+    expire_at: Optional[str] = None
+    on_expire: Literal["soft_delete","hard_delete","archive","none"] = "soft_delete"
+    reason: Optional[str] = None
+
     @model_validator(mode="after")
     def _one_of(self):
-        if not ((self.ttl is not None) ^ (self.until is not None)):
-            raise ValueError("Expire 操作必须且只能提供以下一种：ttl（生存时间） | until（过期日期）")
-        if self.until:
+        if not ((self.ttl is not None) ^ (self.expire_at is not None)):
+            raise ValueError("Expire 操作必须且只能提供以下一种：ttl（生存时间） | expire_at（过期日期）")
+        if self.expire_at:
             try:
                 from datetime import datetime
-                datetime.fromisoformat(self.until.replace('Z', '+00:00'))
+
+                datetime.fromisoformat(self.expire_at.replace('Z', '+00:00'))
             except ValueError:
-                raise ValueError(f"过期日期格式错误: '{self.until}' 不是有效的ISO8601格式")
+                raise ValueError(f"过期日期格式错误: '{self.expire_at}' 不是有效的ISO8601格式")
         return self
 
 class IR(BaseModel):
@@ -478,4 +508,13 @@ class IR(BaseModel):
                 if self.target.all:
                     if not (self.meta and (self.meta.dry_run or getattr(self.meta, 'confirmation', False))):
                         raise ValueError("STO 阶段使用 target.all 时，必须设置 meta.dry_run=true 或 meta.confirmation=true")
+        return self
+
+    @model_validator(mode="after")
+    def _ret_safety(self):
+        if self.op == "Retrieve" and self.target is None:
+            raise ValueError("Retrieve 操作必须提供 target")
+        if self.stage == "RET" and isinstance(self.target, Target) and self.target.all:
+            if not (self.meta and getattr(self.meta, "confirmation", False)):
+                raise ValueError("RET 阶段使用 target.all 时，必须设置 meta.confirmation=true")
         return self
