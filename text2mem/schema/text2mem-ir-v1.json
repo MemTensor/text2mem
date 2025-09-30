@@ -200,7 +200,7 @@
                   "until": { "type": "string", "format": "date-time" }
                 }
               },
-              "reason": { "type": "string", "description": "Optional human explanation for the demotion.", "x-description-zh": "可选的升权原因说明。" }
+              "reason": { "type": "string", "description": "Optional human explanation for the promotion.", "x-description-zh": "可选的升权原因说明。" }
             }
           }
         }
@@ -272,6 +272,7 @@
     {
       "if": { "properties": { "op": { "const": "Summarize" } }, "required": ["op"] },
       "then": {
+        "required": ["target"],
         "properties": {
           "stage": { "const": "RET" },
           "args": {
