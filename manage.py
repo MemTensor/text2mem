@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
 """
-Project manager for Text2Mem
+Project manager for Text2Mem CLI utilities.
 
-Commands:
-	- status: quick environment status
-	- config: write a .env file (--provider [mock|ollama|openai])
-	- setup-ollama: pull default models via ollama (if installed)
-	- setup-openai: create/update .env for OpenAI usage
-		- workflow: run a workflow JSON (examples/real_world_scenarios/*.json)
-	- test: run tests (pytest), or smoke integration if pytest absent
-	- models-info: show resolved provider/models from current env
-	- models-smoke [mode]: minimal embed+generate smoke (mock|ollama|openai|auto)
-	- features [--mode ...] [--db ...]: run encode/retrieve/summarize flow
-	- ir [--mode ...] (--file path.json | --inline '{...}') [--db ...]: execute a single IR
-	- demo [--mode ...] [--db ...] [--set workflows|individual]: batch-run curated examples
-	- list-workflows: list bundled workflow files
-	- repl [--mode ...] [--db ...]: interactive shell to run commands (embed/gen/ir/...)
-	- bench-planning --input file.jsonl [--out report.json]: validate schemas against IR v1
+Provides a consolidated entrypoint for environment setup, demos, workflows,
+interactive tooling, and validation helpers. Run ``python manage.py help`` to
+see an overview or ``python manage.py help <command>`` for details.
 """
-import os, sys, subprocess, re, json, argparse, time
+import os, sys, subprocess, re, json, argparse, time, textwrap
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Tuple
 from pathlib import Path
 from scripts.cli_core import (
 	echo, load_env_file, ENV_PATH as CORE_ENV_PATH,
@@ -34,6 +24,30 @@ ENV_PATH = CORE_ENV_PATH
 
 # Load env values (and inject into process) once at startup
 ENV_VARS = load_env_file(ENV_PATH) if ENV_PATH.exists() else {}
+
+
+@dataclass(frozen=True)
+class CommandInfo:
+	name: str
+	handler: Callable[[], Optional[int]]
+	summary: str
+	group: str
+	aliases: Tuple[str, ...] = ()
+	description: Optional[str] = None
+
+	def matches(self, candidate: str) -> bool:
+		return candidate == self.name or candidate in self.aliases
+
+
+COMMAND_GROUPS: Tuple[Tuple[str, str], ...] = (
+	("core", "核心 / 环境"),
+	("demos", "功能演示 / 典型流程"),
+	("workflows", "工作流"),
+	("interaction", "交互 / 会话"),
+	("models", "模型快速验证"),
+	("bench", "Bench / 评测"),
+	("ops", "运维 / 测试 / 依赖"),
+)
 
 def cmd_status():
 	"""显示环境与依赖状态。"""
@@ -500,6 +514,9 @@ def cmd_session():
 	  history            显示已执行指令历史
 	  save <path>        保存历史到文件
 	  quit/exit          退出
+	额外支持：
+	  • 直接粘贴单条 IR JSON、IR 列表或包含 steps 的工作流 JSON
+	  • 脚本文件中的 JSON 行会被自动识别并执行
 	"""
 	parser = argparse.ArgumentParser(prog='manage.py session', add_help=False)
 	parser.add_argument('--mode', choices=['mock','ollama','openai','auto'], default=None)
@@ -576,6 +593,45 @@ def cmd_session():
 		else:
 			echo(f"✅ {op} 完成")
 
+	def run_inline_workflow(payload: dict) -> bool:
+		steps = payload.get('steps')
+		if not isinstance(steps, list):
+			return False
+		name = payload.get('name') or payload.get('title') or 'workflow'
+		echo(f"🧾 执行内联工作流: {name} | 步骤数 {len(steps)}")
+		executed = False
+		for idx, step in enumerate(steps, start=1):
+			if not isinstance(step, dict):
+				echo(f"⚠️ 跳过无效步骤 {idx}: 类型 {type(step).__name__}")
+				continue
+			ir = step.get('ir') or step
+			if not isinstance(ir, dict) or not ir.get('op'):
+				echo(f"⚠️ 跳过步骤 {idx}: 未找到合法的 IR")
+				continue
+			title = step.get('name') or ir.get('name') or f'step {idx}'
+			echo(f"➡️  [{idx}/{len(steps)}] {title} -> {ir.get('op')}")
+			exec_ir(ir)
+			executed = True
+		return executed
+
+	def execute_json_payload(obj: Any) -> bool:
+		if isinstance(obj, dict):
+			if obj.get('op'):
+				exec_ir(obj)
+				return True
+			if run_inline_workflow(obj):
+				return True
+			echo('⚠️ JSON 对象缺少可执行内容 (需要 op 或 steps)')
+			return False
+		if isinstance(obj, list):
+			executed_any = False
+			for idx, item in enumerate(obj, start=1):
+				echo(f"📦 处理列表元素 {idx}/{len(obj)}")
+				executed_any |= execute_json_payload(item)
+			return executed_any
+		echo('⚠️ 不支持的 JSON 类型，预期对象或数组')
+		return False
+
 	def run_script_line(idx: int):
 		nonlocal script_ptr
 		if idx < 1 or idx > len(script_lines):
@@ -590,7 +646,7 @@ def cmd_session():
 		process_command(line)
 
 	def process_command(line: str):
-		nonlocal script_ptr
+		nonlocal script_ptr, output_mode
 		line = line.strip()
 		if not line:
 			return
@@ -598,12 +654,14 @@ def cmd_session():
 		if line[0] in '{[':
 			try:
 				obj = json.loads(line)
-				if isinstance(obj, dict) and obj.get('op'):
-					history.append(line)
-					exec_ir(obj)
-					return
-			except Exception:
-				pass  # 继续按普通命令解析
+			except Exception as e:
+				echo(f"JSON 解析失败: {e}")
+				return
+			history.append(line)
+			if execute_json_payload(obj):
+				return
+			else:
+				return
 		history.append(line)
 		parts = line.split(' ', 1)
 		cmd = parts[0]
@@ -611,7 +669,7 @@ def cmd_session():
 		if cmd in ('quit','exit'):
 			raise SystemExit(0)
 		if cmd == 'help':
-			echo("命令: help|list|next|n|run <i>|encode <t>|retrieve <q>|summarize <f>|ir <json>|switch-db <p>|db|history|save <p>|output (brief|full)|quit|<直接粘贴IR JSON>")
+			echo("命令: help|list|next|n|run <i>|encode <t>|retrieve <q>|summarize <f>|ir <json>|switch-db <p>|db|history|save <p>|output (brief|full)|quit|<粘贴IR/工作流JSON>")
 		elif cmd == 'list':
 			if not script_lines:
 				echo('ℹ️ 未加载脚本'); return
@@ -890,95 +948,100 @@ def cmd_set_env():
 	echo(f"✅ 已设置环境变量: {key}={value}")
 	return 0
 
+
+def _normalize_docstring(text: Optional[str]) -> str:
+	if not text:
+		return ""
+	return textwrap.dedent(text.expandtabs()).strip()
+
+
+COMMAND_DEFINITIONS: Tuple[CommandInfo, ...] = (
+	CommandInfo("status", cmd_status, "环境状态 (依赖 / .env / 服务探测)", "core"),
+	CommandInfo("config", cmd_config, ".env 生成/更新 (--provider ...)", "core"),
+	CommandInfo("set-env", cmd_set_env, "快速写入单个环境变量", "core", aliases=("set_env",)),
+	CommandInfo("models-info", cmd_models_info, "显示解析后的模型配置", "core"),
+	CommandInfo("demo", cmd_run_demo, "批量执行预置 IR / 工作流示例", "demos"),
+	CommandInfo("features", cmd_features, "演示 Encode -> Retrieve -> Summarize", "demos"),
+	CommandInfo("ir", cmd_ir, "执行单条 IR JSON (--file|--inline)", "demos"),
+	CommandInfo("workflow", cmd_run_workflow, "按 steps 顺序运行工作流文件", "workflows"),
+	CommandInfo("list-workflows", cmd_list_workflows, "列出示例工作流 JSON", "workflows", aliases=("list_workflows",)),
+	CommandInfo("repl", cmd_repl, "简易交互 shell (embed/gen/ir/...)", "interaction"),
+	CommandInfo("session", cmd_session, "增强型持久会话 (脚本/历史/JSON 输入)", "interaction"),
+	CommandInfo("models-smoke", cmd_models_smoke, "最小模型冒烟 (embed + generate)", "models", aliases=("models_smoke",)),
+	CommandInfo("setup-ollama", cmd_setup_ollama, "拉取默认 Ollama 模型", "ops"),
+	CommandInfo("setup-openai", cmd_setup_openai, "生成 OpenAI 使用的 .env", "ops"),
+	CommandInfo("test", cmd_test, "运行 pytest 或最小冒烟", "ops"),
+	CommandInfo("bench-planning", cmd_bench_planning, "规划层 JSONL schema 校验", "bench", aliases=("bench_planning",)),
+)
+
+
+COMMAND_LOOKUP: Dict[str, CommandInfo] = {}
+for info in COMMAND_DEFINITIONS:
+	COMMAND_LOOKUP[info.name] = info
+	for alias in info.aliases:
+		COMMAND_LOOKUP[alias] = info
+
+
+def _command_names(info: CommandInfo) -> str:
+	names = [info.name, *info.aliases]
+	return ", ".join(names)
+
+
+def print_usage() -> None:
+	echo("Usage: python manage.py <command> [options]")
+	echo("")
+	for key, label in COMMAND_GROUPS:
+		group_items = [info for info in COMMAND_DEFINITIONS if info.group == key]
+		if not group_items:
+			continue
+		echo(f"[{label}]")
+		for info in group_items:
+			names = _command_names(info)
+			echo(f"  {names:<28} {info.summary}")
+		echo("")
+	echo("使用 python manage.py help <command> 查看详细说明。")
+	echo("")
+	echo("示例:")
+	echo("  python manage.py demo --mode mock")
+	echo('  python manage.py ir --mode mock --inline "{\"stage\":\"RET\",\"op\":\"Retrieve\",\"args\":{\"query\":\"测试\",\"k\":2}}"')
+	echo("  python manage.py session --mode mock --output full")
+
+
+def print_command_help(name: str) -> int:
+	info = COMMAND_LOOKUP.get(name)
+	if not info:
+		echo(f"未知命令: {name}")
+		echo("使用 python manage.py help 查看可用命令。")
+		return 1
+	label = next((lbl for key, lbl in COMMAND_GROUPS if key == info.group), info.group)
+	echo(f"命令: {_command_names(info)}")
+	echo(f"分组: {label}")
+	echo(f"概要: {info.summary}")
+	details = _normalize_docstring(info.description or info.handler.__doc__)
+	if details:
+		echo("")
+		for line in details.splitlines():
+			echo(line)
+	return 0
+
 def main():
 	if len(sys.argv) < 2:
-		echo("Usage: manage.py <command> [options]")
-		echo("")
-		echo("[核心 / 环境]")
-		echo("  status                      环境状态 (依赖 / .env / 服务探测)")
-		echo("  models-info                 当前模型解析配置")
-		echo("  config --provider <p>       生成/更新 .env (mock|ollama|openai)")
-		echo("  set-env KEY VALUE           快速写入单个环境变量并重写分组")
-		echo("")
-		echo("[功能演示 / 典型流程]")
-		echo("  demo [--mode --db --full --json --perf]  功能演示 (--full 含12操作)")
-		echo("  features [--mode --db]      Encode -> Retrieve -> Summarize 快速链路")
-		echo("  ir [--mode (--file|--inline) --db]  执行单条 IR JSON")
-		echo("")
-		echo("[Bench / 评测]")
-		echo("  bench-planning --input file.jsonl [--out report.json]  规划层 Schema 合法性校验")
-		echo("")
-		echo("[工作流]")
-		echo("  workflow <json> [--mode --db]  运行工作流文件 steps")
-		echo("  list-workflows               列出内置工作流示例")
-		echo("")
-		echo("[交互 / 会话]")
-		echo("  repl [--mode --db]           简单交互 (embed/gen/ir/...)")
-		echo("  session [--mode --db --script file --output full|brief]  持久会话")
-		echo("")
-		echo("[模型快速验证]")
-		echo("  models-smoke [mode]          最小 embed+generate 冒烟")
-		echo("")
-		echo("[运维 / 测试 / 依赖]")
-		echo("  test                         运行测试套件 (优先 pytest)")
-		echo("  setup-ollama                 准备/拉取 Ollama 模型 (占位)")
-		echo("  setup-openai                 生成 OpenAI 用 .env (占位)")
-		echo("")
-		echo("示例:")
-		echo("  python manage.py demo --mode mock")
-		echo('  python manage.py ir --mode mock --inline "{\"stage\":\"RET\",\"op\":\"Retrieve\",\"args\":{\"query\":\"测试\",\"k\":2}}"')
-		echo("  python manage.py session --mode mock --output full")
+		print_usage()
 		return 1
 	cmd = sys.argv[1]
-	if cmd == "status":
-		cmd_status()
-		return 0
-	if cmd == "config":
-		cmd_config()
-		return 0
-	if cmd == "set-env":
-		return cmd_set_env()
-	if cmd == "setup-ollama":
-		cmd_setup_ollama()
-		return 0
-	if cmd == "setup-openai":
-		cmd_setup_openai()
-		return 0
-	if cmd == "test":
-		cmd_test()
-		return 0
-	if cmd == "demo":
-		cmd_run_demo()
-		return 0
-	if cmd == "models-smoke":
-		cmd_models_smoke()
-		return 0
-	if cmd == "models-info":
-		cmd_models_info()
-		return 0
-	if cmd == "features":
-		cmd_features()
-		return 0
-	if cmd == "ir":
-		cmd_ir()
-		return 0
-	if cmd == "list-workflows":
-		cmd_list_workflows()
-		return 0
-	if cmd == "repl":
-		cmd_repl()
-		return 0
-	if cmd == "session":
-		cmd_session()
-		return 0
-	if cmd == "workflow":
-		cmd_run_workflow()
-		return 0
-	if cmd == "bench-planning":
-		cmd_bench_planning()
-		return 0
-	echo(f"Unknown command: {cmd}")
-	return 2
+	if cmd in ('help', '-h', '--help'):
+		target = sys.argv[2] if len(sys.argv) > 2 else None
+		if not target:
+			print_usage()
+			return 0
+		return print_command_help(target)
+	info = COMMAND_LOOKUP.get(cmd)
+	if not info:
+		echo(f"Unknown command: {cmd}")
+		echo("使用 python manage.py help 查看命令列表。")
+		return 2
+	result = info.handler()
+	return result if isinstance(result, int) else 0
 
 
 if __name__ == "__main__":
