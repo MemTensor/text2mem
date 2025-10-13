@@ -49,3 +49,11 @@ logs/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Bench artifacts & caches
+cache/
+outputs/
+bench/data/v1/db/
+
+# Archived documentation
+.archived_docs/

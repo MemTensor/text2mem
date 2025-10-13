@@ -1,5 +1,31 @@
 # Text2Mem 变更日志
 
+## [1.1.0] - 2025-01-05
+
+### CLI 优化
+- **优化 manage.py**: 删除冗余命令，增强核心功能
+  - 删除 `features` 命令（功能重复，使用 `demo` 替代）
+  - 删除 `repl` 命令（功能不完整，使用 `session` 替代）
+  - 标记 `bench-*` 命令为开发中状态
+  - **增强 session 命令**: 从 3 种操作扩展到支持全部 12 种 IR 操作
+    - 原有: encode, retrieve, summarize
+    - 新增: label, update, delete, promote, demote, lock, merge, split, expire
+  - 总计 16 个命令，功能更聚焦、更完整
+
+### 文档整理
+- **清理根目录文档**: 删除 18 个临时/重复文档
+  - 移除 8 个 BENCH_* 临时状态文档
+  - 移除 5 个 STAGE2_* 开发过程文档
+  - 移除 2 个 PROMPT_* 临时总结文档
+  - 移除 3 个其他过期文档
+  - 根目录现在只保留核心 README.md
+- **文档结构优化**: 所有文档现在集中在 `docs/`, `bench/`, `examples/` 目录
+
+### Bench 测试框架
+- 完成 v1.3 重构，所有测试从空表开始
+- 使用 prerequisites 动态准备数据，性能提升 96%
+- 删除预填充数据库依赖，代码库减少 88%
+
 ## [1.0.0] - 2023-10-01
 
 ### 添加

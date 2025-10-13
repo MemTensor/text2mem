@@ -1,0 +1,257 @@
+# Text2Mem Bench 测试样本生成计划 - 按比例分配（v2.3）
+# 场景均等分配 + 操作比例控制 + workflow比例
+
+# ==================== 总体配置 ====================
+plan:
+  name: "samples_by_proportion"
+  description: "按比例分配的测试样本生成计划 - 场景均等 × 操作比例 × workflow比例"
+  version: "2.3"
+  
+  # 总目标数量
+  total_samples: 120
+  
+  # 每次LLM调用生成的数量（Stage1建议5-10，Stage2/3建议1）
+  batch_size: 8
+  
+  # Context长度配置
+  min_context_length: 100
+  max_context_length: 350
+  
+  # 断点恢复
+  resume_from_checkpoint: true
+  checkpoint_file: "bench/generate/output/.checkpoint_{plan_name}.json"
+
+# ==================== ⭐ 场景比例配置 ====================
+# 场景均等分配（4个场景，每个25%）
+scenario_proportions:
+  incident_postmortem: 0.25    # 25% - 故障复盘
+  meeting_notes: 0.25          # 25% - 会议记录
+  project_tracking: 0.25       # 25% - 项目跟踪
+  knowledge_base: 0.25         # 25% - 知识库
+  # 总和 = 1.0 (100%)
+
+# ==================== ⭐ 操作比例配置 ====================
+# 设置各操作的比例（总和应为1.0或100%）
+operation_proportions:
+  # 核心操作 - 占40%
+  encode: 0.20        # 20% - 编码/记录
+  retrieve: 0.12      # 12% - 检索
+  summarize: 0.08     # 8%  - 摘要
+  
+  # 标签和更新 - 占25%
+  label: 0.12         # 12% - 标签
+  update: 0.13        # 13% - 更新
+
+  # 生命周期管理 - 占20%
+  promote: 0.08       # 8%  - 提升
+  demote: 0.07        # 7%  - 降级
+  delete: 0.05        # 5%  - 删除
+  
+  # 高级操作 - 占15%
+  lock: 0.04          # 4%  - 锁定
+  merge: 0.04         # 4%  - 合并
+  split: 0.04         # 4%  - 拆分
+  expire: 0.03        # 3%  - 过期
+  # 总和 = 1.0 (100%)
+
+# ==================== 操作配置详情 ====================
+# 补充操作的元数据（不影响数量分配）
+operations:
+  encode:
+    lang: zh
+    enabled: true
+    priority: 1
+    description: "编码/写入记忆"
+  
+  retrieve:
+    lang: zh
+    enabled: true
+    priority: 1
+    description: "语义检索"
+  
+  label:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "添加标签"
+  
+  update:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "更新字段"
+  
+  delete:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "删除记录"
+  
+  promote:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "提升优先级"
+  
+  demote:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "降级/归档"
+  
+  lock:
+    lang: zh
+    enabled: true
+    priority: 3
+    description: "锁定保护"
+  
+  merge:
+    lang: zh
+    enabled: true
+    priority: 3
+    description: "合并记录"
+  
+  split:
+    lang: zh
+    enabled: true
+    priority: 3
+    description: "拆分记录"
+  
+  expire:
+    lang: zh
+    enabled: true
+    priority: 3
+    description: "设置过期"
+  
+  summarize:
+    lang: zh
+    enabled: true
+    priority: 2
+    description: "生成摘要"
+
+# ==================== 场景定义 ====================
+scenarios:
+  incident_postmortem:
+    name: "故障复盘"
+    name_en: "Incident Postmortem"
+    description: "SRE事件处理和复盘场景"
+    enabled: true
+  
+  meeting_notes:
+    name: "会议记录"
+    name_en: "Meeting Notes"
+    description: "会议纪要和讨论记录"
+    enabled: true
+  
+  project_tracking:
+    name: "项目跟踪"
+    name_en: "Project Tracking"
+    description: "项目管理和进度跟踪"
+    enabled: true
+  
+  knowledge_base:
+    name: "知识库"
+    name_en: "Knowledge Base"
+    description: "知识管理和文档整理"
+    enabled: true
+
+# ==================== 样本特征分布 ====================
+characteristics:
+  # 指令风格
+  instruction_style:
+    direct: 85%         # 直接指令："记录会议纪要"
+    indirect: 15%       # 间接指令："把刚才提到的内容存一下"
+  
+  # 结构复杂度
+  structure:
+    single: 85%         # 单操作
+    workflow: 15%       # 多操作工作流（2-5个操作）
+  
+  # 语言分布
+  lang:
+    zh: 100%            # 全中文
+    en: 0%
+
+# ==================== LLM配置 ====================
+llm:
+  provider: "openai"
+  model: "gpt-4o"
+  api_key_env: "OPENAI_API_KEY"
+  base_url: ""
+  
+  # 生成参数
+  temperature: 0.7
+  max_tokens: 4000
+  timeout: 120
+
+# ==================== 三阶段配置 ====================
+stages:
+  stage1_nl_generation:
+    enabled: true
+    temperature: 0.7
+    max_tokens: 4000
+    batch_size: 8  # Stage1每批生成8个（提高效率）
+  
+  stage2_ir_generation:
+    enabled: true
+    temperature: 0.5
+    max_tokens: 4000
+    batch_size: 1  # Stage2每次生成1个（确保准确）
+  
+  stage3_expected_generation:
+    enabled: true
+    temperature: 0.5
+    max_tokens: 4000
+    batch_size: 1  # Stage3每次生成1个（确保准确）
+
+# ==================== 输出配置 ====================
+output:
+  base_dir: "bench/generate/output"
+  format: "jsonl"
+  patterns:
+    stage1: "{plan_name}_stage1_{timestamp}.json"
+    stage2: "{plan_name}_stage2_{timestamp}.jsonl"
+    stage3: "{plan_name}_stage3_{timestamp}.jsonl"
+  keep_intermediate: true
+  validate_after_stage: false
+
+# ==================== 验证配置 ====================
+validation:
+  validate_after_each_stage: false
+  on_validation_error: "warn"
+
+# ==================== 日志配置 ====================
+logging:
+  level: "INFO"
+  file: "bench/generate/output/generation.log"
+  console: true
+
+# ==================== 使用说明 ====================
+# 
+# 📊 自动计算示例（总样本数 = 120）:
+#
+# 场景分配:
+#   incident_postmortem: 120 × 0.25 = 30
+#   meeting_notes:       120 × 0.35 = 42
+#   project_tracking:    120 × 0.25 = 30
+#   knowledge_base:      120 × 0.15 = 18
+#
+# 操作分配:
+#   encode:    120 × 0.25 = 30
+#   retrieve:  120 × 0.20 = 24
+#   label:     120 × 0.08 = 10
+#   update:    120 × 0.12 = 14
+#   ...
+#
+# 每个(场景, 操作)组合的数量 = 总数 × 场景比例 × 操作比例
+# 例如: (meeting_notes, encode) = 120 × 0.35 × 0.25 = 10.5 ≈ 11
+#
+# 💡 调整比例:
+# 1. 修改 scenario_proportions 中的值（总和=1.0）
+# 2. 修改 operation_proportions 中的值（总和=1.0）
+# 3. 修改 total_samples 改变总数
+#
+# 🚀 运行:
+# python bench/generate/generate.py \
+#   --plan bench/generate/config/generation_plan_by_operations.yaml
+

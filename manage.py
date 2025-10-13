@@ -45,7 +45,6 @@ COMMAND_GROUPS: Tuple[Tuple[str, str], ...] = (
 	("workflows", "工作流"),
 	("interaction", "交互 / 会话"),
 	("models", "模型快速验证"),
-	("bench", "Bench / 评测"),
 	("ops", "运维 / 测试 / 依赖"),
 )
 
@@ -184,19 +183,7 @@ def cmd_models_info():
 		echo(f"  openai_api_base={os.environ.get('OPENAI_API_BASE')}")
 	return 0
 
-def cmd_features():
-	"""快速链路 Encode->Retrieve->Summarize。"""
-	parser = argparse.ArgumentParser(prog='manage.py features', add_help=False)
-	parser.add_argument('--mode', choices=['mock','ollama','openai','auto'], default=None)
-	parser.add_argument('--db', dest='db_path', default=None)
-	try:
-		args = parser.parse_args(sys.argv[2:])
-	except SystemExit:
-		echo('用法: manage.py features [--mode mock|ollama|openai|auto] [--db path]'); return 2
-	service, engine = _build_engine_and_adapter(args.mode, args.db_path)
-	echo(f"🧠 模型服务: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
-	run_basic_demo(echo, engine)
-	return 0
+
 
 def cmd_ir():
 	"""执行单条 IR JSON。"""
@@ -392,108 +379,7 @@ def cmd_list_workflows():
 	return 0
 
 
-def cmd_repl():
-	"""交互模式：接受命令行输入执行常见操作。
-	命令：
-	  embed <text>
-	  gen <prompt>
-	  ir <json>
-	  encode <text>
-	  retrieve <query>
-	  summarize <focus>
-	  help | quit | exit
-	可选：python manage.py repl [--mode mock|ollama|openai|auto] [--db path]
-	"""
-	import argparse
-	parser = argparse.ArgumentParser(prog="manage.py repl", add_help=False)
-	parser.add_argument("--mode", choices=["mock","ollama","openai","auto"], default=None)
-	parser.add_argument("--db", dest="db_path", default=None)
-	try:
-		args = parser.parse_args(sys.argv[2:])
-	except SystemExit:
-		echo("用法: python manage.py repl [--mode mock|ollama|openai|auto] [--db path]"); sys.exit(2)
 
-	service, engine = _build_engine_and_adapter(args.mode, args.db_path)
-	echo(f"🧠 模型服务: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
-	echo("输入 'help' 查看命令，'quit' 退出。")
-	while True:
-		try:
-			line = input("t2m> ").strip()
-		except (EOFError, KeyboardInterrupt):
-			echo("")
-			break
-		if not line:
-			continue
-		cmd, *rest = line.split(" ", 1)
-		arg = rest[0] if rest else ""
-		try:
-			if cmd in ("quit","exit"):
-				break
-			elif cmd == "help":
-				echo("命令: embed|gen|ir|encode|retrieve|summarize|quit")
-			elif cmd == "embed":
-				res = service.encode_memory(arg)
-				echo(f"dim={res.dimension} model={res.model}")
-			elif cmd == "gen":
-				res = service.generation_model.generate(arg)
-				echo(res.text)
-			elif cmd == "ir":
-				ir = json.loads(arg)
-				res = engine.execute(ir)
-				echo(str(res.data)[:400])
-			elif cmd == "encode":
-				ir = {"stage": "ENC", "op": "Encode", "args": {"payload": {"text": arg}}}
-				res = engine.execute(ir)
-				row_id = (res.data or {}).get("inserted_id") or (res.data or {}).get("id")
-				echo(f"ok id={row_id}")
-			elif cmd == "retrieve":
-				ir = {
-					"stage": "RET",
-					"op": "Retrieve",
-					"target": {"search": {"intent": {"query": arg}, "overrides": {"k": 5}}},
-					"args": {}
-				}
-				res = engine.execute(ir)
-				rows = []
-				if isinstance(res.data, list): rows = res.data
-				elif isinstance(res.data, dict): rows = res.data.get("rows", []) or []
-				echo(f"{len(rows)} rows")
-			elif cmd == "summarize":
-				ir = {"stage": "RET", "op": "Summarize", "args": {"focus": arg, "max_tokens": 120}}
-				res = engine.execute(ir)
-				echo(str((res.data or {}).get("summary","")))
-			else:
-				echo("未知命令，输入 'help' 查看帮助")
-		except Exception as e:
-			echo(f"❌ 错误: {e}")
-	return 0
-
-
-def cmd_bench_planning():
-	"""Planning-only bench: validate schemas in a JSONL file.
-	用法: python manage.py bench-planning --input path.jsonl [--out report.json] [--schema path]
-	"""
-	import argparse
-	parser = argparse.ArgumentParser(prog="manage.py bench-planning", add_help=False)
-	parser.add_argument("--input", required=True)
-	parser.add_argument("--out", default=None)
-	parser.add_argument("--schema", default=str(ROOT/"text2mem"/"schema"/"text2mem-ir-v1.json"))
-	try:
-		args = parser.parse_args(sys.argv[2:])
-	except SystemExit:
-		echo("用法: python manage.py bench-planning --input file.jsonl [--out report.json] [--schema path]"); sys.exit(2)
-
-	# Delegate to module to keep logic isolated
-	import runpy
-	mod_path = str(ROOT / "scripts" / "bench_planning.py")
-	# Construct argv for the module's main
-	sys_argv_backup = list(sys.argv)
-	try:
-		sys.argv = [mod_path, "--input", args.input, "--schema", args.schema] + (["--out", args.out] if args.out else [])
-		runpy.run_path(mod_path, run_name="__main__")
-	finally:
-		sys.argv = sys_argv_backup
-	return 0
 
 
 def cmd_session():
@@ -501,19 +387,33 @@ def cmd_session():
 	用法: python manage.py session [--mode mock|ollama|openai|auto] [--db path] [--script file]
 
 	可用指令:
-	  help               显示帮助
-	  list               列出脚本行
-	  next / n           执行下一行脚本
-	  run <idx>          执行脚本第 idx 行 (从 1 开始)
-	  encode <text>      编码一条记忆
-	  retrieve <query>   检索
-	  summarize <focus>  摘要
-	  ir <json>          执行单条 IR JSON
-	  switch-db <path>   切换数据库 (重建引擎)
-	  db                 显示当前数据库
-	  history            显示已执行指令历史
-	  save <path>        保存历史到文件
-	  quit/exit          退出
+	  help                显示帮助
+	  list                列出脚本行
+	  next / n            执行下一行脚本
+	  run <idx>           执行脚本第 idx 行 (从 1 开始)
+	  
+	  # 12种IR操作的快捷方式:
+	  encode <text>       编码/创建记忆 (Encode)
+	  retrieve <query>    检索记忆 (Retrieve)
+	  label <id> <tags>   给记录打标签 (Label)
+	  update <id> <text>  更新记录内容 (Update)
+	  delete <id>         删除记录 (Delete)
+	  promote <id>        提升记录优先级 (Promote)
+	  demote <id>         降低记录优先级 (Demote)
+	  lock <id>           锁定记录 (Lock)
+	  merge <ids>         合并多个记录，格式: merge 2,3 into 1 (Merge)
+	  split <id>          拆分记录 (Split)
+	  expire <id> <ttl>   设置记录过期时间 (Expire)
+	  summarize <ids>     生成多条记录的摘要 (Summarize)
+	  
+	  ir <json>           执行单条 IR JSON
+	  switch-db <path>    切换数据库 (重建引擎)
+	  db                  显示当前数据库
+	  history             显示已执行指令历史
+	  save <path>         保存历史到文件
+	  output brief|full   切换输出模式
+	  quit/exit           退出
+	  
 	额外支持：
 	  • 直接粘贴单条 IR JSON、IR 列表或包含 steps 的工作流 JSON
 	  • 脚本文件中的 JSON 行会被自动识别并执行
@@ -580,14 +480,17 @@ def cmd_session():
 			echo(f"✅ Encode id={rid} dim={data.get('embedding_dim')}")
 			return
 		if op == 'Retrieve':
-			rows = data.get('rows') if isinstance(data, dict) else []
+			rows = data.get('rows') if isinstance(data, dict) else (data if isinstance(data, list) else [])
 			echo(f"✅ Retrieve rows={len(rows)}")
+			for idx, row in enumerate(rows[:3], 1):  # 显示前3条
+				text_preview = (row.get('text') or '')[:60]
+				echo(f"   [{idx}] id={row.get('id')} {text_preview}{'...' if len(text_preview)>=60 else ''}")
 			return
 		if op == 'Summarize':
 			summary = str(data.get('summary',''))
 			echo(f"✅ Summarize -> {summary[:160]}{'…' if len(summary)>160 else ''}")
 			return
-		affected = data.get('affected_rows') or data.get('updated_rows')
+		affected = data.get('affected_rows') or data.get('updated_rows') or data.get('success_count')
 		if affected is not None:
 			echo(f"✅ {op} affected={affected}")
 		else:
@@ -666,10 +569,26 @@ def cmd_session():
 		parts = line.split(' ', 1)
 		cmd = parts[0]
 		arg = parts[1] if len(parts) > 1 else ''
+		
 		if cmd in ('quit','exit'):
 			raise SystemExit(0)
 		if cmd == 'help':
-			echo("命令: help|list|next|n|run <i>|encode <t>|retrieve <q>|summarize <f>|ir <json>|switch-db <p>|db|history|save <p>|output (brief|full)|quit|<粘贴IR/工作流JSON>")
+			echo("""命令:
+  基础: help|list|next|n|run <i>|db|history|save <p>|output (brief|full)|quit
+  12种操作快捷方式:
+    encode <text>           - 编码/创建记忆 (Encode)
+    retrieve <query>        - 检索记忆 (Retrieve)
+    label <id> <tags>       - 打标签，多个标签用逗号分隔 (Label)
+    update <id> <text>      - 更新记录内容 (Update)
+    delete <id>             - 删除记录 (Delete)
+    promote <id>            - 提升优先级 (Promote)
+    demote <id>             - 降低优先级 (Demote)
+    lock <id>               - 锁定记录 (Lock)
+    merge <ids>             - 合并记录，格式: merge 2,3 into 1 (Merge)
+    split <id>              - 拆分记录 (Split)
+    expire <id> <ttl>       - 设置过期，如: P7D=7天 (Expire)
+    summarize <ids>         - 生成多条记录的摘要，格式: summarize 1,2,3 (Summarize)
+  高级: ir <json>|switch-db <p>|<粘贴IR/工作流JSON>""")
 		elif cmd == 'list':
 			if not script_lines:
 				echo('ℹ️ 未加载脚本'); return
@@ -686,15 +605,102 @@ def cmd_session():
 			if not arg.isdigit():
 				echo('用法: run <行号>'); return
 			run_script_line(int(arg))
+		
+		# 12种操作的快捷方式
 		elif cmd == 'encode':
-			ir = {"stage":"ENC","op":"Encode","args":{"payload":{"text":arg},"use_embedding":True}}
+			if not arg:
+				echo('用法: encode <text>'); return
+			ir = {"stage":"ENC","op":"Encode","args":{"payload":{"text":arg}}}
 			exec_ir(ir)
 		elif cmd == 'retrieve':
-			ir = {"stage":"RET","op":"Retrieve","args":{"query":arg,"k":5}}
+			if not arg:
+				echo('用法: retrieve <query>'); return
+			ir = {"stage":"RET","op":"Retrieve","target":{"search":{"intent":{"query":arg},"overrides":{"k":5}}},"args":{}}
+			exec_ir(ir)
+		elif cmd == 'label':
+			parts = arg.split(' ', 1)
+			if len(parts) < 2:
+				echo('用法: label <id> <tags> (多个标签用逗号分隔)'); return
+			record_id, tags_str = parts
+			tags = [t.strip() for t in tags_str.split(',')]
+			ir = {"stage":"STO","op":"Label","target":{"ids":[record_id]},"args":{"tags":tags,"mode":"add"}}
+			exec_ir(ir)
+		elif cmd == 'update':
+			parts = arg.split(' ', 1)
+			if len(parts) < 2:
+				echo('用法: update <id> <new_text>'); return
+			record_id, new_text = parts
+			ir = {"stage":"STO","op":"Update","target":{"ids":[record_id]},"args":{"set":{"text":new_text}}}
+			exec_ir(ir)
+		elif cmd == 'delete':
+			if not arg:
+				echo('用法: delete <id>'); return
+			ir = {"stage":"STO","op":"Delete","target":{"ids":[arg]},"args":{"soft":True}}
+			exec_ir(ir)
+		elif cmd == 'promote':
+			if not arg:
+				echo('用法: promote <id>'); return
+			ir = {"stage":"STO","op":"Promote","target":{"ids":[arg]},"args":{"weight_delta":0.2}}
+			exec_ir(ir)
+		elif cmd == 'demote':
+			if not arg:
+				echo('用法: demote <id>'); return
+			ir = {"stage":"STO","op":"Demote","target":{"ids":[arg]},"args":{"archive":True}}
+			exec_ir(ir)
+		elif cmd == 'lock':
+			if not arg:
+				echo('用法: lock <id>'); return
+			ir = {"stage":"STO","op":"Lock","target":{"ids":[arg]},"args":{"mode":"read_only"}}
+			exec_ir(ir)
+		elif cmd == 'merge':
+			# 格式: merge 2,3 into 1 (将2,3合并到1)
+			# 或: merge 2,3,4 (将2,3合并到第一个，即2是主记录)
+			if not arg:
+				echo('用法: merge <child_ids> into <primary_id> 或 merge <primary_id>,<child_ids>'); return
+			# 解析格式
+			if ' into ' in arg:
+				parts = arg.split(' into ')
+				child_ids_str = parts[0].strip()
+				primary_id = parts[1].strip()
+				child_ids = [i.strip() for i in child_ids_str.split(',')]
+			else:
+				ids_str = arg.split(',')
+				if len(ids_str) < 2:
+					echo('⚠️ 至少需要2个ID进行合并'); return
+				primary_id = ids_str[0].strip()
+				child_ids = [i.strip() for i in ids_str[1:]]
+			ir = {"stage":"STO","op":"Merge","target":{"ids":child_ids},"args":{"strategy":"merge_into_primary","primary_id":primary_id}}
+			exec_ir(ir)
+		elif cmd == 'split':
+			if not arg:
+				echo('用法: split <id>'); return
+			ir = {"stage":"STO","op":"Split","target":{"ids":[arg]},"args":{"strategy":"by_sentences","params":{"by_sentences":{"lang":"zh","max_sentences":3}}}}
+			exec_ir(ir)
+		elif cmd == 'expire':
+			parts = arg.split(' ', 1)
+			if len(parts) < 2:
+				echo('用法: expire <id> <ttl> (如: expire 123 P7D 表示7天后过期)'); return
+			record_id, ttl = parts
+			ir = {"stage":"STO","op":"Expire","target":{"ids":[record_id]},"args":{"ttl":ttl,"on_expire":"soft_delete"}}
 			exec_ir(ir)
 		elif cmd == 'summarize':
-			ir = {"stage":"RET","op":"Summarize","args":{"focus":arg,"max_tokens":160}}
+			# 格式: summarize 1,2,3 [focus]
+			if not arg:
+				echo('用法: summarize <ids> [focus] (多个id用逗号分隔) 或 summarize all [focus]'); return
+			parts = arg.split(' ', 1)
+			ids_or_all = parts[0]
+			focus = parts[1] if len(parts) > 1 else "总体概述"
+			
+			if ids_or_all.lower() == 'all':
+				# 总结所有记录
+				ir = {"stage":"RET","op":"Summarize","target":{"all":True},"args":{"focus":focus,"max_tokens":256},"meta":{"confirmation":True}}
+			else:
+				# 总结指定记录
+				ids = [i.strip() for i in ids_or_all.split(',')]
+				ir = {"stage":"RET","op":"Summarize","target":{"ids":ids},"args":{"focus":focus,"max_tokens":256}}
 			exec_ir(ir)
+		
+		# 其他命令
 		elif cmd == 'ir':
 			try:
 				ir = json.loads(arg)
@@ -961,17 +967,14 @@ COMMAND_DEFINITIONS: Tuple[CommandInfo, ...] = (
 	CommandInfo("set-env", cmd_set_env, "快速写入单个环境变量", "core", aliases=("set_env",)),
 	CommandInfo("models-info", cmd_models_info, "显示解析后的模型配置", "core"),
 	CommandInfo("demo", cmd_run_demo, "批量执行预置 IR / 工作流示例", "demos"),
-	CommandInfo("features", cmd_features, "演示 Encode -> Retrieve -> Summarize", "demos"),
 	CommandInfo("ir", cmd_ir, "执行单条 IR JSON (--file|--inline)", "demos"),
 	CommandInfo("workflow", cmd_run_workflow, "按 steps 顺序运行工作流文件", "workflows"),
 	CommandInfo("list-workflows", cmd_list_workflows, "列出示例工作流 JSON", "workflows", aliases=("list_workflows",)),
-	CommandInfo("repl", cmd_repl, "简易交互 shell (embed/gen/ir/...)", "interaction"),
-	CommandInfo("session", cmd_session, "增强型持久会话 (脚本/历史/JSON 输入)", "interaction"),
+	CommandInfo("session", cmd_session, "增强型持久会话 (支持12种操作快捷方式)", "interaction"),
 	CommandInfo("models-smoke", cmd_models_smoke, "最小模型冒烟 (embed + generate)", "models", aliases=("models_smoke",)),
 	CommandInfo("setup-ollama", cmd_setup_ollama, "拉取默认 Ollama 模型", "ops"),
 	CommandInfo("setup-openai", cmd_setup_openai, "生成 OpenAI 使用的 .env", "ops"),
 	CommandInfo("test", cmd_test, "运行 pytest 或最小冒烟", "ops"),
-	CommandInfo("bench-planning", cmd_bench_planning, "规划层 JSONL schema 校验", "bench", aliases=("bench_planning",)),
 )
 
 

@@ -1,0 +1,148 @@
+# 小规模测试计划 - 用于验证生成质量
+# Small-scale test plan for validation
+
+# ==================== 总体配置 ====================
+plan:
+  name: "small_test"
+  description: "小规模测试 - 每个场景生成2个样本"
+  version: "1.0"
+  
+  # 总样本数
+  total_samples: 8  # 4个场景 × 2个样本
+  
+  # 批次大小
+  batch_size: 2
+  
+  # Context长度
+  min_context_length: 100
+  max_context_length: 300
+  
+  # 断点恢复
+  resume_from_checkpoint: true
+  checkpoint_file: "bench/generate/output/.checkpoint_{plan_name}.json"
+
+# ==================== 场景比例 ====================
+scenario_proportions:
+  meeting_notes: 0.25      # 25% - 2个样本
+  project_tracking: 0.25   # 25% - 2个样本
+  knowledge_base: 0.25     # 25% - 2个样本
+  incident_postmortem: 0.25  # 25% - 2个样本
+
+# ==================== 操作比例 ====================
+operation_proportions:
+  encode: 0.375      # 37.5% - 3个样本
+  retrieve: 0.25     # 25% - 2个样本
+  label: 0.1875      # 18.75% - 1.5个样本 → 2个
+  summarize: 0.1875  # 18.75% - 1.5个样本 → 1个
+
+# ==================== 操作配置 ====================
+operations:
+  encode:
+    lang: zh
+    enabled: true
+    priority: 1
+  
+  retrieve:
+    lang: zh
+    enabled: true
+    priority: 1
+  
+  label:
+    lang: zh
+    enabled: true
+    priority: 2
+  
+  summarize:
+    lang: zh
+    enabled: true
+    priority: 2
+
+# ==================== 场景定义 ====================
+scenarios:
+  meeting_notes:
+    name: "会议记录"
+    name_en: "Meeting Notes"
+    description: "会议纪要和讨论记录"
+    enabled: true
+  
+  project_tracking:
+    name: "项目跟踪"
+    name_en: "Project Tracking"
+    description: "项目管理和进度跟踪"
+    enabled: true
+  
+  knowledge_base:
+    name: "知识库"
+    name_en: "Knowledge Base"
+    description: "知识管理和文档整理"
+    enabled: true
+  
+  incident_postmortem:
+    name: "故障复盘"
+    name_en: "Incident Postmortem"
+    description: "SRE事件处理和复盘"
+    enabled: true
+
+# ==================== 特征分布 ====================
+characteristics:
+  instruction_style:
+    direct: 80%
+    indirect: 20%
+  
+  structure:
+    single: 90%      # 大部分是单操作
+    workflow: 10%    # 少量workflow
+  
+  lang:
+    zh: 100%
+
+# ==================== LLM配置 ====================
+llm:
+  provider: "openai"
+  model: "gpt-4o"
+  api_key_env: "OPENAI_API_KEY"
+  base_url: ""
+  
+  temperature: 0.7
+  max_tokens: 4000
+  timeout: 120
+
+# ==================== 三阶段配置 ====================
+stages:
+  stage1_nl_generation:
+    enabled: true
+    temperature: 0.7
+    max_tokens: 4000
+    batch_size: 2
+  
+  stage2_ir_generation:
+    enabled: true
+    temperature: 0.5
+    max_tokens: 4000
+    batch_size: 1
+  
+  stage3_expected_generation:
+    enabled: true
+    temperature: 0.3
+    max_tokens: 3000
+    batch_size: 1
+
+# ==================== 输出配置 ====================
+output:
+  base_dir: "bench/generate/output"
+  format: "jsonl"
+  patterns:
+    stage1: "{plan_name}_stage1_{timestamp}.json"
+    stage2: "{plan_name}_stage2_{timestamp}.jsonl"
+    stage3: "{plan_name}_stage3_{timestamp}.jsonl"
+  keep_intermediate: true
+
+# ==================== 验证配置 ====================
+validation:
+  validate_after_each_stage: false
+  on_validation_error: "warn"  # warn | skip | abort
+
+# ==================== 日志配置 ====================
+logging:
+  level: "INFO"
+  console: true

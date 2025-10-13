@@ -165,6 +165,7 @@ class EncodeArgs(BaseModel):
     subject: Optional[str] = None
     location: Optional[str] = None
     topic: Optional[str] = None
+    weight: Optional[float] = None
     skip_embedding: Optional[bool] = False
     source: Optional[str] = None
     

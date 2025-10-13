@@ -1,0 +1,353 @@
+# Text2Mem Operations Configuration
+# 基于IR语言规范v1.3的12个操作
+
+operations:
+  encode:
+    name: "编码/记录"
+    name_en: "Encode"
+    description: "将新内容编码保存到记忆系统"
+    description_en: "Encode and save new content to memory"
+    stage: "ENC"
+    
+    use_cases:
+      - "记录会议纪要"
+      - "保存事件时间线"
+      - "录入经营指标"
+      - "记录项目进展"
+      - "保存技术文档"
+    
+    expressions_zh:
+      - "记录..."
+      - "保存..."
+      - "录入..."
+      - "登记..."
+      - "记下..."
+      - "写入..."
+    
+    expressions_en:
+      - "Record..."
+      - "Save..."
+      - "Log..."
+      - "Capture..."
+      - "Document..."
+      - "Write..."
+    
+    required_fields:
+      - "payload"
+      - "type"
+
+  retrieve:
+    name: "检索/查找"
+    name_en: "Retrieve"
+    description: "从记忆系统检索相关内容"
+    description_en: "Retrieve relevant content from memory"
+    stage: "RET"
+    
+    use_cases:
+      - "查找历史记录"
+      - "检索相关讨论"
+      - "搜索项目信息"
+      - "查询客户数据"
+    
+    expressions_zh:
+      - "查找..."
+      - "检索..."
+      - "搜索..."
+      - "找一下..."
+      - "查询..."
+    
+    expressions_en:
+      - "Find..."
+      - "Search..."
+      - "Retrieve..."
+      - "Look for..."
+      - "Query..."
+
+  label:
+    name: "标记/分类"
+    name_en: "Label"
+    description: "为记录添加或修改标签"
+    description_en: "Add or modify labels for records"
+    stage: "STO"
+    
+    use_cases:
+      - "标记行动项"
+      - "分类文档"
+      - "打标签归类"
+      - "标注重要内容"
+    
+    expressions_zh:
+      - "标记..."
+      - "打标签..."
+      - "分类为..."
+      - "标注..."
+      - "归类..."
+    
+    expressions_en:
+      - "Label..."
+      - "Tag..."
+      - "Mark as..."
+      - "Categorize..."
+      - "Classify..."
+
+  update:
+    name: "更新/修改"
+    name_en: "Update"
+    description: "更新记录的字段或属性"
+    description_en: "Update record fields or attributes"
+    stage: "STO"
+    
+    use_cases:
+      - "更新状态"
+      - "修改内容"
+      - "调整属性"
+      - "补充信息"
+    
+    expressions_zh:
+      - "更新..."
+      - "修改..."
+      - "调整..."
+      - "改为..."
+      - "变更..."
+    
+    expressions_en:
+      - "Update..."
+      - "Modify..."
+      - "Change..."
+      - "Adjust..."
+      - "Revise..."
+
+  promote:
+    name: "提升/强调"
+    name_en: "Promote"
+    description: "提升记录的优先级或权重"
+    description_en: "Increase record priority or weight"
+    stage: "STO"
+    
+    use_cases:
+      - "提升优先级"
+      - "设置提醒"
+      - "标记重要"
+      - "增加权重"
+    
+    expressions_zh:
+      - "提升..."
+      - "标记重要..."
+      - "设置提醒..."
+      - "强调..."
+      - "优先..."
+    
+    expressions_en:
+      - "Promote..."
+      - "Prioritize..."
+      - "Mark important..."
+      - "Emphasize..."
+      - "Elevate..."
+
+  demote:
+    name: "降级/归档"
+    name_en: "Demote"
+    description: "降低记录优先级或归档"
+    description_en: "Decrease priority or archive records"
+    stage: "STO"
+    
+    use_cases:
+      - "归档旧内容"
+      - "降低优先级"
+      - "标记过期"
+    
+    expressions_zh:
+      - "归档..."
+      - "降级..."
+      - "降低优先级..."
+      - "淡化..."
+    
+    expressions_en:
+      - "Archive..."
+      - "Demote..."
+      - "Lower priority..."
+      - "Downgrade..."
+
+  delete:
+    name: "删除/移除"
+    name_en: "Delete"
+    description: "删除不需要的记录"
+    description_en: "Delete unneeded records"
+    stage: "STO"
+    
+    use_cases:
+      - "删除过期数据"
+      - "清理无用记录"
+      - "移除重复项"
+    
+    expressions_zh:
+      - "删除..."
+      - "移除..."
+      - "清理..."
+      - "删掉..."
+    
+    expressions_en:
+      - "Delete..."
+      - "Remove..."
+      - "Clean up..."
+      - "Purge..."
+
+  lock:
+    name: "锁定/保护"
+    name_en: "Lock"
+    description: "锁定记录防止修改"
+    description_en: "Lock records to prevent modification"
+    stage: "STO"
+    
+    use_cases:
+      - "保护重要记录"
+      - "锁定事件时间线"
+      - "设置只读"
+    
+    expressions_zh:
+      - "锁定..."
+      - "保护..."
+      - "设为只读..."
+      - "冻结..."
+    
+    expressions_en:
+      - "Lock..."
+      - "Protect..."
+      - "Make read-only..."
+      - "Freeze..."
+
+  expire:
+    name: "过期/生命周期"
+    name_en: "Expire"
+    description: "设置记录的过期时间"
+    description_en: "Set expiration time for records"
+    stage: "STO"
+    
+    use_cases:
+      - "设置过期时间"
+      - "定时清理"
+      - "临时数据管理"
+    
+    expressions_zh:
+      - "设置过期..."
+      - "定时清理..."
+      - "保留到..."
+      - "过期..."
+    
+    expressions_en:
+      - "Set expiration..."
+      - "Expire after..."
+      - "Keep until..."
+      - "TTL..."
+
+  merge:
+    name: "合并"
+    name_en: "Merge"
+    description: "合并多条相关记录"
+    description_en: "Merge multiple related records"
+    stage: "STO"
+    
+    use_cases:
+      - "合并重复记录"
+      - "整合相关内容"
+      - "链接关联记录"
+    
+    expressions_zh:
+      - "合并..."
+      - "整合..."
+      - "链接..."
+      - "汇总..."
+    
+    expressions_en:
+      - "Merge..."
+      - "Consolidate..."
+      - "Combine..."
+      - "Link..."
+
+  split:
+    name: "拆分"
+    name_en: "Split"
+    description: "将一条记录拆分为多条"
+    description_en: "Split one record into multiple"
+    stage: "STO"
+    
+    use_cases:
+      - "拆分长文本"
+      - "分离混合内容"
+      - "细化记录"
+    
+    expressions_zh:
+      - "拆分..."
+      - "分离..."
+      - "分解..."
+      - "切分..."
+    
+    expressions_en:
+      - "Split..."
+      - "Separate..."
+      - "Divide..."
+      - "Break up..."
+
+  summarize:
+    name: "总结/摘要"
+    name_en: "Summarize"
+    description: "生成记录的摘要"
+    description_en: "Generate summary of records"
+    stage: "RET"
+    
+    use_cases:
+      - "总结会议内容"
+      - "生成执行摘要"
+      - "提取关键要点"
+    
+    expressions_zh:
+      - "总结..."
+      - "生成摘要..."
+      - "概括..."
+      - "提炼..."
+    
+    expressions_en:
+      - "Summarize..."
+      - "Generate summary..."
+      - "Outline..."
+      - "Extract key points..."
+
+# Operation Categories
+categories:
+  write_operations:
+    - encode
+  
+  storage_operations:
+    - label
+    - update
+    - promote
+    - demote
+    - merge
+    - split
+    - delete
+    - lock
+    - expire
+  
+  retrieval_operations:
+    - retrieve
+    - summarize
+
+# Stage Mapping
+stage_mapping:
+  ENC:
+    - encode
+  
+  STO:
+    - label
+    - update
+    - promote
+    - demote
+    - merge
+    - split
+    - delete
+    - lock
+    - expire
+  
+  RET:
+    - retrieve
+    - summarize

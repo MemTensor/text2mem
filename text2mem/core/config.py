@@ -75,6 +75,14 @@ class ModelConfig:
     temperature: float = 0.7
     max_tokens: int = 512
     top_p: float = 0.9
+    
+    # Search configuration
+    search_alpha: float = 0.7  # Semantic similarity weight
+    search_beta: float = 0.3  # Keyword matching weight
+    search_phrase_bonus: float = 0.2  # Exact phrase match bonus
+    search_default_limit: int = 10  # Default search limit
+    search_max_limit: int = 100  # Maximum search limit
+    search_default_k: int = 5  # Default top-k results
 
     @property
     def embedding_base_url(self) -> str:
@@ -192,6 +200,12 @@ class ModelConfig:
             temperature=float(os.getenv("TEXT2MEM_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("TEXT2MEM_MAX_TOKENS", "512")),
             top_p=float(os.getenv("TEXT2MEM_TOP_P", "0.9")),
+            search_alpha=float(os.getenv("TEXT2MEM_SEARCH_ALPHA", "0.7")),
+            search_beta=float(os.getenv("TEXT2MEM_SEARCH_BETA", "0.3")),
+            search_phrase_bonus=float(os.getenv("TEXT2MEM_SEARCH_PHRASE_BONUS", "0.2")),
+            search_default_limit=int(os.getenv("TEXT2MEM_SEARCH_DEFAULT_LIMIT", "10")),
+            search_max_limit=int(os.getenv("TEXT2MEM_SEARCH_MAX_LIMIT", "100")),
+            search_default_k=int(os.getenv("TEXT2MEM_SEARCH_DEFAULT_K", "5")),
         )
 
     @classmethod

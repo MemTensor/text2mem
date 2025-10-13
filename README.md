@@ -108,32 +108,52 @@ pip install openai>=1.6.0
 
 ### 2. Configure Model Providers · 配置模型服务
 
-Mock (default development) · Mock（默认开发）:
+**Quick Setup · 快速配置**:
+
+```bash
+# Copy configuration template
+cp .env.example .env
+
+# Edit .env with your settings
+nano .env  # or use your preferred editor
+
+# Verify configuration
+python scripts/check_env.py
+```
+
+**Mock (default development) · Mock（默认开发）**:
 
 ```bash
 python manage.py demo --mode mock
 ```
 
-Ollama `.env`:
+**Ollama** (recommended, free + high quality · 推荐，免费且高质量):
 
-```
+Edit `.env`:
+```bash
 TEXT2MEM_EMBEDDING_PROVIDER=ollama
 TEXT2MEM_EMBEDDING_MODEL=nomic-embed-text
 TEXT2MEM_GENERATION_PROVIDER=ollama
 TEXT2MEM_GENERATION_MODEL=qwen2:0.5b
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-OpenAI:
+**OpenAI** (highest quality · 最高质量):
 
+Edit `.env`:
 ```bash
-export OPENAI_API_KEY=sk-xxx
-export TEXT2MEM_EMBEDDING_PROVIDER=openai
-export TEXT2MEM_EMBEDDING_MODEL=text-embedding-3-small
-export TEXT2MEM_GENERATION_PROVIDER=openai
-export TEXT2MEM_GENERATION_MODEL=gpt-3.5-turbo
+OPENAI_API_KEY=sk-xxx
+TEXT2MEM_EMBEDDING_PROVIDER=openai
+TEXT2MEM_EMBEDDING_MODEL=text-embedding-3-small
+TEXT2MEM_GENERATION_PROVIDER=openai
+TEXT2MEM_GENERATION_MODEL=gpt-3.5-turbo
+OPENAI_API_BASE=https://api.openai.com/v1  # optional
 ```
 
-Programmatic factory usage · 代码直接选择 Provider：
+For more configuration options, see [Environment Configuration Guide](docs/ENVIRONMENT_CONFIGURATION.md).  
+更多配置选项，请参阅 [环境配置指南](docs/ENVIRONMENT_CONFIGURATION.md)。
+
+**Programmatic factory usage · 代码直接选择 Provider**：
 
 ```python
 from text2mem.services.service_factory import create_models_service

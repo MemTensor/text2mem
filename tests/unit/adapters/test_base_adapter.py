@@ -141,6 +141,7 @@ class TestBaseAdapter:
         ir = IR(
             stage="RET",
             op="Retrieve",
+            target={"ids": ["mem123"]},
             args={}
         )
         
@@ -191,23 +192,23 @@ class TestBaseAdapter:
     
     def test_execution_result_chaining(self):
         """测试执行结果的链式处理"""
-    adapter = MockAdapter()
-    # 执行多个操作
-    encode_ir = IR(stage="ENC", op="Encode", args={"payload": {"text": "文本1"}})
-    retrieve_ir = IR(stage="RET", op="Retrieve", args={})
+        adapter = MockAdapter()
+        # 执行多个操作
+        encode_ir = IR(stage="ENC", op="Encode", args={"payload": {"text": "文本1"}})
+        retrieve_ir = IR(stage="RET", op="Retrieve", target={"ids": ["mem123"]}, args={})
 
-    encode_result = adapter.execute(encode_ir)
-    retrieve_result = adapter.execute(retrieve_ir)
+        encode_result = adapter.execute(encode_ir)
+        retrieve_result = adapter.execute(retrieve_ir)
 
-    # 验证执行历史
-    assert len(adapter.executed_operations) == 2
-    assert adapter.executed_operations[0].op == "Encode"
-    assert adapter.executed_operations[1].op == "Retrieve"
+        # 验证执行历史
+        assert len(adapter.executed_operations) == 2
+        assert adapter.executed_operations[0].op == "Encode"
+        assert adapter.executed_operations[1].op == "Retrieve"
 
-    # 验证结果独立性
-    assert encode_result.data["id"] == "mem123"
-    assert len(retrieve_result.data) == 2
-    assert encode_result.meta["operation"] != retrieve_result.meta["operation"]
+        # 验证结果独立性
+        assert encode_result.data["id"] == "mem123"
+        assert len(retrieve_result.data) == 2
+        assert encode_result.meta["operation"] != retrieve_result.meta["operation"]
 
 
 class TestAdapterIntegration:
@@ -219,17 +220,17 @@ class TestAdapterIntegration:
         
         # 测试各种操作类型
         operations = [
-            ("ENC", "Encode", {"payload": {"text": "编码测试"}}),
-            ("RET", "Retrieve", {}),
-            ("STO", "Update", {"set": {"text": "更新测试"}}),
-            ("STO", "Delete", {"soft": True}),
-            ("STO", "Label", {"tags": ["test"]}),
-            ("RET", "Summarize", {"focus": "key_points"})
+            ("ENC", "Encode", {"payload": {"text": "编码测试"}}, None),
+            ("RET", "Retrieve", {}, {"ids": ["mem123"]}),
+            ("STO", "Update", {"set": {"text": "更新测试"}}, {"ids": ["mem123"]}),
+            ("STO", "Delete", {"soft": True}, {"ids": ["mem123"]}),
+            ("STO", "Label", {"tags": ["test"]}, {"ids": ["mem123"]}),
+            ("RET", "Summarize", {"focus": "key_points"}, {"ids": ["mem123"]}),
         ]
         
         results = []
-        for stage, op, args in operations:
-            ir = IR(stage=stage, op=op, args=args)
+        for stage, op, args, target in operations:
+            ir = IR(stage=stage, op=op, target=target, args=args)
             result = adapter.execute(ir)
             results.append(result)
         
@@ -243,14 +244,14 @@ class TestAdapterIntegration:
         
         # 不同操作都应该返回一致的错误格式
         operations = [
-            ("ENC", "Encode"),
-            ("RET", "Retrieve"), 
-            ("STO", "Update"),
-            ("STO", "Delete")
+            ("ENC", "Encode", None),
+            ("RET", "Retrieve", {"ids": ["mem123"]}), 
+            ("STO", "Update", {"ids": ["mem123"]}),
+            ("STO", "Delete", {"ids": ["mem123"]}),
         ]
         
-        for stage, op in operations:
-            ir = IR(stage=stage, op=op, args={})
+        for stage, op, target in operations:
+            ir = IR(stage=stage, op=op, target=target, args={})
             result = failing_adapter.execute(ir)
             
             assert result.success is False
@@ -269,11 +270,11 @@ class TestAdapterIntegration:
         assert isinstance(encode_result.data, dict)
         
         # Retrieve返回列表
-        retrieve_ir = IR(stage="RET", op="Retrieve", args={"k": 5})
+        retrieve_ir = IR(stage="RET", op="Retrieve", target={"ids": ["mem123"]}, args={"k": 5})
         retrieve_result = adapter.execute(retrieve_ir)
         assert isinstance(retrieve_result.data, list)
         
         # Update返回字典
-        update_ir = IR(stage="STO", op="Update", args={"set": {"text": "new"}})
+        update_ir = IR(stage="STO", op="Update", target={"ids": ["mem123"]}, args={"set": {"text": "new"}})
         update_result = adapter.execute(update_ir)
         assert isinstance(update_result.data, dict)

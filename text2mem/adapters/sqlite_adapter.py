@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS memory (
     lock_policy TEXT,
     lock_expires TEXT,
 
+    -- Lineage (optional for merge/split audits)
+    lineage_parents TEXT,    -- JSON array of ancestor IDs
+    lineage_children TEXT,   -- JSON array of descendant IDs
+
     -- Permissions
     read_perm_level TEXT,
     write_perm_level TEXT,
@@ -74,6 +78,8 @@ MIGRATION_COLUMNS: dict[str, str] = {
     "lock_reason": "TEXT",
     "lock_policy": "TEXT",
     "lock_expires": "TEXT",
+    "lineage_parents": "TEXT",
+    "lineage_children": "TEXT",
 }
 
 
@@ -86,6 +92,16 @@ class SQLiteAdapter(BaseAdapter):
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(DDL)
         self.models_service = models_service or get_models_service()
+        
+        # Load search configuration from ModelConfig
+        from text2mem.core.config import ModelConfig
+        config = ModelConfig.from_env()
+        self.search_alpha = config.search_alpha
+        self.search_beta = config.search_beta
+        self.search_phrase_bonus = config.search_phrase_bonus
+        self.search_default_limit = config.search_default_limit
+        self.search_max_limit = config.search_max_limit
+        self.search_default_k = config.search_default_k
 
         self._ensure_schema_columns()
 
@@ -211,12 +227,17 @@ class SQLiteAdapter(BaseAdapter):
         return total
 
     # ---------- helpers ----------
-    def _where_from_target(self, target: Target | None) -> Tuple[str, tuple]:
+    def _where_from_target(self, target: Target | None, require_limit: bool = True) -> Tuple[str, tuple]:
         """Translate Target(ids|filter|search|all) into SQL WHERE and params.
 
         For STO-stage ops using target.search, we resolve search to top-K IDs via
         semantic similarity and return an id IN (...) clause. Retrieve should
         not call this with search present; it handles search itself.
+        
+        Args:
+            target: Target selector (ids/filter/search/all)
+            require_limit: If True, requires explicit limit for search (STO ops).
+                          If False, allows fallback to overrides.k (RET ops).
         """
         if target is None:
             return "1=1", ()
@@ -224,8 +245,10 @@ class SQLiteAdapter(BaseAdapter):
         # search: resolve to IDs for non-Retrieve ops; allow intersection with filter/ids
         if target.search is not None:
             try:
-                ids = self._resolve_search_ids(target)
-            except Exception:
+                ids = self._resolve_search_ids(target, require_limit=require_limit)
+            except Exception as e:
+                # Log the error for debugging
+                logger.warning(f"Failed to resolve search IDs: {e}")
                 ids = []
             if not ids:
                 return "0=1", ()  # no matches; guard wide writes
@@ -236,7 +259,7 @@ class SQLiteAdapter(BaseAdapter):
             # Merge additional filters (excluding search)
             if target.ids is not None or target.filter is not None or target.all:
                 base_target = Target(ids=target.ids, filter=target.filter, all=target.all, search=None)  # type: ignore
-                base_where, base_params = self._where_from_target(base_target)
+                base_where, base_params = self._where_from_target(base_target, require_limit=require_limit)
                 if base_where and base_where != "1=1":
                     clauses.append(f"({base_where})")
                     params.extend(list(base_params))
@@ -365,24 +388,39 @@ class SQLiteAdapter(BaseAdapter):
             return 0.0, False
         hits = sum(1 for tok in tokens if tok in t)
         return (hits / len(tokens)), False
-    def _resolve_search_ids(self, target: Target) -> list[int]:
+    def _resolve_search_ids(self, target: Target, require_limit: bool = True) -> list[int]:
         """Compute top-K memory IDs using semantic search from Target.search.
 
         Reuses the same approach as _exec_retrieve but returns a list of IDs,
         suitable for STO-stage WHERE clause construction.
+        
+        Args:
+            target: Target object with search configuration
+            require_limit: If True, requires explicit limit for safety (default for STO ops).
+                          If False, uses overrides.k or default 10 (for RET ops like Summarize).
         """
         search = target.search
         if search is None:
             return []
         intent = search.intent
-        # Safety: require explicit limit for STO writes
-        if getattr(search, 'limit', None) in (None, 0):
+        
+        # Determine k value
+        if getattr(search, 'limit', None):
+            # Explicit limit provided
+            try:
+                k = int(search.limit)  # type: ignore
+            except Exception:
+                k = 10
+        elif not require_limit:
+            # For RET operations: fallback to overrides.k or default
+            if search.overrides and getattr(search.overrides, 'k', None):
+                k = search.overrides.k
+            else:
+                k = 10
+        else:
+            # For STO operations: require explicit limit for safety
             raise ValueError("target.search.limit is required for write operations")
-        try:
-            k = int(search.limit)  # type: ignore
-        except Exception:
-            k = 10
-
+        
         # Apply any filter/all constraints in conjunction with search
         # (build a base WHERE from filter/ids/all minus search)
         if target.ids or target.filter or target.all:
@@ -424,9 +462,9 @@ class SQLiteAdapter(BaseAdapter):
                 # hybrid score: semantic + keyword
                 qtext = getattr(intent, 'query', None)
                 kw, exact = self._keyword_score(item.get("text"), qtext)
-                alpha = 0.7
-                beta = 0.3
-                phrase_bonus = 0.2
+                alpha = self.search_alpha
+                beta = self.search_beta
+                phrase_bonus = self.search_phrase_bonus
                 final_sim = alpha * sim + beta * kw + (phrase_bonus if exact else 0.0)
                 scored.append({**item, "similarity": min(1.0, final_sim)})
             scored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
@@ -435,9 +473,9 @@ class SQLiteAdapter(BaseAdapter):
             # use service semantic_search
             base = self.models_service.semantic_search(intent.query, memory_vectors, k=k)  # type: ignore
             # re-rank with keyword boost
-            alpha = 0.7
-            beta = 0.3
-            phrase_bonus = 0.2
+            alpha = self.search_alpha
+            beta = self.search_beta
+            phrase_bonus = self.search_phrase_bonus
             rescored = []
             for r in base:
                 kw, exact = self._keyword_score(r.get("text"), intent.query)
@@ -510,7 +548,7 @@ class SQLiteAdapter(BaseAdapter):
             _json(args.read_blacklist),
             _json(args.write_whitelist),
             _json(args.write_blacklist),
-            None  # weight
+            args.weight  # weight
         )
         if ir.meta and ir.meta.dry_run:
             return {
@@ -816,7 +854,8 @@ class SQLiteAdapter(BaseAdapter):
         return {"affected_rows": cur.rowcount, "soft": args.soft, "reason": args.reason}
 
     def _exec_summarize(self, ir: IR, args: SummarizeArgs) -> ExecutionResult:
-        wh, ps = self._where_from_target(ir.target)
+        # For Summarize (RET operation), don't require explicit limit - allow overrides.k fallback
+        wh, ps = self._where_from_target(ir.target, require_limit=False)
         
         # 添加忽略已删除
         wh = f"({wh}) AND deleted=0"
@@ -1367,9 +1406,9 @@ class SQLiteAdapter(BaseAdapter):
                     return {"rows": [], "count": 0, "mode": "semantic", "note": "query_vector_dimension_mismatch"}
                 # 手动打分
                 scored = []
-                alpha = 0.7
-                beta = 0.3
-                phrase_bonus = 0.2
+                alpha = self.search_alpha
+                beta = self.search_beta
+                phrase_bonus = self.search_phrase_bonus
                 for item in memory_vectors:
                     try:
                         sim = self.models_service.compute_similarity(query_vector, item["vector"])  # type: ignore
@@ -1384,9 +1423,9 @@ class SQLiteAdapter(BaseAdapter):
                 # 通过服务的语义检索
                 base = self.models_service.semantic_search(intent.query, memory_vectors, k=limit)  # type: ignore
                 # 关键词加权重排
-                alpha = 0.7
-                beta = 0.3
-                phrase_bonus = 0.2
+                alpha = self.search_alpha
+                beta = self.search_beta
+                phrase_bonus = self.search_phrase_bonus
                 rescored = []
                 for r in base:
                     kw, exact = self._keyword_score(r.get("text"), intent.query)

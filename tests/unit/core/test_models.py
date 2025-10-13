@@ -310,7 +310,7 @@ class TestIR:
     def test_ir_with_meta(self):
         """测试带元数据的IR"""
         meta = Meta(actor="user1", dry_run=True)
-        ir = IR(stage="RET", op="Retrieve", meta=meta, args={})
+        ir = IR(stage="RET", op="Retrieve", target={"ids": ["mem123"]}, meta=meta, args={})
         assert ir.meta == meta
     
     def test_ir_parse_args_typed(self):
@@ -331,10 +331,10 @@ class TestIR:
         ir1 = IR(stage="ENC", op="Encode", args={"payload": {"text": "test"}})
         assert ir1.stage == "ENC"
         
-        ir2 = IR(stage="STO", op="Update", args={"set": {"text": "test"}})
+        ir2 = IR(stage="STO", op="Update", target={"ids": ["mem123"]}, args={"set": {"text": "test"}})
         assert ir2.stage == "STO"
         
-        ir3 = IR(stage="RET", op="Retrieve", args={})
+        ir3 = IR(stage="RET", op="Retrieve", target={"ids": ["mem123"]}, args={})
         assert ir3.stage == "RET"
         
         # 错误的匹配
