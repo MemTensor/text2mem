@@ -29,6 +29,8 @@ class Meta(BaseModel):
         return v
 
 class Facets(BaseModel):
+    model_config = {"extra": "allow"}  # 允许额外字段
+    
     subject: Optional[str] = None
     time: Optional[str] = None
     location: Optional[str] = None
@@ -36,8 +38,10 @@ class Facets(BaseModel):
     
     @model_validator(mode="after")
     def validate_non_empty(self):
-        # Access model_fields from the class to avoid Pydantic v2.11 deprecation
-        if not any(getattr(self, field) for field in self.__class__.model_fields):
+        # 检查是否有任何字段（包括额外字段）有值
+        # 使用 model_dump 获取所有字段（包括 extra 字段）
+        all_fields = self.model_dump(exclude_none=True)
+        if not all_fields:
             raise ValueError("特性集合至少需要提供一个字段")
         if self.time:
             try:
@@ -500,12 +504,10 @@ class IR(BaseModel):
     @model_validator(mode="after")
     def _sto_safety(self):
         if self.stage == "STO" and self.target:
-            # ids: fine; filter/search require limit; all requires dry_run or confirmation
+            # ids/filter/search: fine (no limit required); all requires dry_run or confirmation
             if isinstance(self.target, Target):
-                if self.target.filter is not None and (self.target.filter.limit is None):
-                    raise ValueError("STO 阶段使用 target.filter 时必须提供 limit 以保障安全")
-                if self.target.search is not None and (self.target.search.limit is None):
-                    raise ValueError("STO 阶段使用 target.search 时必须提供 limit 以保障安全")
+                # Removed: filter/search limit requirements - limit is optional
+                # Users can choose to add limit for safety, but it's not mandatory
                 if self.target.all:
                     if not (self.meta and (self.meta.dry_run or getattr(self.meta, 'confirmation', False))):
                         raise ValueError("STO 阶段使用 target.all 时，必须设置 meta.dry_run=true 或 meta.confirmation=true")

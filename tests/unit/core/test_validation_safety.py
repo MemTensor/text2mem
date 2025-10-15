@@ -1,11 +1,11 @@
 """Additional safety & validation tests.
 
 Covers edge cases not exercised in existing suite:
-1. STO stage safety guards (filter/search requires limit; all requires confirmation/dry_run)
+1. STO stage safety guards (all requires confirmation/dry_run)
 2. Promote / Demote weight bounds
 3. Retrieve include field validation (invalid field)
 4. Summarize max_tokens upper bound
-5. Target.search without limit on STO operation
+5. Filter/search limit is now optional for STO operations
 """
 import pytest
 from pydantic import ValidationError
@@ -13,27 +13,32 @@ from pydantic import ValidationError
 from text2mem.core.models import IR, PromoteArgs, DemoteArgs, RetrieveArgs, SummarizeArgs
 
 
-def test_sto_filter_requires_limit():
-    """STO stage with target.filter but missing limit should fail IR validation."""
-    with pytest.raises(ValidationError) as exc:
-        IR(
-            stage="STO",
-            op="Update",
-            target={"filter": {"has_tags": ["x"]}},  # missing limit
-            args={"set": {"text": "new"}},
-        )
-    assert "limit" in str(exc.value)
+def test_sto_filter_without_limit_is_allowed():
+    """STO stage with target.filter but missing limit should now be allowed."""
+    # This should NOT raise an error anymore
+    ir = IR(
+        stage="STO",
+        op="Update",
+        target={"filter": {"has_tags": ["x"]}},  # no limit - now allowed
+        args={"set": {"text": "new"}},
+    )
+    assert ir.stage == "STO"
+    assert ir.target.filter is not None
+    assert ir.target.filter.limit is None  # limit is optional
 
 
-def test_sto_search_requires_limit():
-    with pytest.raises(ValidationError) as exc:
-        IR(
-            stage="STO",
-            op="Label",
-            target={"search": {"intent": {"query": "foo"}}},  # missing limit
-            args={"tags": ["x"]},
-        )
-    assert "limit" in str(exc.value)
+def test_sto_search_without_limit_is_allowed():
+    """STO stage with target.search but missing limit should now be allowed."""
+    # This should NOT raise an error anymore
+    ir = IR(
+        stage="STO",
+        op="Label",
+        target={"search": {"intent": {"query": "foo"}}},  # no limit - now allowed
+        args={"tags": ["x"]},
+    )
+    assert ir.stage == "STO"
+    assert ir.target.search is not None
+    assert ir.target.search.limit is None  # limit is optional
 
 
 def test_sto_all_requires_confirmation():
@@ -114,12 +119,12 @@ def test_summarize_max_tokens_upper_bound():
 
 
 def test_sto_search_limit_zero_invalid():
-    """Explicit zero (invalid) for search.limit should raise validation during STO safety guard."""
+    """Explicit zero (invalid) for search.limit should raise validation error."""
     with pytest.raises(ValidationError) as exc:
         IR(
             stage="STO",
             op="Label",
-            target={"search": {"intent": {"query": "foo"}, "limit": 0}},
+            target={"search": {"intent": {"query": "foo"}, "limit": 0}},  # 0 is invalid
             args={"tags": ["x"]},
         )
     assert "ge=1" in str(exc.value) or "limit" in str(exc.value)

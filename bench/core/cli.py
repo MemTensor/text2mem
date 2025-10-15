@@ -28,7 +28,7 @@ class BenchCLI:
     def __init__(self):
         self.root = Path(__file__).parent.parent.parent
         self.bench_dir = self.root / "bench"
-        self.data_dir = self.bench_dir / "data" / "v1"
+        self.data_dir = self.bench_dir / "data"
         self.output_dir = self.bench_dir / "output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -60,12 +60,30 @@ class BenchCLI:
                 except ValueError:
                     pass  # Invalid value, keep None
         
-        test_samples_dir = self.data_dir / "test_samples"
-        split_file = test_samples_dir / f"{split}.jsonl"
+        # Try to find split file in multiple locations
+        split_file = None
+        search_paths = [
+            self.data_dir / "benchmark" / "v1" / f"{split}.jsonl",  # benchmark/v1/benchmark.jsonl
+            self.data_dir / "benchmark" / split / "benchmark.jsonl",  # benchmark/v1/benchmark.jsonl (when split=v1)
+            self.data_dir / "benchmark" / f"{split}.jsonl",  # benchmark/benchmark.jsonl
+            self.data_dir / "v1" / "test_samples" / f"{split}.jsonl",  # Legacy path
+            self.data_dir / "test_data" / f"{split}.jsonl",  # test_data/basic.jsonl
+        ]
         
-        if not split_file.exists():
-            print(f"❌ Split file not found: {split_file}")
+        for path in search_paths:
+            if path.exists():
+                split_file = path
+                break
+        
+        if split_file is None:
+            print(f"❌ Split '{split}' not found. Searched in:")
+            for path in search_paths:
+                print(f"   - {path}")
+            print(f"\n💡 提示：如果要测试 benchmark 数据，请使用:")
+            print(f"   python -m bench run --split benchmark")
             return 1
+        
+        print(f"📂 使用测试文件: {split_file.relative_to(self.root)}")
         
         # Load samples - support multi-line JSON objects
         samples = self._load_json_samples(split_file)
@@ -395,12 +413,30 @@ class BenchCLI:
     
     def list_samples(self, split: str = "test") -> int:
         """List all samples in a split."""
-        test_samples_dir = self.data_dir / "test_samples"
-        split_file = test_samples_dir / f"{split}.jsonl"
+        # Try to find split file in multiple locations
+        split_file = None
+        search_paths = [
+            self.data_dir / "benchmark" / "v1" / f"{split}.jsonl",
+            self.data_dir / "benchmark" / split / "benchmark.jsonl",
+            self.data_dir / "benchmark" / f"{split}.jsonl",
+            self.data_dir / "v1" / "test_samples" / f"{split}.jsonl",
+            self.data_dir / "test_data" / f"{split}.jsonl",
+        ]
         
-        if not split_file.exists():
-            print(f"❌ Split file not found: {split_file}")
+        for path in search_paths:
+            if path.exists():
+                split_file = path
+                break
+        
+        if split_file is None:
+            print(f"❌ Split '{split}' not found. Searched in:")
+            for path in search_paths:
+                print(f"   - {path}")
+            print(f"\n💡 提示：如果要列出 benchmark 数据，请使用:")
+            print(f"   python -m bench list --split benchmark")
             return 1
+        
+        print(f"📂 使用测试文件: {split_file.relative_to(self.root)}\n")
         
         print(f"📋 Samples in '{split}' split:")
         print("=" * 80)

@@ -79,9 +79,14 @@ class GenerationController:
         self.stage2_generator = Stage2Generator(self.llm_client, self.plan, prompts_dir, llm_config)
         self.stage3_generator = Stage3Generator(self.llm_client, self.plan, prompts_dir, llm_config)
         
-        # 输出目录
-        self.output_dir = Path(self.plan.output.get("base_dir", "bench/generate/output"))
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # 输出目录 - 直接输出到 data/raw/
+        base_dir = self.plan.output.get("base_dir", "bench/data/raw")
+        self.output_dir = Path(base_dir)
+        
+        # 创建带时间戳的运行目录
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_dir = self.output_dir / timestamp
+        self.run_dir.mkdir(parents=True, exist_ok=True)
     
     def _create_new_checkpoint(self) -> Checkpoint:
         """创建新断点"""
@@ -155,6 +160,9 @@ class GenerationController:
             else:
                 self._log("\n⏭️  Stage 3: 已完成")
             
+            # 保存运行元数据
+            self._save_metadata(stage1_output, stage2_output, stage3_output)
+            
             # 完成
             elapsed = time.time() - start_time
             self._log("\n" + "=" * 60)
@@ -173,6 +181,38 @@ class GenerationController:
             self._log(f"\n\n❌ 生成失败: {e}")
             raise
     
+    def _save_metadata(self, stage1_output: Optional[str], stage2_output: Optional[str], stage3_output: Optional[str]):
+        """保存运行元数据到 metadata.json"""
+        metadata = {
+            "plan_name": self.plan.name,
+            "timestamp": self.run_dir.name,  # 使用目录名作为时间戳
+            "total_samples": self.plan.total_samples,
+            "stages": {
+                "stage1": {
+                    "enabled": self.plan.stages.get("stage1", {}).get("enabled", True),
+                    "output": str(Path(stage1_output).name) if stage1_output else None
+                },
+                "stage2": {
+                    "enabled": self.plan.stages.get("stage2", {}).get("enabled", True),
+                    "output": str(Path(stage2_output).name) if stage2_output else None
+                },
+                "stage3": {
+                    "enabled": self.plan.stages.get("stage3", {}).get("enabled", True),
+                    "output": str(Path(stage3_output).name) if stage3_output else None
+                }
+            },
+            "llm": {
+                "provider": self.plan.llm.get("provider"),
+                "model": self.plan.llm.get("model")
+            }
+        }
+        
+        metadata_file = self.run_dir / "metadata.json"
+        with open(metadata_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        
+        self._log(f"\n   📋 元数据已保存: {metadata_file}")
+    
     def _should_run_stage(self, stage_name: str) -> bool:
         """判断是否应该运行某个阶段"""
         stage_config = self.plan.stages.get(stage_name, {})
@@ -189,7 +229,7 @@ class GenerationController:
         return True
     
     def run_stage1(self) -> str:
-        """运行Stage 1: NL指令生成"""
+        """运行Stage 1: NL指令生成（增量保存版本）"""
         stage_name = "stage1"
         stage_progress = self.checkpoint.stages[stage_name]
         
@@ -200,18 +240,30 @@ class GenerationController:
         batches = self.allocator.allocate_tasks(stage_name)
         self._log(f"   总批次: {len(batches)}")
         
-        # 准备输出文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.output_dir / f"{self.plan.name}_stage1_{timestamp}.json"
+        # 准备输出文件（使用 JSONL 格式以支持增量写入）
+        # 输出到 run_dir/stage1.jsonl
+        output_file = self.run_dir / "stage1.jsonl"
         
-        # 收集所有指令
-        all_instructions = []
+        # 如果从断点恢复，检查是否已有输出文件
+        existing_output = self.checkpoint.output_files.get(stage_name)
+        if existing_output and Path(existing_output).exists():
+            output_file = Path(existing_output)
+            self._log(f"   📥 恢复输出文件: {output_file}")
+        else:
+            # 更新checkpoint中的输出文件路径
+            self.checkpoint_mgr.update_stage_progress(
+                stage_name,
+                output_file=str(output_file),
+            )
+        
+        # 打开文件用于追加
+        mode = 'a' if output_file.exists() else 'w'
         
         # 处理每个批次
         for batch in batches:
             # 检查是否已完成
             if batch.batch_id < stage_progress.completed_batches:
-                self._log(f"   ⏭️  批次 {batch.batch_id}/{len(batches)}: 已完成")
+                self._log(f"   ⏭️  批次 {batch.batch_id + 1}/{len(batches)}: 已完成")
                 continue
             
             self._log(f"\n   📦 批次 {batch.batch_id + 1}/{len(batches)}")
@@ -234,15 +286,17 @@ class GenerationController:
                     elif validation_behavior == "warn":
                         self._log(f"      ⚠️  验证警告: {error_msg}")
                 
-                # 收集
-                for instruction in instructions:
-                    all_instructions.append({
-                        "instruction": instruction.instruction,
-                        "context": instruction.context,
-                        "classification": instruction.classification,
-                        "scenario_info": instruction.scenario_info,
-                        "batch_id": batch.batch_id,
-                    })
+                # 实时写入到文件（每个批次完成后立即保存）
+                with open(output_file, mode, encoding='utf-8') as f:
+                    for instruction in instructions:
+                        sample_data = {
+                            "instruction": instruction.instruction,
+                            "context": instruction.context,
+                            "classification": instruction.classification,
+                            "scenario_info": instruction.scenario_info,
+                            "batch_id": batch.batch_id,
+                        }
+                        f.write(json.dumps(sample_data, ensure_ascii=False) + '\n')
                 
                 # 更新进度
                 self.checkpoint_mgr.update_stage_progress(
@@ -256,7 +310,10 @@ class GenerationController:
                     operation=batch.operation,
                 )
                 
-                self._log(f"      ✅ 生成 {len(instructions)} 条指令")
+                self._log(f"      ✅ 生成 {len(instructions)} 条指令（已保存到文件）")
+                
+                # 后续批次使用追加模式
+                mode = 'a'
                 
             except Exception as e:
                 self._log(f"      ❌ 失败: {e}")
@@ -266,18 +323,14 @@ class GenerationController:
                     raise
                 continue
         
-        # 保存输出
-        self._log(f"\n   💾 保存到 {output_file}")
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(all_instructions, f, ensure_ascii=False, indent=2)
-        
         # 更新checkpoint
         self.checkpoint_mgr.update_stage_progress(
             stage_name,
             status="completed",
             output_file=str(output_file),
         )
+        
+        self._log(f"\n   ✅ Stage 1 完成，输出文件: {output_file}")
         
         return str(output_file)
     
@@ -287,9 +340,21 @@ class GenerationController:
             self._log("   ❌ Stage 1输出未找到")
             return None
         
-        # 加载Stage 1输出
-        with open(stage1_output, 'r', encoding='utf-8') as f:
-            nl_instructions = json.load(f)
+        # 加载Stage 1输出（支持 JSON 和 JSONL 格式）
+        stage1_path = Path(stage1_output)
+        nl_instructions = []
+        
+        if stage1_path.suffix == '.jsonl':
+            # JSONL 格式（新版本）
+            with open(stage1_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        nl_instructions.append(json.loads(line))
+        else:
+            # JSON 格式（旧版本兼容）
+            with open(stage1_path, 'r', encoding='utf-8') as f:
+                nl_instructions = json.load(f)
         
         self._log(f"   📥 加载 {len(nl_instructions)} 条NL指令")
         
@@ -304,9 +369,8 @@ class GenerationController:
             )
             stage_progress = self.checkpoint_mgr.get_stage_progress(stage_name)
         
-        # 准备输出文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.output_dir / f"{self.plan.name}_stage2_{timestamp}.jsonl"
+        # 准备输出文件 - 输出到 run_dir/stage2.jsonl
+        output_file = self.run_dir / "stage2.jsonl"
         
         # 如果有现有输出文件且正在恢复，继续使用该文件
         if stage_progress.output_file and Path(stage_progress.output_file).exists():
@@ -403,8 +467,8 @@ class GenerationController:
             stage_progress = self.checkpoint_mgr.get_stage_progress(stage_name)
         
         # 准备输出文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.output_dir / f"{self.plan.name}_stage3_{timestamp}.jsonl"
+        # 准备输出文件 - 输出到 run_dir/stage3.jsonl
+        output_file = self.run_dir / "stage3.jsonl"
         
         # 如果有现有输出文件且正在恢复，继续使用该文件
         if stage_progress.output_file and Path(stage_progress.output_file).exists():

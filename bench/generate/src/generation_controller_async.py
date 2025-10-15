@@ -112,9 +112,21 @@ class AsyncGenerationController(GenerationController):
             self._log("   ❌ Stage 1输出未找到")
             return None
         
-        # 加载Stage 1输出
-        with open(stage1_output, 'r', encoding='utf-8') as f:
-            nl_instructions = json.load(f)
+        # 加载Stage 1输出（支持 JSON 和 JSONL 格式）
+        stage1_path = Path(stage1_output)
+        nl_instructions = []
+        
+        if stage1_path.suffix == '.jsonl':
+            # JSONL 格式（新版本）
+            with open(stage1_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        nl_instructions.append(json.loads(line))
+        else:
+            # JSON 格式（旧版本兼容）
+            with open(stage1_path, 'r', encoding='utf-8') as f:
+                nl_instructions = json.load(f)
         
         self._log(f"   📥 加载 {len(nl_instructions)} 条NL指令")
         

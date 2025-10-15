@@ -168,12 +168,28 @@ class BenchRunner:
         results: List[Dict[str, Any]] = []
         assertions: List[AssertionOutcome] = []
         errors: List[str] = []
+        
+        # 获取虚拟评测时间（如果有的话）
+        eval_time_str = sample.get("expected", {}).get("meta", {}).get("eval_time_utc")
+        virtual_now = None
+        if eval_time_str:
+            try:
+                from datetime import datetime
+                # 解析 ISO 8601 时间字符串
+                virtual_now = datetime.fromisoformat(eval_time_str.replace('Z', '+00:00'))
+            except Exception as e:
+                # 如果解析失败，记录警告但继续执行
+                errors.append(f"Warning: Failed to parse eval_time_utc '{eval_time_str}': {e}")
 
         ranking_outcome: Optional[RankingOutcome]
         try:
             with self._prepared_database(init_db) as db_path:
-                # 创建适配器和引擎，传入自定义的 models_service
-                adapter = SQLiteAdapter(str(db_path), models_service=self.models_service)
+                # 创建适配器和引擎，传入自定义的 models_service 和虚拟时钟
+                adapter = SQLiteAdapter(
+                    str(db_path), 
+                    models_service=self.models_service,
+                    virtual_now=virtual_now  # 传递虚拟时间
+                )
                 engine = Text2MemEngine(
                     adapter=adapter,
                     models_service=self.models_service,
@@ -213,7 +229,7 @@ class BenchRunner:
                 )
                 trigger_results = self._run_triggers(db_path, sample.get("expected", {}).get("triggers", []))
                 ranking_outcome = self._evaluate_ranking(
-                    db_path, sample.get("expected", {}).get("ranking")
+                    db_path, sample.get("expected", {}).get("ranking"), sample=sample
                 )
         except TimeoutError:
             # Timeout occurred, mark as error
@@ -346,17 +362,104 @@ class BenchRunner:
         return outcomes
 
     def _evaluate_ranking(
-        self, db_path: Path, ranking_spec: Optional[Mapping[str, Any]]
+        self, db_path: Path, ranking_spec: Optional[Mapping[str, Any]], sample: Optional[Mapping[str, Any]] = None
     ) -> Optional[RankingOutcome]:
+        """评估ranking结果
+        
+        对于filter类型的Retrieve：直接从schema_results中获取结果
+        对于search类型的Retrieve：使用query执行语义检索
+        """
         if not ranking_spec:
             return None
 
-        query = ranking_spec.get("query")
         gold_ids = [str(g) for g in ranking_spec.get("gold_ids", [])]
-        topk = int(ranking_spec.get("topk", 5))
+        topk = int(ranking_spec.get("topk", ranking_spec.get("k", 5)))
         allow_extra = bool(ranking_spec.get("allow_extra", False))
         min_hits = int(ranking_spec.get("min_hits", len(gold_ids) if gold_ids else 0))
-
+        
+        # 检查sample中是否已经执行了Retrieve操作
+        # 如果是filter类型，直接使用已执行的结果
+        retrieved_ids = []
+        query_text = ""
+        
+        if sample:
+            # 从schema_list检查是否为filter类型
+            is_filter_retrieve = False
+            for schema in sample.get('schema_list', []):
+                if schema.get('op') == 'Retrieve':
+                    target = schema.get('target', {})
+                    if 'filter' in target:
+                        is_filter_retrieve = True
+                        query_text = sample.get('nl', {}).get('zh') or sample.get('nl', {}).get('en') or 'filter-based retrieve'
+                    elif 'search' in target:
+                        search = target.get('search', {})
+                        intent = search.get('intent', {})
+                        query_text = intent.get('query', '')
+                    break
+            
+            # 如果是filter类型，从执行结果中提取ID
+            # 注意：这需要在run_sample中保存结果
+            # 暂时先尝试从数据库直接查询
+            if is_filter_retrieve:
+                # 对于filter类型，直接检查数据库中的记录
+                # 因为prerequisites已经插入了数据
+                adapter = SQLiteAdapter(str(db_path), models_service=self.models_service)
+                try:
+                    # 重新执行schema_list中的Retrieve操作获取结果
+                    for schema in sample.get('schema_list', []):
+                        if schema.get('op') == 'Retrieve':
+                            ir = IR.model_validate(schema)
+                            exec_res = adapter.execute(ir)
+                            if exec_res.success and exec_res.data:
+                                rows = exec_res.data.get('rows', [])
+                                retrieved_ids = [str(row.get('id')) for row in rows if row.get('id')]
+                            break
+                finally:
+                    adapter.close()
+                
+                # 对于filter类型，不使用similarity scores
+                score_map = {}
+                
+                hits = [rid for rid in retrieved_ids if rid in gold_ids]
+                missed = [gid for gid in gold_ids if gid not in retrieved_ids]
+                extras = [rid for rid in retrieved_ids if rid not in gold_ids]
+                
+                precision = (len(hits) / len(retrieved_ids)) if retrieved_ids else None
+                recall = (len(hits) / len(gold_ids)) if gold_ids else None
+                
+                passed = (len(hits) >= min_hits) and (allow_extra or not extras)
+                
+                message_parts = []
+                if gold_ids:
+                    message_parts.append(f"hits={len(hits)}/{len(gold_ids)} (min={min_hits})")
+                if missed:
+                    message_parts.append(f"missed={missed}")
+                if extras and not allow_extra:
+                    message_parts.append(f"unexpected={extras}")
+                if not message_parts:
+                    message_parts.append("no gold IDs provided; treated as pass")
+                
+                message = "; ".join(message_parts)
+                
+                return RankingOutcome(
+                    query=query_text,
+                    gold_ids=gold_ids,
+                    retrieved_ids=retrieved_ids[:topk],
+                    hits=hits,
+                    missed=missed,
+                    extras=extras,
+                    precision=precision,
+                    recall=recall,
+                    allow_extra=allow_extra,
+                    min_hits=min_hits,
+                    passed=passed,
+                    message=message,
+                    scores=score_map,
+                )
+        
+        # 对于search类型或没有sample信息的情况，使用原来的语义检索逻辑
+        query = ranking_spec.get("query") or query_text
+        
         if not query:
             return RankingOutcome(
                 query="",

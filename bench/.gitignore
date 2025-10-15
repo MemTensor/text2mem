@@ -1,0 +1,27 @@
+# Bench specific ignores
+
+# Temporary outputs
+output/tmp/
+output/logs/*.log
+
+# Generated samples (too large)
+generate/output/*.jsonl
+generate/output/failed_responses/
+
+# Raw data (keep in local, not in git)
+data/raw/*/
+
+# Processed data (keep in local)
+data/processed/*/
+
+# Test results (keep in local)
+output/test_results/*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Keep structure
+!*/README.md
+!*/.gitkeep

@@ -87,11 +87,12 @@ def _json(obj):
     return json.dumps(obj, ensure_ascii=False) if obj is not None else None
 
 class SQLiteAdapter(BaseAdapter):
-    def __init__(self, path: str = ":memory:", models_service: ModelsService = None):
+    def __init__(self, path: str = ":memory:", models_service: ModelsService = None, virtual_now=None):
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(DDL)
         self.models_service = models_service or get_models_service()
+        self.virtual_now = virtual_now  # 虚拟"当前时间"，用于测试相对时间查询
         
         # Load search configuration from ModelConfig
         from text2mem.core.config import ModelConfig
@@ -300,7 +301,8 @@ class SQLiteAdapter(BaseAdapter):
                     params.extend([tr.start, tr.end])
                 elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
                     from datetime import datetime, timedelta, timezone
-                    now = datetime.now(timezone.utc)
+                    # 使用虚拟时间（如果提供）或实际当前时间
+                    now = self.virtual_now if self.virtual_now else datetime.now(timezone.utc)
                     amount = int(tr.amount)
                     unit = tr.unit
                     delta = None
@@ -803,7 +805,8 @@ class SQLiteAdapter(BaseAdapter):
                     clauses.append("time >= ? AND time <= ?")
                     params.extend([tr.start, tr.end])
                 elif getattr(tr, "relative", None) and getattr(tr, "amount", None) and getattr(tr, "unit", None):
-                    now = datetime.now(timezone.utc)
+                    # 使用虚拟时间（如果提供）或实际当前时间
+                    now = self.virtual_now if self.virtual_now else datetime.now(timezone.utc)
                     amount = int(tr.amount)
                     unit = tr.unit
                     delta = None

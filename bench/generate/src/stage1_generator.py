@@ -141,14 +141,21 @@ class Stage1Generator:
         return []
     
     def _build_prompt(self, batch: TaskBatch) -> str:
-        """构建生成prompt"""
+        """
+        构建生成prompt
+        
+        关键设计：
+        - batch.structures 已由 TaskAllocator 根据计划配置分配好
+        - 这里只是将具体的数量要求（如 "7个single + 1个workflow"）注入到prompt中
+        - 不在prompt中使用百分比，而是明确的数量，避免LLM理解偏差
+        """
         # 获取场景和操作配置
         scenario_config = self.scenarios_config.get(batch.scenario, {})
         operation_config = self.operations_config.get(batch.operation, {})
         
-        # 判断是否为workflow批次
-        is_workflow = batch.structures and "workflow" in batch.structures
+        # 统计本批次的 structure 要求
         workflow_count = batch.structures.count("workflow") if batch.structures else 0
+        single_count = batch.structures.count("single") if batch.structures else batch.count
         
         # 构建操作表达方式
         expressions = operation_config.get("expressions_zh", [])
@@ -175,9 +182,22 @@ class Stage1Generator:
         for key, value in replacements.items():
             prompt = prompt.replace(key, value)
         
-        # 添加workflow特殊说明
-        if is_workflow and workflow_count > 0:
-            prompt += f"\n\n⚠️ **特别要求**: 本批次需要生成 {workflow_count} 个workflow类型的样本（明确包含3+步骤的流程指令）。"
+        # 添加本批次的 structure 要求（明确数量，不是比例）
+        if workflow_count > 0 or single_count > 0:
+            structure_requirement = []
+            if single_count > 0:
+                structure_requirement.append(f"**{single_count} 个 single 类型**（单一操作）")
+            if workflow_count > 0:
+                structure_requirement.append(f"**{workflow_count} 个 workflow 类型**（3+步骤流程）")
+            
+            prompt += f"\n\n## ⚠️ 本批次结构要求\n\n请生成：{' 和 '.join(structure_requirement)}\n\n"
+            prompt += "**重要**：\n"
+            prompt += f"- 你必须生成 **恰好 {batch.count} 个样本**\n"
+            if single_count > 0:
+                prompt += f"- 其中 **{single_count} 个** 必须是 single 结构（单一操作请求）\n"
+            if workflow_count > 0:
+                prompt += f"- 其中 **{workflow_count} 个** 必须是 workflow 结构（包含3+步骤的流程）\n"
+            prompt += "\n请严格遵守数量要求，不多不少。\n"
         
         return prompt
     

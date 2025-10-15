@@ -8,10 +8,10 @@ plan:
   version: "2.3"
   
   # 总目标数量
-  total_samples: 120
+  total_samples: 2000
   
   # 每次LLM调用生成的数量（Stage1建议5-10，Stage2/3建议1）
-  batch_size: 8
+  batch_size: 10
   
   # Context长度配置
   min_context_length: 100
@@ -164,13 +164,13 @@ characteristics:
   
   # 结构复杂度
   structure:
-    single: 85%         # 单操作
-    workflow: 15%       # 多操作工作流（2-5个操作）
+    single: 90%         # 单操作
+    workflow: 10%       # 多操作工作流（2-5个操作）
   
   # 语言分布
   lang:
-    zh: 100%            # 全中文
-    en: 0%
+    zh: 50%            # 全中文
+    en: 50%
 
 # ==================== LLM配置 ====================
 llm:

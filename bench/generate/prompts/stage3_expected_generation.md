@@ -13,11 +13,35 @@
 1. ✅ **assertions** — SQL断言，验证操作的实际效果
 2. ✅ **ranking** — 检索结果排名验证（仅Retrieve操作）
 3. ✅ **triggers** — 时间触发器（通常为空）
-4. ✅ **meta** — （可选）评测元信息：SQL方言/评测时间/检索步骤索引
+4. ✅ **meta** — **必须包含**评测元信息：SQL方言/评测时间/检索步骤索引
 
 **不需要修改**：
 
 * ❌ `id`、`class`、`nl`、`prerequisites`、`schema_list`、`init_db`、`notes` 等字段 — 保持 Stage 2 原样
+
+---
+
+## ⏰ 虚拟评测时间（重要！）
+
+**所有测试样本必须使用固定的虚拟评测时间**：`2025-10-21T00:00:00Z`
+
+这是测试的虚拟"当前时间"，确保：
+- ✅ 相对时间查询（"上周"、"最近30天"）可复现
+- ✅ 测试结果不受实际运行时间影响
+- ✅ Prerequisites 中的时间戳与查询时间范围一致
+
+**在 expected.meta 中必须设置**：
+```json
+{
+  "expected": {
+    "meta": {
+      "eval_time_utc": "2025-10-21T00:00:00Z",  // ⚠️ 固定使用此时间
+      "dialect": "sqlite",
+      "step_index": 0
+    }
+  }
+}
+```
 
 ---
 
@@ -70,7 +94,7 @@ Stage 2 的输出（JSONL），每行一个测试样本：
 ⚠️ **必须直接输出 JSONL**（每行一个完整的测试样本）
 
 ```jsonl
-{"id":"t2m-zh-direct-single-enc-001","class":{...},"nl":{...},"prerequisites":[],"schema_list":[...],"init_db":null,"expected":{"assertions":[...],"ranking":null,"triggers":[],"meta":{"dialect":"sqlite","eval_time_utc":"2025-10-14T00:00:00Z","step_index":0}},"notes":"..."}
+{"id":"t2m-zh-direct-single-enc-001","class":{...},"nl":{...},"prerequisites":[],"schema_list":[...],"init_db":null,"expected":{"assertions":[...],"ranking":null,"triggers":[],"meta":{"dialect":"sqlite","eval_time_utc":"2025-10-21T00:00:00Z","step_index":0}},"notes":"..."}
 ```
 
 **格式要求**：
@@ -107,9 +131,9 @@ Stage 2 的输出（JSONL），每行一个测试样本：
       "k": 5                     // 评估top-k（若返回不足k，以实际数量评估）
     },
     "triggers": [],               // 时间触发器（通常为空）
-    "meta": {                     // 可选：评测元信息
+    "meta": {                     // **必须包含**：评测元信息
       "dialect": "sqlite",        // sqlite | postgres
-      "eval_time_utc": "2025-10-14T00:00:00Z",
+      "eval_time_utc": "2025-10-21T00:00:00Z",  // ⚠️ 固定使用此虚拟评测时间
       "step_index": 0             // 多次检索时指定评测哪一步
     }
   }

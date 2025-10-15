@@ -257,8 +257,14 @@ class TaskAllocator:
     
     def _get_structures_for_batch(self, count: int) -> List[str]:
         """
-        根据特征分布确定批次的structure列表
-        85% single, 15% workflow
+        根据计划配置的特征分布确定批次的structure列表
+        
+        这是structure分类的唯一决定点：
+        - 从 plan.characteristics.structure 读取配置的比例（如 85% single, 15% workflow）
+        - 为当前批次的样本分配具体的structure类型
+        - 返回的列表将传递给Stage1 prompt，指定每个样本的structure要求
+        
+        这样确保structure分类完全由计划配置控制，而不是在prompt中用脆弱的百分比描述
         """
         structure_dist = self.plan.characteristics.get("structure", {})
         single_pct = self._parse_percentage(structure_dist.get("single", "85%"))
