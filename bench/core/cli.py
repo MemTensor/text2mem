@@ -62,13 +62,22 @@ class BenchCLI:
         
         # Try to find split file in multiple locations
         split_file = None
-        search_paths = [
-            self.data_dir / "benchmark" / "v1" / f"{split}.jsonl",  # benchmark/v1/benchmark.jsonl
-            self.data_dir / "benchmark" / split / "benchmark.jsonl",  # benchmark/v1/benchmark.jsonl (when split=v1)
-            self.data_dir / "benchmark" / f"{split}.jsonl",  # benchmark/benchmark.jsonl
-            self.data_dir / "v1" / "test_samples" / f"{split}.jsonl",  # Legacy path
-            self.data_dir / "test_data" / f"{split}.jsonl",  # test_data/basic.jsonl
-        ]
+        search_paths = []
+        
+        # 如果split是"benchmark"，则查找latest的benchmark.jsonl
+        if split == "benchmark":
+            search_paths = [
+                self.data_dir / "benchmarks" / "latest" / "benchmark.jsonl",  # benchmarks/latest/benchmark.jsonl
+                self.data_dir / "benchmarks" / "v2" / "benchmark.jsonl",  # benchmarks/v2/benchmark.jsonl
+                self.data_dir / "benchmarks" / "v1" / "benchmark.jsonl",  # benchmarks/v1/benchmark.jsonl
+            ]
+        else:
+            search_paths = [
+                self.data_dir / "benchmarks" / "latest" / "benchmark.jsonl",  # benchmarks/latest/benchmark.jsonl
+                self.data_dir / "benchmarks" / split / "benchmark.jsonl",  # benchmarks/v1/benchmark.jsonl
+                self.data_dir / "benchmarks" / f"{split}.jsonl",  # benchmarks/test.jsonl
+                self.data_dir / "test_data" / f"{split}.jsonl",  # test_data/basic.jsonl (legacy)
+            ]
         
         for path in search_paths:
             if path.exists():
@@ -416,10 +425,9 @@ class BenchCLI:
         # Try to find split file in multiple locations
         split_file = None
         search_paths = [
-            self.data_dir / "benchmark" / "v1" / f"{split}.jsonl",
-            self.data_dir / "benchmark" / split / "benchmark.jsonl",
-            self.data_dir / "benchmark" / f"{split}.jsonl",
-            self.data_dir / "v1" / "test_samples" / f"{split}.jsonl",
+            self.data_dir / "benchmarks" / "latest" / f"{split}.jsonl",
+            self.data_dir / "benchmarks" / split / f"{split}.jsonl",
+            self.data_dir / "benchmarks" / f"{split}.jsonl",
             self.data_dir / "test_data" / f"{split}.jsonl",
         ]
         

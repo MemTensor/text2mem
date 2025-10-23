@@ -3,6 +3,7 @@ Plan Loader - 加载和解析生成计划配置
 """
 from __future__ import annotations
 
+import random
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -146,12 +147,15 @@ class TaskAllocator:
                 # 确定该批次的structure分布
                 structures = self._get_structures_for_batch(batch_count)
                 
+                # 根据characteristics选择语言
+                lang = self._get_lang_for_batch()
+                
                 batches.append(TaskBatch(
                     batch_id=batch_id,
                     scenario=scenario,
                     operation=operation,
                     count=batch_count,
-                    lang="zh",  # 默认中文
+                    lang=lang,
                     structures=structures,
                 ))
                 
@@ -276,6 +280,24 @@ class TaskAllocator:
         
         structures = ["single"] * single_count + ["workflow"] * workflow_count
         return structures
+    
+    def _get_lang_for_batch(self) -> str:
+        """根据characteristics中的语言配置随机选择语言"""
+        lang_dist = self.plan.characteristics.get("lang", {})
+        
+        if not lang_dist:
+            # 如果没有配置，默认中文
+            return "zh"
+        
+        # 解析语言分布
+        langs = []
+        weights = []
+        for lang, pct in lang_dist.items():
+            langs.append(lang)
+            weights.append(self._parse_percentage(pct))
+        
+        # 根据权重随机选择
+        return random.choices(langs, weights=weights, k=1)[0]
     
     @staticmethod
     def _parse_percentage(value: str) -> float:

@@ -142,8 +142,7 @@ class AsyncGenerationController(GenerationController):
             stage_progress = self.checkpoint_mgr.get_stage_progress(stage_name)
         
         # 准备输出文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.output_dir / f"{self.plan.name}_stage2_{timestamp}.jsonl"
+        output_file = self.run_dir / "stage2.jsonl"
         
         # 如果有现有输出文件且正在恢复，继续使用该文件
         if stage_progress.output_file and Path(stage_progress.output_file).exists():
@@ -234,8 +233,7 @@ class AsyncGenerationController(GenerationController):
             stage_progress = self.checkpoint_mgr.get_stage_progress(stage_name)
         
         # 准备输出文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.output_dir / f"{self.plan.name}_stage3_{timestamp}.jsonl"
+        output_file = self.run_dir / "stage3.jsonl"
         
         # 如果有现有输出文件且正在恢复，继续使用该文件
         if stage_progress.output_file and Path(stage_progress.output_file).exists():

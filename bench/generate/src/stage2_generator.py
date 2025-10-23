@@ -41,8 +41,11 @@ class Stage2Generator:
         self.prompts_dir = prompts_dir
         self.llm_config = llm_config
         
-        # 加载prompt模板
-        self.prompt_template = self._load_prompt_template()
+        # 加载prompt模板（支持中英文）
+        self.prompt_templates = {
+            'zh': self._load_prompt_template("stage2_ir_generation.md"),
+            'en': self._load_prompt_template("en_stage2_ir_generation.md"),
+        }
         
         # ID计数器
         self.id_counter = 0
@@ -63,9 +66,16 @@ class Stage2Generator:
         }.get(level, "")
         print(f"   {prefix} {message}")
     
-    def _load_prompt_template(self) -> str:
-        """加载Stage 2的prompt模板"""
-        prompt_file = self.prompts_dir / "stage2_ir_generation.md"
+    def _load_prompt_template(self, filename: str) -> str:
+        """加载Stage 2的prompt模板
+        
+        Args:
+            filename: 模板文件名
+            
+        Returns:
+            模板内容
+        """
+        prompt_file = self.prompts_dir / filename
         
         if not prompt_file.exists():
             raise FileNotFoundError(f"Prompt模板未找到: {prompt_file}")
@@ -143,9 +153,13 @@ class Stage2Generator:
         operation = scenario_info.get('operation', 'unknown')
         instruction = nl_instruction.get('instruction', '')
         context = nl_instruction.get('context', '')
+        lang = classification.get('lang', 'zh')
+        
+        # 根据语言选择prompt模板
+        prompt_template = self.prompt_templates.get(lang, self.prompt_templates['zh'])
         
         # 使用加载的模板并替换变量
-        prompt = self.prompt_template
+        prompt = prompt_template
         
         # 替换模板中的占位符
         prompt = prompt.replace('{instruction}', instruction)
@@ -226,14 +240,41 @@ class Stage2Generator:
         # 步骤4：构建IRSample
         try:
             self.id_counter += 1
-            sample_id = data.get("id", f"t2m-sample-{self.id_counter:04d}")
+            # 始终使用id_counter生成唯一ID，确保不重复
+            # 从classification中提取信息用于ID
+            classification = data.get("class", nl_instruction.get("classification", {}))
+            
+            # 标准化classification字段名（修复LLM可能返回的错误键名）
+            if "instruction" in classification and "instruction_type" not in classification:
+                classification["instruction_type"] = classification.pop("instruction")
+            
+            lang = classification.get("lang", "zh")
+            instruction_type = classification.get("instruction_type", "direct")
+            structure = classification.get("structure", "single")
+            
+            # 从schema_list中提取操作类型
+            schema_list = data.get("schema_list", [])
+            op_abbr = "unk"
+            if schema_list:
+                op = schema_list[0].get("op", "Unknown")
+                # 操作缩写映射
+                op_map = {
+                    "Encode": "enc", "Retrieve": "ret", "Update": "upd",
+                    "Delete": "del", "Summarize": "sum", "Label": "lbl",
+                    "Promote": "pro", "Demote": "dem", "Expire": "exp",
+                    "Lock": "lck", "Merge": "mrg", "Split": "spl",
+                }
+                op_abbr = op_map.get(op, "unk")
+            
+            # 生成格式: t2m-{lang}-{type}-{structure}-{op}-{counter}
+            sample_id = f"t2m-{lang}-{instruction_type}-{structure}-{op_abbr}-{self.id_counter:03d}"
             
             sample = IRSample(
                 id=sample_id,
-                class_info=data.get("class", nl_instruction.get("classification", {})),
+                class_info=classification,
                 nl=data.get("nl", {"zh": nl_instruction.get("instruction", "")}),
                 prerequisites=data.get("prerequisites", []),
-                schema_list=data.get("schema_list", []),
+                schema_list=schema_list,
                 init_db=data.get("init_db"),
                 notes=data.get("notes", ""),
             )

@@ -1,0 +1,123 @@
+{
+  "metadata": {
+    "run_id": "20251022_184604",
+    "tested_at": "2025-10-22T23:13:23.956009",
+    "total_samples": 2177
+  },
+  "summary": {
+    "total": 2177,
+    "passed": 1269,
+    "failed": 908,
+    "errors": 0,
+    "pass_rate": 58.29122645842904
+  },
+  "by_operation": {
+    "Encode": {
+      "total": 400,
+      "passed": 326,
+      "failed": 74
+    },
+    "Summarize": {
+      "total": 168,
+      "passed": 150,
+      "failed": 18
+    },
+    "Retrieve": {
+      "total": 300,
+      "passed": 176,
+      "failed": 124
+    },
+    "Label": {
+      "total": 300,
+      "passed": 188,
+      "failed": 112
+    },
+    "Update": {
+      "total": 316,
+      "passed": 119,
+      "failed": 197
+    },
+    "Promote": {
+      "total": 137,
+      "passed": 68,
+      "failed": 69
+    },
+    "Demote": {
+      "total": 141,
+      "passed": 95,
+      "failed": 46
+    },
+    "unknown": {
+      "total": 15,
+      "passed": 0,
+      "failed": 15
+    },
+    "Delete": {
+      "total": 116,
+      "passed": 63,
+      "failed": 53
+    },
+    "Lock": {
+      "total": 103,
+      "passed": 67,
+      "failed": 36
+    },
+    "Merge": {
+      "total": 64,
+      "passed": 0,
+      "failed": 64
+    },
+    "Split": {
+      "total": 58,
+      "passed": 0,
+      "failed": 58
+    },
+    "Expire": {
+      "total": 56,
+      "passed": 17,
+      "failed": 39
+    },
+    "STO": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "split": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "retrieve": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "by_language": {
+    "en": {
+      "total": 2172,
+      "passed": 1268,
+      "failed": 904
+    },
+    "unknown": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2
+    },
+    "casual": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "zh": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "command": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  }
+}

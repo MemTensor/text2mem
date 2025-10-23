@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "run_id": "20251022_172451",
+    "tested_at": "2025-10-22T18:43:29.509012",
+    "total_samples": 20
+  },
+  "summary": {
+    "total": 20,
+    "passed": 10,
+    "failed": 10,
+    "errors": 0,
+    "pass_rate": 50.0
+  },
+  "by_operation": {
+    "Encode": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "Update": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "Retrieve": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Label": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2
+    },
+    "Promote": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "Summarize": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "Demote": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Lock": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Merge": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "Delete": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "Split": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "by_language": {
+    "zh": {
+      "total": 11,
+      "passed": 7,
+      "failed": 4
+    },
+    "en": {
+      "total": 9,
+      "passed": 3,
+      "failed": 6
+    }
+  }
+}

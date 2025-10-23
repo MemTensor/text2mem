@@ -35,17 +35,28 @@ class Stage1Generator:
         self.llm_client = llm_client
         self.plan = plan
         self.seeds_dir = seeds_dir
+        self.prompts_dir = seeds_dir.parent / "prompts"
         
-        # 加载prompt模板
-        self.prompt_template = self._load_prompt_template()
+        # 加载prompt模板（支持中英文）
+        self.prompt_templates = {
+            'zh': self._load_prompt_template('stage1_nl_generation.md'),
+            'en': self._load_prompt_template('en_stage1_nl_generation.md'),
+        }
         
         # 加载seeds数据
         self.scenarios_config = self._load_scenarios()
         self.operations_config = self._load_operations()
     
-    def _load_prompt_template(self) -> str:
-        """加载prompt模板"""
-        template_file = self.seeds_dir.parent / "prompts" / "stage1_nl_generation.md"
+    def _load_prompt_template(self, filename: str) -> str:
+        """加载prompt模板
+        
+        Args:
+            filename: 模板文件名
+            
+        Returns:
+            模板内容
+        """
+        template_file = self.prompts_dir / filename
         
         if not template_file.exists():
             raise FileNotFoundError(f"Prompt模板未找到: {template_file}")
@@ -148,6 +159,7 @@ class Stage1Generator:
         - batch.structures 已由 TaskAllocator 根据计划配置分配好
         - 这里只是将具体的数量要求（如 "7个single + 1个workflow"）注入到prompt中
         - 不在prompt中使用百分比，而是明确的数量，避免LLM理解偏差
+        - 根据batch.lang选择中文或英文prompt模板
         """
         # 获取场景和操作配置
         scenario_config = self.scenarios_config.get(batch.scenario, {})
@@ -157,22 +169,33 @@ class Stage1Generator:
         workflow_count = batch.structures.count("workflow") if batch.structures else 0
         single_count = batch.structures.count("single") if batch.structures else batch.count
         
-        # 构建操作表达方式
-        expressions = operation_config.get("expressions_zh", [])
+        # 根据语言选择prompt模板和表达方式
+        lang = batch.lang if batch.lang in ['zh', 'en'] else 'zh'
+        prompt_template = self.prompt_templates.get(lang, self.prompt_templates['zh'])
+        
+        # 构建操作表达方式（根据语言选择）
+        expressions_key = f"expressions_{lang}" if lang == 'zh' else "expressions_en"
+        expressions = operation_config.get(expressions_key, operation_config.get("expressions_zh", []))
         operation_expressions = "\n".join([f"- {expr}" for expr in expressions[:5]])
         
+        # 根据语言选择scenario和operation的名称
+        scenario_name = scenario_config.get("name_en" if lang == 'en' else "name", batch.scenario)
+        operation_name = operation_config.get("name_en" if lang == 'en' else "name", batch.operation)
+        operation_desc = operation_config.get("description_en" if lang == 'en' else "description", "")
+        scenario_desc = scenario_config.get("description_en" if lang == 'en' else "description", "")
+        
         # 填充模板
-        prompt = self.prompt_template
+        prompt = prompt_template
         
         # 替换变量
         replacements = {
             "{count}": str(batch.count),
             "{operation}": batch.operation,
-            "{operation_name}": operation_config.get("name", batch.operation),
-            "{operation_description}": operation_config.get("description", ""),
+            "{operation_name}": operation_name,
+            "{operation_description}": operation_desc,
             "{operation_expressions}": operation_expressions,
-            "{scenario}": scenario_config.get("name", batch.scenario),
-            "{scenario_description}": scenario_config.get("description", ""),
+            "{scenario}": scenario_name,
+            "{scenario_description}": scenario_desc,
             "{lang}": batch.lang,
             "{min_context_length}": str(self.plan.min_context_length),
             "{max_context_length}": str(self.plan.max_context_length),
@@ -183,21 +206,38 @@ class Stage1Generator:
             prompt = prompt.replace(key, value)
         
         # 添加本批次的 structure 要求（明确数量，不是比例）
+        # 根据语言生成不同的描述
         if workflow_count > 0 or single_count > 0:
             structure_requirement = []
-            if single_count > 0:
-                structure_requirement.append(f"**{single_count} 个 single 类型**（单一操作）")
-            if workflow_count > 0:
-                structure_requirement.append(f"**{workflow_count} 个 workflow 类型**（3+步骤流程）")
             
-            prompt += f"\n\n## ⚠️ 本批次结构要求\n\n请生成：{' 和 '.join(structure_requirement)}\n\n"
-            prompt += "**重要**：\n"
-            prompt += f"- 你必须生成 **恰好 {batch.count} 个样本**\n"
-            if single_count > 0:
-                prompt += f"- 其中 **{single_count} 个** 必须是 single 结构（单一操作请求）\n"
-            if workflow_count > 0:
-                prompt += f"- 其中 **{workflow_count} 个** 必须是 workflow 结构（包含3+步骤的流程）\n"
-            prompt += "\n请严格遵守数量要求，不多不少。\n"
+            if lang == 'zh':
+                if single_count > 0:
+                    structure_requirement.append(f"**{single_count} 个 single 类型**（单一操作）")
+                if workflow_count > 0:
+                    structure_requirement.append(f"**{workflow_count} 个 workflow 类型**（3+步骤流程）")
+                
+                prompt += f"\n\n## ⚠️ 本批次结构要求\n\n请生成：{' 和 '.join(structure_requirement)}\n\n"
+                prompt += "**重要**：\n"
+                prompt += f"- 你必须生成 **恰好 {batch.count} 个样本**\n"
+                if single_count > 0:
+                    prompt += f"- 其中 **{single_count} 个** 必须是 single 结构（单一操作请求）\n"
+                if workflow_count > 0:
+                    prompt += f"- 其中 **{workflow_count} 个** 必须是 workflow 结构（包含3+步骤的流程）\n"
+                prompt += "\n请严格遵守数量要求，不多不少。\n"
+            else:  # English
+                if single_count > 0:
+                    structure_requirement.append(f"**{single_count} single type** (single operation)")
+                if workflow_count > 0:
+                    structure_requirement.append(f"**{workflow_count} workflow type** (3+ step process)")
+                
+                prompt += f"\n\n## ⚠️ Structure Requirements for This Batch\n\nPlease generate: {' and '.join(structure_requirement)}\n\n"
+                prompt += "**Important**:\n"
+                prompt += f"- You must generate **exactly {batch.count} samples**\n"
+                if single_count > 0:
+                    prompt += f"- Of which **{single_count}** must be single structure (single operation request)\n"
+                if workflow_count > 0:
+                    prompt += f"- Of which **{workflow_count}** must be workflow structure (3+ step process)\n"
+                prompt += "\nPlease strictly follow the quantity requirements, no more, no less.\n"
         
         return prompt
     

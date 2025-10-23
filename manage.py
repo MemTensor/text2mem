@@ -1006,7 +1006,7 @@ def print_usage() -> None:
 	echo("")
 	echo("示例:")
 	echo("  python manage.py demo --mode mock")
-	echo('  python manage.py ir --mode mock --inline "{\"stage\":\"RET\",\"op\":\"Retrieve\",\"args\":{\"query\":\"测试\",\"k\":2}}"')
+	echo("  python manage.py ir --mode mock --inline '{\"stage\":\"RET\",\"op\":\"Retrieve\",\"args\":{\"query\":\"测试\",\"k\":2}}'")
 	echo("  python manage.py session --mode mock --output full")
 
 

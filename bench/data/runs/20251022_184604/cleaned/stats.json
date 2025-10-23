@@ -1,0 +1,29 @@
+{
+  "total": 1163,
+  "distribution": {
+    "languages": {
+      "en": 1162,
+      "command": 1
+    },
+    "operations": {
+      "Encode": 314,
+      "Label": 174,
+      "Retrieve": 152,
+      "Summarize": 136,
+      "Update": 105,
+      "Demote": 83,
+      "Lock": 62,
+      "Promote": 61,
+      "Delete": 59,
+      "Expire": 17
+    },
+    "instruction_types": {
+      "direct": 858,
+      "indirect": 305
+    },
+    "structures": {
+      "single": 1109,
+      "workflow": 54
+    }
+  }
+}

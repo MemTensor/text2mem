@@ -1,651 +1,315 @@
 {
   "plan_name": "samples_by_proportion",
   "total_samples": 2000,
-  "created_at": "2025-10-15T00:46:07.920697",
-  "updated_at": "2025-10-15T13:28:00.145552",
+  "created_at": "2025-10-22T18:46:04.857917",
+  "updated_at": "2025-10-22T21:25:14.280434",
   "completed_by_scenario": {
-    "incident_postmortem": 503,
-    "meeting_notes": 503,
-    "project_tracking": 503,
-    "knowledge_base": 505
+    "incident_postmortem": 547,
+    "meeting_notes": 543,
+    "project_tracking": 544,
+    "knowledge_base": 539
   },
   "completed_by_operation": {
-    "encode": 401,
-    "retrieve": 241,
+    "encode": 402,
+    "retrieve": 264,
     "summarize": 160,
-    "label": 240,
-    "update": 264,
-    "promote": 162,
-    "demote": 140,
-    "delete": 100,
-    "lock": 82,
-    "merge": 82,
-    "split": 81,
-    "expire": 61
+    "label": 275,
+    "update": 320,
+    "promote": 160,
+    "demote": 145,
+    "delete": 121,
+    "lock": 105,
+    "merge": 81,
+    "split": 80,
+    "expire": 60
   },
   "output_files": {
-    "stage1": "bench/generate/output/samples_by_proportion_stage1_20251015_004607.jsonl",
-    "stage2": "bench/generate/output/samples_by_proportion_stage2_20251015_124704.jsonl",
-    "stage3": "bench/generate/output/samples_by_proportion_stage3_20251015_131147.jsonl"
+    "stage1": "bench/data/raw/20251022_184604/stage1.jsonl",
+    "stage2": "bench/data/raw/20251022_184604/stage2.jsonl",
+    "stage3": "bench/data/raw/20251022_184604/stage3.jsonl"
   },
   "errors": [
     {
-      "stage": "stage2",
-      "batch_id": 174,
+      "stage": "stage3",
+      "batch_id": 1562,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:07.673483"
+      "timestamp": "2025-10-22T20:56:58.290469"
     },
     {
-      "stage": "stage2",
-      "batch_id": 175,
+      "stage": "stage3",
+      "batch_id": 1563,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:07.710737"
+      "timestamp": "2025-10-22T20:56:58.380676"
     },
     {
-      "stage": "stage2",
-      "batch_id": 176,
+      "stage": "stage3",
+      "batch_id": 1564,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:09.075648"
+      "timestamp": "2025-10-22T20:56:59.237901"
     },
     {
-      "stage": "stage2",
-      "batch_id": 177,
+      "stage": "stage3",
+      "batch_id": 1565,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:10.549232"
+      "timestamp": "2025-10-22T20:56:59.739556"
     },
     {
-      "stage": "stage2",
-      "batch_id": 178,
+      "stage": "stage3",
+      "batch_id": 1566,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:10.997613"
+      "timestamp": "2025-10-22T20:57:01.020357"
     },
     {
-      "stage": "stage2",
-      "batch_id": 179,
+      "stage": "stage3",
+      "batch_id": 1567,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:11.391228"
+      "timestamp": "2025-10-22T20:57:23.269645"
     },
     {
-      "stage": "stage2",
-      "batch_id": 180,
+      "stage": "stage3",
+      "batch_id": 1568,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:12.564992"
+      "timestamp": "2025-10-22T20:57:23.316612"
     },
     {
-      "stage": "stage2",
-      "batch_id": 181,
+      "stage": "stage3",
+      "batch_id": 1569,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:13.034293"
+      "timestamp": "2025-10-22T20:57:24.141558"
     },
     {
-      "stage": "stage2",
-      "batch_id": 182,
+      "stage": "stage3",
+      "batch_id": 1570,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:13.682788"
+      "timestamp": "2025-10-22T20:57:24.583735"
     },
     {
-      "stage": "stage2",
-      "batch_id": 183,
+      "stage": "stage3",
+      "batch_id": 1571,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:18.299623"
+      "timestamp": "2025-10-22T20:57:25.995602"
     },
     {
-      "stage": "stage2",
-      "batch_id": 184,
+      "stage": "stage3",
+      "batch_id": 1572,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:32.664902"
+      "timestamp": "2025-10-22T20:57:48.401867"
     },
     {
-      "stage": "stage2",
-      "batch_id": 185,
+      "stage": "stage3",
+      "batch_id": 1573,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:32.720360"
+      "timestamp": "2025-10-22T20:57:48.406502"
     },
     {
-      "stage": "stage2",
-      "batch_id": 186,
+      "stage": "stage3",
+      "batch_id": 1574,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:34.112560"
+      "timestamp": "2025-10-22T20:57:49.198336"
     },
     {
-      "stage": "stage2",
-      "batch_id": 187,
+      "stage": "stage3",
+      "batch_id": 1575,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:35.536016"
+      "timestamp": "2025-10-22T20:57:49.588532"
     },
     {
-      "stage": "stage2",
-      "batch_id": 188,
+      "stage": "stage3",
+      "batch_id": 1576,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:36.074729"
+      "timestamp": "2025-10-22T20:57:51.141467"
     },
     {
-      "stage": "stage2",
-      "batch_id": 189,
+      "stage": "stage3",
+      "batch_id": 1577,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:36.401770"
+      "timestamp": "2025-10-22T20:58:09.776061"
     },
     {
-      "stage": "stage2",
-      "batch_id": 190,
+      "stage": "stage3",
+      "batch_id": 1578,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:37.566205"
+      "timestamp": "2025-10-22T20:58:09.781425"
     },
     {
-      "stage": "stage2",
-      "batch_id": 191,
+      "stage": "stage3",
+      "batch_id": 1579,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:38.038247"
+      "timestamp": "2025-10-22T20:58:10.420246"
     },
     {
-      "stage": "stage2",
-      "batch_id": 192,
+      "stage": "stage3",
+      "batch_id": 1580,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:38.691639"
+      "timestamp": "2025-10-22T20:58:10.824733"
     },
     {
-      "stage": "stage2",
-      "batch_id": 193,
+      "stage": "stage3",
+      "batch_id": 1581,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:39.558037"
+      "timestamp": "2025-10-22T20:58:12.519428"
     },
     {
-      "stage": "stage2",
-      "batch_id": 194,
+      "stage": "stage3",
+      "batch_id": 1583,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:57.382407"
+      "timestamp": "2025-10-22T20:58:34.620766"
     },
     {
-      "stage": "stage2",
-      "batch_id": 195,
+      "stage": "stage3",
+      "batch_id": 1582,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:57.434998"
+      "timestamp": "2025-10-22T20:58:34.710260"
     },
     {
-      "stage": "stage2",
-      "batch_id": 196,
+      "stage": "stage3",
+      "batch_id": 1584,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:49:58.894841"
+      "timestamp": "2025-10-22T20:58:35.510900"
     },
     {
-      "stage": "stage2",
-      "batch_id": 197,
+      "stage": "stage3",
+      "batch_id": 1585,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:00.248868"
+      "timestamp": "2025-10-22T20:58:35.673178"
     },
     {
-      "stage": "stage2",
-      "batch_id": 198,
+      "stage": "stage3",
+      "batch_id": 1586,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:00.792032"
+      "timestamp": "2025-10-22T20:58:37.410507"
     },
     {
-      "stage": "stage2",
-      "batch_id": 199,
+      "stage": "stage3",
+      "batch_id": 1587,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:01.126209"
+      "timestamp": "2025-10-22T20:58:59.379785"
     },
     {
-      "stage": "stage2",
-      "batch_id": 200,
+      "stage": "stage3",
+      "batch_id": 1588,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:02.298222"
+      "timestamp": "2025-10-22T20:58:59.464614"
     },
     {
-      "stage": "stage2",
-      "batch_id": 201,
+      "stage": "stage3",
+      "batch_id": 1590,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:02.756286"
+      "timestamp": "2025-10-22T20:59:00.535572"
     },
     {
-      "stage": "stage2",
-      "batch_id": 202,
+      "stage": "stage3",
+      "batch_id": 1589,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:03.428049"
+      "timestamp": "2025-10-22T20:59:00.566080"
     },
     {
-      "stage": "stage2",
-      "batch_id": 203,
+      "stage": "stage3",
+      "batch_id": 1591,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:04.296208"
+      "timestamp": "2025-10-22T20:59:02.167838"
     },
     {
-      "stage": "stage2",
-      "batch_id": 204,
+      "stage": "stage3",
+      "batch_id": 1593,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:18.632946"
+      "timestamp": "2025-10-22T20:59:20.787434"
     },
     {
-      "stage": "stage2",
-      "batch_id": 205,
+      "stage": "stage3",
+      "batch_id": 1592,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:18.675380"
+      "timestamp": "2025-10-22T20:59:20.817449"
     },
     {
-      "stage": "stage2",
-      "batch_id": 206,
+      "stage": "stage3",
+      "batch_id": 1594,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:20.146671"
+      "timestamp": "2025-10-22T20:59:21.821113"
     },
     {
-      "stage": "stage2",
-      "batch_id": 207,
+      "stage": "stage3",
+      "batch_id": 1595,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:21.497521"
+      "timestamp": "2025-10-22T20:59:21.886675"
     },
     {
-      "stage": "stage2",
-      "batch_id": 208,
+      "stage": "stage3",
+      "batch_id": 1596,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:22.028124"
+      "timestamp": "2025-10-22T20:59:23.441034"
     },
     {
-      "stage": "stage2",
-      "batch_id": 209,
+      "stage": "stage3",
+      "batch_id": 1597,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:22.368824"
+      "timestamp": "2025-10-22T20:59:47.344428"
     },
     {
-      "stage": "stage2",
-      "batch_id": 210,
+      "stage": "stage3",
+      "batch_id": 1598,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:23.539300"
+      "timestamp": "2025-10-22T20:59:47.448704"
     },
     {
-      "stage": "stage2",
-      "batch_id": 211,
+      "stage": "stage3",
+      "batch_id": 1599,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:24.002350"
+      "timestamp": "2025-10-22T20:59:48.406011"
     },
     {
-      "stage": "stage2",
-      "batch_id": 212,
+      "stage": "stage3",
+      "batch_id": 1600,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:24.760735"
+      "timestamp": "2025-10-22T20:59:48.483707"
     },
     {
-      "stage": "stage2",
-      "batch_id": 213,
+      "stage": "stage3",
+      "batch_id": 1601,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:25.542831"
+      "timestamp": "2025-10-22T20:59:50.185032"
     },
     {
-      "stage": "stage2",
-      "batch_id": 214,
+      "stage": "stage3",
+      "batch_id": 1602,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:43.482041"
+      "timestamp": "2025-10-22T21:00:08.621602"
     },
     {
-      "stage": "stage2",
-      "batch_id": 215,
+      "stage": "stage3",
+      "batch_id": 1603,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:43.531996"
+      "timestamp": "2025-10-22T21:00:08.769286"
     },
     {
-      "stage": "stage2",
-      "batch_id": 216,
+      "stage": "stage3",
+      "batch_id": 1604,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:45.008758"
+      "timestamp": "2025-10-22T21:00:09.672722"
     },
     {
-      "stage": "stage2",
-      "batch_id": 217,
+      "stage": "stage3",
+      "batch_id": 1605,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:46.481101"
+      "timestamp": "2025-10-22T21:00:09.759271"
     },
     {
-      "stage": "stage2",
-      "batch_id": 218,
+      "stage": "stage3",
+      "batch_id": 1606,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:46.872233"
+      "timestamp": "2025-10-22T21:00:13.915074"
     },
     {
-      "stage": "stage2",
-      "batch_id": 219,
+      "stage": "stage3",
+      "batch_id": 1607,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:47.230010"
+      "timestamp": "2025-10-22T21:00:32.221620"
     },
     {
-      "stage": "stage2",
-      "batch_id": 220,
+      "stage": "stage3",
+      "batch_id": 1608,
       "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:48.409981"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 221,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:48.873256"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 222,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:49.622474"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 223,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:50:50.432647"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 225,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:08.656090"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 224,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:08.657004"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 226,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:09.888262"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 227,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:11.578201"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 228,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:11.866450"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 229,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:12.116213"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 230,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:13.287885"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 231,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:13.750435"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 232,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:14.728905"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 233,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:15.611664"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 234,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:29.904866"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 235,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:29.935079"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 236,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:31.240406"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 237,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:32.835777"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 238,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:33.191998"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 239,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:33.361189"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 240,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:34.527114"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 241,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:34.988292"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 242,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:35.978701"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 243,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:36.857767"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 244,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:54.743879"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 245,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:54.775354"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 246,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:56.184023"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 247,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:57.684220"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 248,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:58.029889"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 249,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:58.209792"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 250,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:59.374490"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 251,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:51:59.819691"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 252,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:00.838338"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 253,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:01.730014"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 254,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:19.458852"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 255,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:19.477453"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 256,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:20.882650"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 257,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:22.383765"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 258,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:22.855954"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 259,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:22.905793"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 260,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:24.088663"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 261,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:24.510779"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 262,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:25.548779"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 263,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:26.432960"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 264,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:40.704577"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 265,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:40.719145"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 266,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:42.126870"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 267,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:43.632871"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 268,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:44.093641"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 269,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:44.142070"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 270,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:45.344364"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 271,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:45.738576"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 272,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:46.790905"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 273,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:52:47.675225"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 274,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:53:05.487182"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 275,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:53:05.504558"
-    },
-    {
-      "stage": "stage2",
-      "batch_id": 276,
-      "error": "401, message='Unauthorized', url='http://123.129.219.111:3000/v1/chat/completions'",
-      "timestamp": "2025-10-15T12:53:06.979794"
+      "timestamp": "2025-10-22T21:00:32.333319"
     }
   ],
   "stages": {
@@ -655,133 +319,77 @@
       "total_batches": 208,
       "completed_batches": 208,
       "failed_batches": [],
-      "output_file": "bench/generate/output/samples_by_proportion_stage1_20251015_004607.jsonl",
-      "started_at": "2025-10-15T00:46:07.938960",
-      "completed_at": "2025-10-15T01:37:11.077813"
+      "output_file": "bench/data/raw/20251022_184604/stage1.jsonl",
+      "started_at": "2025-10-22T18:46:04.874269",
+      "completed_at": "2025-10-22T19:42:05.697874"
     },
     "stage2": {
       "stage_name": "stage2",
       "status": "completed",
       "total_batches": 2000,
-      "completed_batches": 2014,
-      "failed_batches": [
-        174,
-        175,
-        176,
-        177,
-        178,
-        179,
-        180,
-        181,
-        182,
-        183,
-        184,
-        185,
-        186,
-        187,
-        188,
-        189,
-        190,
-        191,
-        192,
-        193,
-        194,
-        195,
-        196,
-        197,
-        198,
-        199,
-        200,
-        201,
-        202,
-        203,
-        204,
-        205,
-        206,
-        207,
-        208,
-        209,
-        210,
-        211,
-        212,
-        213,
-        214,
-        215,
-        216,
-        217,
-        218,
-        219,
-        220,
-        221,
-        222,
-        223,
-        225,
-        224,
-        226,
-        227,
-        228,
-        229,
-        230,
-        231,
-        232,
-        233,
-        234,
-        235,
-        236,
-        237,
-        238,
-        239,
-        240,
-        241,
-        242,
-        243,
-        244,
-        245,
-        246,
-        247,
-        248,
-        249,
-        250,
-        251,
-        252,
-        253,
-        254,
-        255,
-        256,
-        257,
-        258,
-        259,
-        260,
-        261,
-        262,
-        263,
-        264,
-        265,
-        266,
-        267,
-        268,
-        269,
-        270,
-        271,
-        272,
-        273,
-        274,
-        275,
-        276
-      ],
-      "output_file": "bench/generate/output/samples_by_proportion_stage2_20251015_124704.jsonl",
+      "completed_batches": 2173,
+      "failed_batches": [],
+      "output_file": "bench/data/raw/20251022_184604/stage2.jsonl",
       "started_at": null,
-      "completed_at": "2025-10-15T13:11:47.285610"
+      "completed_at": "2025-10-22T20:30:09.623542"
     },
     "stage3": {
       "stage_name": "stage3",
       "status": "completed",
       "total_batches": 2000,
-      "completed_batches": 2011,
-      "failed_batches": [],
-      "output_file": "bench/generate/output/samples_by_proportion_stage3_20251015_131147.jsonl",
+      "completed_batches": 2173,
+      "failed_batches": [
+        1562,
+        1563,
+        1564,
+        1565,
+        1566,
+        1567,
+        1568,
+        1569,
+        1570,
+        1571,
+        1572,
+        1573,
+        1574,
+        1575,
+        1576,
+        1577,
+        1578,
+        1579,
+        1580,
+        1581,
+        1583,
+        1582,
+        1584,
+        1585,
+        1586,
+        1587,
+        1588,
+        1590,
+        1589,
+        1591,
+        1593,
+        1592,
+        1594,
+        1595,
+        1596,
+        1597,
+        1598,
+        1599,
+        1600,
+        1601,
+        1602,
+        1603,
+        1604,
+        1605,
+        1606,
+        1607,
+        1608
+      ],
+      "output_file": "bench/data/raw/20251022_184604/stage3.jsonl",
       "started_at": null,
-      "completed_at": "2025-10-15T13:28:00.145541"
+      "completed_at": "2025-10-22T21:25:14.280419"
     }
   }
 }

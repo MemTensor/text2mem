@@ -1,0 +1,308 @@
+{
+  "metadata": {
+    "split": "benchmark",
+    "filter": null,
+    "timestamp": "2025-10-22T18:44:33.486677",
+    "total_samples": 10
+  },
+  "summary": {
+    "overview": {
+      "total_samples": 10,
+      "passed_samples": 10,
+      "failed_samples": 0,
+      "pass_rate": 1.0,
+      "total_time_sec": 20.503495693206787,
+      "avg_time_sec": 2.050349569320679
+    },
+    "assertions": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "pass_rate": 1.0
+    },
+    "retrieval": {
+      "ndcg@5": 0.5,
+      "ndcg@10": 0.5,
+      "precision@5": 1.0,
+      "precision@10": 1.0,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "f1@5": 1.0,
+      "f1@10": 1.0,
+      "mrr": 1.0,
+      "map": 1.0,
+      "samples": 2
+    },
+    "operations": {
+      "Demote": {
+        "count": 1,
+        "success": 1,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 982.4135303497314,
+        "min_time_ms": 982.4135303497314,
+        "max_time_ms": 982.4135303497314
+      },
+      "Encode": {
+        "count": 4,
+        "success": 4,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 908.2834720611572,
+        "min_time_ms": 772.5839614868164,
+        "max_time_ms": 1061.605453491211
+      },
+      "Summarize": {
+        "count": 1,
+        "success": 1,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 4134.127140045166,
+        "min_time_ms": 4134.127140045166,
+        "max_time_ms": 4134.127140045166
+      },
+      "Lock": {
+        "count": 1,
+        "success": 1,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 925.1523017883301,
+        "min_time_ms": 925.1523017883301,
+        "max_time_ms": 925.1523017883301
+      },
+      "Promote": {
+        "count": 1,
+        "success": 1,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 2502.387046813965,
+        "min_time_ms": 2502.387046813965,
+        "max_time_ms": 2502.387046813965
+      },
+      "Retrieve": {
+        "count": 2,
+        "success": 2,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 4162.599325180054,
+        "min_time_ms": 3367.93851852417,
+        "max_time_ms": 4957.2601318359375
+      }
+    },
+    "errors": []
+  },
+  "results": [
+    {
+      "sample_id": "t2m-en-direct-single-demote-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "weight_decreased",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 0.9824135303497314
+    },
+    {
+      "sample_id": "t2m-en-direct-single-encode-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 0.7725839614868164
+    },
+    {
+      "sample_id": "t2m-en-direct-single-summarize-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "source_records_exist",
+          "passed": true,
+          "message": "actual=5 >= expected=1 -> PASS",
+          "value": 5
+        }
+      ],
+      "ranking": null,
+      "duration": 4.134127140045166
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 0.9070017337799072
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-002",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 0.8919427394866943
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-003",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 1.061605453491211
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-lock-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_locked",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 0.9251523017883301
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-promote-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "weight_increased",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 2.502387046813965
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-retrieve-001",
+      "passed": true,
+      "assertions": [],
+      "ranking": {
+        "query": "支付系统重构技术评估报告",
+        "passed": true,
+        "precision": 1.0,
+        "recall": 1.0,
+        "hits": 4,
+        "message": "hits=4/4 (min=1)"
+      },
+      "duration": 4.9572601318359375
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-retrieve-002",
+      "passed": true,
+      "assertions": [],
+      "ranking": {
+        "query": "查找一下最近一次会议中关于支付系统重构的讨论内容。",
+        "passed": true,
+        "precision": 1.0,
+        "recall": 1.0,
+        "hits": 4,
+        "message": "hits=4/4 (min=1)"
+      },
+      "duration": 3.36793851852417
+    }
+  ]
+}

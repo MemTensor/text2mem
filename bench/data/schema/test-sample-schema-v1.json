@@ -24,7 +24,7 @@
         },
         "structure": {
           "type": "string",
-          "enum": ["single", "combo", "workflow"],
+          "enum": ["single", "workflow"],
           "description": "Test structure complexity"
         },
         "lang": {

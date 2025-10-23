@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "split": "benchmark",
+    "filter": "op:Encode",
+    "timestamp": "2025-10-22T03:59:59.869160",
+    "total_samples": 4
+  },
+  "summary": {
+    "overview": {
+      "total_samples": 4,
+      "passed_samples": 3,
+      "failed_samples": 1,
+      "pass_rate": 0.75,
+      "total_time_sec": 8.904030799865723,
+      "avg_time_sec": 2.2260076999664307
+    },
+    "assertions": {
+      "total": 12,
+      "passed": 11,
+      "failed": 1,
+      "pass_rate": 0.9166666666666666
+    },
+    "retrieval": {},
+    "operations": {
+      "Encode": {
+        "count": 6,
+        "success": 6,
+        "failure": 0,
+        "success_rate": 1.0,
+        "avg_time_ms": 1483.9812914530437,
+        "min_time_ms": 1389.4641399383545,
+        "max_time_ms": 1743.5452938079834
+      }
+    },
+    "errors": []
+  },
+  "results": [
+    {
+      "sample_id": "t2m-zh-direct-single-encode-001",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 1.4831469058990479
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-002",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 1.3894641399383545
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-003",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "content_saved",
+          "passed": true,
+          "message": "actual=1 == expected=1 -> PASS",
+          "value": 1
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 1.7435452938079834
+    },
+    {
+      "sample_id": "t2m-zh-direct-single-encode-004",
+      "passed": false,
+      "assertions": [
+        {
+          "name": "record_created",
+          "passed": true,
+          "message": "actual=3 >= expected=1 -> PASS",
+          "value": 3
+        },
+        {
+          "name": "content_saved",
+          "passed": false,
+          "message": "actual=3 == expected=1 -> FAIL",
+          "value": 3
+        },
+        {
+          "name": "tags_saved_json",
+          "passed": true,
+          "message": "actual=1 >= expected=1 -> PASS",
+          "value": 1
+        }
+      ],
+      "ranking": null,
+      "duration": 4.287731409072876
+    }
+  ]
+}

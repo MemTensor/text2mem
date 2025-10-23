@@ -43,8 +43,11 @@ class Stage3Generator:
         self.prompts_dir = prompts_dir
         self.llm_config = llm_config
         
-        # 加载prompt模板
-        self.prompt_template = self._load_prompt_template()
+        # 加载prompt模板（支持中英文）
+        self.prompt_templates = {
+            'zh': self._load_prompt_template("stage3_expected_generation.md"),
+            'en': self._load_prompt_template("en_stage3_expected_generation.md"),
+        }
     
     def _log(self, message: str, level: str = "INFO", verbose_only: bool = False):
         """简单的日志方法"""
@@ -62,9 +65,16 @@ class Stage3Generator:
         }.get(level, "")
         print(f"   {prefix} {message}")
     
-    def _load_prompt_template(self) -> str:
-        """加载Stage 3的prompt模板"""
-        prompt_file = self.prompts_dir / "stage3_expected_generation.md"
+    def _load_prompt_template(self, filename: str) -> str:
+        """加载Stage 3的prompt模板
+        
+        Args:
+            filename: 模板文件名
+            
+        Returns:
+            模板内容
+        """
+        prompt_file = self.prompts_dir / filename
         
         if not prompt_file.exists():
             raise FileNotFoundError(f"Prompt模板未找到: {prompt_file}")
@@ -151,8 +161,14 @@ class Stage3Generator:
         if ir_sample.schema_list:
             main_op = ir_sample.schema_list[0].get("op", "unknown")
         
+        # 获取语言信息
+        lang = ir_sample.class_info.get('lang', 'zh') if hasattr(ir_sample, 'class_info') and ir_sample.class_info else 'zh'
+        
+        # 根据语言选择prompt模板
+        prompt_template = self.prompt_templates.get(lang, self.prompt_templates['zh'])
+        
         # 使用加载的模板并替换变量
-        prompt = self.prompt_template
+        prompt = prompt_template
         prompt = prompt.replace('{test_samples_jsonl}', ir_json)
         prompt = prompt.replace('{ir_json}', ir_json)
         prompt = prompt.replace('{main_op}', main_op)

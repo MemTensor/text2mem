@@ -1,0 +1,10 @@
+{"sample_id": "t2m-en-direct-single-upd-005", "passed": false, "duration": 3.4150338172912598, "class": {"instruction_type": "direct", "structure": "single", "lang": "en"}, "operation": "Update", "error": null}
+{"sample_id": "t2m-zh-direct-single-upd-007", "passed": false, "duration": 1.575408935546875, "class": {"instruction_type": "direct", "structure": "single", "lang": "zh"}, "operation": "Update", "error": null}
+{"sample_id": "t2m-en-direct-single-lbl-010", "passed": false, "duration": 3.1890742778778076, "class": {"instruction_type": "direct", "structure": "single", "lang": "en"}, "operation": "Label", "error": null}
+{"sample_id": "t2m-en-direct-single-upd-006", "passed": false, "duration": 2.6087687015533447, "class": {"instruction_type": "direct", "structure": "single", "lang": "en"}, "operation": "Update", "error": null}
+{"sample_id": "t2m-zh-direct-single-lbl-011", "passed": false, "duration": 2.5950655937194824, "class": {"instruction_type": "direct", "structure": "single", "lang": "zh"}, "operation": "Label", "error": null}
+{"sample_id": "t2m-en-indirect-single-sum-013", "passed": false, "duration": 3.55147123336792, "class": {"structure": "single", "lang": "en", "instruction_type": "indirect"}, "operation": "Summarize", "error": null}
+{"sample_id": "t2m-en-indirect-single-pro-015", "passed": false, "duration": 2.6635594367980957, "class": {"instruction_type": "indirect", "structure": "single", "lang": "en"}, "operation": "Promote", "error": null}
+{"sample_id": "t2m-zh-direct-single-mrg-019", "passed": false, "duration": 3.5578386783599854, "class": {"instruction_type": "direct", "structure": "single", "lang": "zh"}, "operation": "Merge", "error": null}
+{"sample_id": "t2m-zh-direct-single-del-017", "passed": false, "duration": 0.008345842361450195, "class": {"instruction_type": "direct", "structure": "single", "lang": "zh"}, "operation": "Delete", "error": null}
+{"sample_id": "t2m-en-direct-single-spl-020", "passed": false, "duration": 3.779550552368164, "class": {"instruction_type": "direct", "structure": "single", "lang": "en"}, "operation": "Split", "error": null}
