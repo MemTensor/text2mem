@@ -1,7 +1,0 @@
-{
-  "total_samples": 1163,
-  "created_at": "2024-10-22T18:46:04Z",
-  "last_updated": "2024-10-22T18:46:04Z",
-  "notes": "Standard benchmark for Text2Mem evaluation",
-  "source": "Migrated from benchmarks/v2"
-}

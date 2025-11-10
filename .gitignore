@@ -53,9 +53,8 @@ Desktop.ini
 # Bench artifacts & caches
 cache/
 outputs/
-bench/data/v1/db/
-bench/data/benchmark/*.jsonl
-bench/data/benchmark/*.json
+# bench/data/benchmark/*.jsonl
+# bench/data/benchmark/*.json
 !bench/data/benchmark/.gitkeep
 bench/data/results/
 !bench/data/results/.gitkeep
