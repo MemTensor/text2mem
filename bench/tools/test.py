@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-Benchmark测试工具 v3.0
+Benchmarktest工具 v3.0
 
-功能：
-1. 从raw创建run并运行测试
-2. 收集成功/失败样本
-3. 生成详细的测试报告
+Features:
+1. fromrawcreaterun并runtest
+2. 收集success/failedsample
+3. generate详细的testreport
 
-用法：
-    # 从最新raw创建run并测试
+Usage:
+    # fromlatestrawcreaterun并test
     python -m bench.tools.test --raw latest
     
-    # 从指定raw创建run并测试
+    # fromspecifiedrawcreaterun并test
     python -m bench.tools.test --raw 20251015_131147
     
-    # 测试已存在的run
+    # testalreadyexist的run
     python -m bench.tools.test --run 20251015_131147
     
-    # 只测试前N个样本
+    # 只test前N个sample
     python -m bench.tools.test --raw latest --limit 10
 """
 
@@ -40,55 +40,55 @@ logger = logging.getLogger(__name__)
 
 
 class TestRunner:
-    """测试运行器"""
+    """testrun器"""
     
     def __init__(self, raw_id: Optional[str] = None, run_id: Optional[str] = None, verbose: bool = False):
         """
         Args:
-            raw_id: Raw ID（用于创建新run）
-            run_id: Run ID（用于测试已存在的run）
-            verbose: 是否显示详细输出
+            raw_id: Raw ID（用于create新run）
+            run_id: Run ID（用于testalreadyexist的run）
+            verbose: whether显示详细输出
         """
         self.verbose = verbose
         self.run_manager = RunManager()
         
         if raw_id:
-            # 从raw创建run
-            logger.info(f"📦 从raw创建run: {raw_id}")
+            # fromrawcreaterun
+            logger.info(f"📦 fromrawcreaterun: {raw_id}")
             self.raw_id = raw_id if raw_id != 'latest' else self.run_manager.get_latest_raw()
             
             if not self.raw_id:
-                raise ValueError("没有找到raw数据")
+                raise ValueError("没有foundrawdata")
             
-            # 创建run目录
+            # createrundirectory
             self.run_dir = self.run_manager.create_run_from_raw(self.raw_id)
-            self.run_id = self.raw_id  # run_id默认与raw_id相同
+            self.run_id = self.raw_id  # run_iddefault与raw_id相同
             
-            # 获取stage3文件路径（从raw）
+            # getstage3filepath（fromraw）
             self.stage3_file = self.run_manager.get_stage_file_from_raw(self.raw_id, 3)
             
         elif run_id:
-            # 使用已存在的run
+            # Usealreadyexist的run
             self.run_id = run_id
             self.run_dir = self.run_manager.get_run_dir(run_id)
             
-            # 获取来源raw
+            # getto源raw
             self.raw_id = self.run_manager.get_source_raw(run_id)
             if self.raw_id:
                 self.stage3_file = self.run_manager.get_stage_file_from_raw(self.raw_id, 3)
             else:
-                raise ValueError(f"无法确定run {run_id} 的来源raw")
+                raise ValueError(f"unable to确定run {run_id} 的to源raw")
         else:
-            raise ValueError("必须指定 raw_id 或 run_id")
+            raise ValueError("mustspecified raw_id or run_id")
         
-        # 获取测试目录
+        # gettestdirectory
         self.tests_dir = self.run_manager.get_tests_dir(self.run_id)
         
-        # 加载数据
+        # loaddata
         self.samples: List[Dict[str, Any]] = []
         self.results: List[Dict[str, Any]] = []
         
-        # 测试统计
+        # test统计
         self.stats = {
             'total': 0,
             'passed': 0,
@@ -98,16 +98,16 @@ class TestRunner:
             'by_language': defaultdict(lambda: {'total': 0, 'passed': 0, 'failed': 0}),
         }
         
-        logger.info(f"📂 Raw目录: {self.run_manager.get_raw_dir(self.raw_id)}")
-        logger.info(f"📂 Run目录: {self.run_dir}")
-        logger.info(f"📂 测试结果: {self.tests_dir}")
+        logger.info(f"📂 Rawdirectory: {self.run_manager.get_raw_dir(self.raw_id)}")
+        logger.info(f"📂 Rundirectory: {self.run_dir}")
+        logger.info(f"📂 testresult: {self.tests_dir}")
     
     def load_samples(self) -> int:
-        """加载样本数据"""
+        """loadsample count据"""
         if not self.stage3_file.exists():
-            raise FileNotFoundError(f"Stage3文件不存在: {self.stage3_file}")
+            raise FileNotFoundError(f"Stage3file不exist: {self.stage3_file}")
         
-        logger.info(f"📂 加载样本: {self.stage3_file}")
+        logger.info(f"📂 loadsample: {self.stage3_file}")
         
         count = 0
         with self.stage3_file.open('r', encoding='utf-8') as f:
@@ -120,31 +120,31 @@ class TestRunner:
                     self.samples.append(sample)
                     count += 1
                 except json.JSONDecodeError as e:
-                    logger.warning(f"⚠️  行 {line_num} 解析失败: {e}")
+                    logger.warning(f"⚠️  行 {line_num} 解析failed: {e}")
         
-        logger.info(f"✅ 加载 {count} 个样本")
+        logger.info(f"✅ load {count} 个sample")
         return count
     
     def run_tests(self, limit: Optional[int] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
-        """运行测试
+        """runtest
         
         Args:
-            limit: 限制测试样本数量（用于快速测试）
-            timeout: 每个样本的超时时间（秒）
+            limit: 限制testsample count量（用于快速test）
+            timeout: eachsample的超时time（秒）
         """
-        # 导入测试runner
+        # 导入testrunner
         try:
             from bench.core.runner import BenchRunner, BenchConfig
         except ImportError:
-            logger.error("❌ 无法导入 bench.core.runner，请确保在正确的环境中运行")
+            logger.error("❌ unable to导入 bench.core.runner，请ensure在正确的环境中run")
             raise
         
         samples_to_test = self.samples[:limit] if limit else self.samples
         total = len(samples_to_test)
         
-        logger.info(f"🧪 开始测试 {total} 个样本...")
+        logger.info(f"🧪 starttest {total} 个sample...")
         
-        # 配置runner
+        # configurationrunner
         config = BenchConfig(
             db_root=Path('bench/data/db'),
             output_dir=Path('bench/output'),
@@ -165,29 +165,29 @@ class TestRunner:
             schema_list = sample.get('schema_list', [])
             operation = schema_list[0].get('op', 'unknown') if schema_list else 'unknown'
             
-            # 显示进度 - 每个样本都显示（使用logger让格式统一）
+            # 显示进度 - eachsample都显示（Uselogger让format统一）
             progress_pct = (idx / total) * 100
-            logger.info(f"[{idx}/{total} {progress_pct:.1f}%] 测试: {sample_id} ({operation})")
+            logger.info(f"[{idx}/{total} {progress_pct:.1f}%] test: {sample_id} ({operation})")
             
-            # 运行测试
+            # runtest
             sample_start = time.time()
             try:
                 result = runner.run_sample(sample, sample_id=sample_id)
                 sample_duration = time.time() - sample_start
                 
-                # 记录结果
+                # recordresult
                 passed = result.passed
                 error_msg = None
                 
             except Exception as e:
-                # 捕获运行错误
+                # 捕获run错误
                 passed = False
                 error_msg = str(e)
                 sample_duration = time.time() - sample_start
                 logger.error(f"  ❌ 错误: {sample_id} - {error_msg}")
                 self.stats['errors'] += 1
             
-            # 更新统计
+            # update统计
             self.stats['total'] += 1
             if passed:
                 self.stats['passed'] += 1
@@ -205,7 +205,7 @@ class TestRunner:
                 else:
                     self.stats[dim_name][dim_value]['failed'] += 1
             
-            # 记录结果
+            # recordresult
             test_result = {
                 'sample_id': sample_id,
                 'passed': passed,
@@ -216,7 +216,7 @@ class TestRunner:
             }
             
             if not passed and self.verbose:
-                # 记录失败详情
+                # recordfailed详情
                 if error_msg:
                     test_result['error_details'] = error_msg
                 elif 'result' in locals():
@@ -227,26 +227,26 @@ class TestRunner:
             
             self.results.append(test_result)
             
-            # 显示结果 - 总是显示结果
+            # 显示result - 总是显示result
             status = "✅ PASS" if passed else "❌ FAIL"
             print(f"  → {status} ({sample_duration:.2f}s) | Pass: {self.stats['passed']}/{self.stats['total']}", flush=True)
             
-            # 每10个样本显示一次汇总
+            # 每10个sample显示一次汇总
             if idx % 10 == 0 or idx == total:
                 pass_rate = (self.stats['passed'] / self.stats['total'] * 100) if self.stats['total'] > 0 else 0
-                print(f"  📊 当前统计: Pass={self.stats['passed']}, Fail={self.stats['failed']}, Rate={pass_rate:.1f}%", flush=True)
+                print(f"  📊 current统计: Pass={self.stats['passed']}, Fail={self.stats['failed']}, Rate={pass_rate:.1f}%", flush=True)
         
         total_time = time.time() - start_time
         
-        logger.info(f"✅ 测试完成，总耗时: {total_time:.2f}s")
+        logger.info(f"✅ testcomplete，总耗时: {total_time:.2f}s")
         
         return self.stats
     
     def save_results(self):
-        """保存测试结果"""
-        logger.info("💾 保存测试结果...")
+        """savetestresult"""
+        logger.info("💾 savetestresult...")
         
-        # 1. 保存摘要
+        # 1. save摘要
         summary = {
             'metadata': {
                 'run_id': self.run_id,
@@ -269,7 +269,7 @@ class TestRunner:
             json.dump(summary, f, ensure_ascii=False, indent=2)
         logger.info(f"  ✅ 摘要: {summary_file}")
         
-        # 2. 分离通过和失败的样本
+        # 2. 分离via和failed的sample
         passed_samples = []
         failed_samples = []
         
@@ -279,30 +279,30 @@ class TestRunner:
             else:
                 failed_samples.append(result)
         
-        # 保存通过的样本
+        # savevia的sample
         if passed_samples:
             passed_file = self.tests_dir / 'passed.jsonl'
             with passed_file.open('w', encoding='utf-8') as f:
                 for result in passed_samples:
                     f.write(json.dumps(result, ensure_ascii=False) + '\n')
-            logger.info(f"  ✅ 通过样本: {passed_file} ({len(passed_samples)} 个)")
+            logger.info(f"  ✅ viasample: {passed_file} ({len(passed_samples)} 个)")
         
-        # 保存失败的样本
+        # savefailed的sample
         if failed_samples:
             failed_file = self.tests_dir / 'failed.jsonl'
             with failed_file.open('w', encoding='utf-8') as f:
                 for result in failed_samples:
                     f.write(json.dumps(result, ensure_ascii=False) + '\n')
-            logger.info(f"  ❌ 失败样本: {failed_file} ({len(failed_samples)} 个)")
+            logger.info(f"  ❌ failedsample: {failed_file} ({len(failed_samples)} 个)")
         
-        # 3. 保存完整结果
+        # 3. save完整result
         details_file = self.tests_dir / 'details.jsonl'
         with details_file.open('w', encoding='utf-8') as f:
             for result in self.results:
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')
-        logger.info(f"  📄 完整结果: {details_file}")
+        logger.info(f"  📄 完整result: {details_file}")
         
-        # 4. 保存统计信息
+        # 4. savestatistics
         stats_file = self.tests_dir / 'stats.json'
         with stats_file.open('w', encoding='utf-8') as f:
             json.dump({
@@ -313,18 +313,18 @@ class TestRunner:
                 'pass_rate': self.stats['passed'] / self.stats['total'] * 100 if self.stats['total'] > 0 else 0,
             }, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"💾 所有结果已保存到: {self.tests_dir}")
+        logger.info(f"💾 allresultalreadysaveto: {self.tests_dir}")
     
     def print_summary(self):
-        """打印测试摘要"""
+        """打印test摘要"""
         print("\n" + "="*80)
-        print("📊 测试摘要")
+        print("📊 test摘要")
         print("="*80)
         
-        print(f"\n总体结果:")
-        print(f"  总样本数: {self.stats['total']}")
-        print(f"  通过: {self.stats['passed']} ({self.stats['passed']/self.stats['total']*100:.1f}%)")
-        print(f"  失败: {self.stats['failed']} ({self.stats['failed']/self.stats['total']*100:.1f}%)")
+        print(f"\n总体result:")
+        print(f"  总sample count: {self.stats['total']}")
+        print(f"  via: {self.stats['passed']} ({self.stats['passed']/self.stats['total']*100:.1f}%)")
+        print(f"  failed: {self.stats['failed']} ({self.stats['failed']/self.stats['total']*100:.1f}%)")
         if self.stats['errors'] > 0:
             print(f"  错误: {self.stats['errors']}")
         
@@ -350,20 +350,20 @@ class TestRunner:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="Benchmark测试工具",
+        description="Benchmarktest工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  # 从最新raw创建run并测试
+example:
+  # fromlatestrawcreaterun并test
   python -m bench.tools.test --raw latest
   
-  # 从指定raw创建run并测试
+  # fromspecifiedrawcreaterun并test
   python -m bench.tools.test --raw 20251015_131147
   
-  # 测试已存在的run
+  # testalreadyexist的run
   python -m bench.tools.test --run 20251015_131147
   
-  # 只测试前10个样本
+  # 只test前10个sample
   python -m bench.tools.test --raw latest --limit 10 --verbose
         """
     )
@@ -371,21 +371,21 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         '--raw',
-        help='从Raw ID创建run并测试 (如 "20251015_131147" 或 "latest")'
+        help='fromRaw IDcreaterun并test (如 "20251015_131147" or "latest")'
     )
     group.add_argument(
         '--run',
-        help='测试已存在的Run ID (如 "20251015_131147" 或 "latest")'
+        help='testalreadyexist的Run ID (如 "20251015_131147" or "latest")'
     )
     parser.add_argument(
         '--limit', '-l',
         type=int,
-        help='限制测试样本数量（用于快速测试）'
+        help='限制testsample count量（用于快速test）'
     )
     parser.add_argument(
         '--timeout', '-t',
         type=float,
-        help='每个样本的超时时间（秒）'
+        help='eachsample的超时time（秒）'
     )
     parser.add_argument(
         '--verbose', '-v',
@@ -395,7 +395,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 创建测试运行器
+    # createtestrun器
     try:
         runner = TestRunner(raw_id=args.raw, run_id=args.run, verbose=args.verbose)
     except (FileNotFoundError, ValueError) as e:
@@ -403,25 +403,25 @@ def main():
         return 1
     
     try:
-        # 加载样本
+        # loadsample
         runner.load_samples()
         
-        # 运行测试
+        # runtest
         runner.run_tests(limit=args.limit, timeout=args.timeout)
         
-        # 保存结果
+        # saveresult
         runner.save_results()
         
         # 打印摘要
         runner.print_summary()
         
-        print(f"\n✅ 测试完成！")
+        print(f"\n✅ testcomplete！")
         
-        # 返回码：如果有失败则返回1
+        # Returns码：if有failed则Returns1
         return 1 if runner.stats['failed'] > 0 else 0
         
     except Exception as e:
-        logger.error(f"❌ 测试失败: {e}")
+        logger.error(f"❌ testfailed: {e}")
         import traceback
         traceback.print_exc()
         return 1

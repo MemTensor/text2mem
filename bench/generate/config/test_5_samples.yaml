@@ -1,8 +1,8 @@
-# 测试用小规模生成计划 - 5个样本
+# Small-scale test generation plan – 5 samples
 
 plan:
   name: "test_5_samples"
-  description: "测试用小规模生成 - 只生成5个样本"
+  description: "Small-scale generation for testing – only 5 samples"
   version: "1.0"
   
   total_samples: 5
@@ -14,50 +14,50 @@ plan:
   resume_from_checkpoint: false
   checkpoint_file: "bench/generate/output/.checkpoint_test_5_samples.json"
 
-# 场景比例
+# Scenario proportions
 scenario_proportions:
   incident_postmortem: 0.4
   meeting_notes: 0.3
   project_tracking: 0.3
 
-# 操作比例
+# Operation proportions
 operation_proportions:
   encode: 0.40
   retrieve: 0.30
   summarize: 0.20
   label: 0.10
 
-# 操作定义
+# Operation definitions
 operations:
   encode:
     enabled: true
-    description: "编码/写入记忆"
+    description: "Encode / Write memory"
   retrieve:
     enabled: true
-    description: "语义检索"
+    description: "Semantic retrieval"
   summarize:
     enabled: true
-    description: "生成摘要"
+    description: "Generate summary"
   label:
     enabled: true
-    description: "添加标签"
+    description: "Add label"
 
-# 场景定义
+# Scenario definitions
 scenarios:
   incident_postmortem:
-    name: "故障复盘"
+    name: "Incident Postmortem"
     name_en: "Incident Postmortem"
     enabled: true
   meeting_notes:
-    name: "会议记录"
+    name: "Meeting Notes"
     name_en: "Meeting Notes"
     enabled: true
   project_tracking:
-    name: "项目跟踪"
+    name: "Project Tracking"
     name_en: "Project Tracking"
     enabled: true
 
-# 样本特征
+# Sample characteristics
 characteristics:
   instruction_style:
     direct: 100%
@@ -71,7 +71,7 @@ characteristics:
     zh: 50%
     en: 50%
 
-# LLM配置
+# LLM configuration
 llm:
   provider: "openai"
   model: "gpt-4o-mini"
@@ -81,7 +81,7 @@ llm:
   max_tokens: 2000
   timeout: 120
 
-# 三阶段配置
+# Three-stage pipeline configuration
 stages:
   stage1_nl_generation:
     enabled: true
@@ -101,13 +101,13 @@ stages:
     max_tokens: 2000
     batch_size: 1
 
-# 输出配置
+# Output configuration
 output:
   base_dir: "bench/data/raw"
   format: "jsonl"
   keep_intermediate: true
 
-# 日志配置
+# Logging configuration
 logging:
   level: "INFO"
   console: true

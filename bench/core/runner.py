@@ -114,18 +114,18 @@ class BenchRunner:
     def __init__(self, config: BenchConfig):
         self.config = config
         self.config.ensure_dirs()
-        # 根据配置的mode创建 models_service
+        # according toconfiguration的modecreate models_service
         self.models_service = self._create_models_service()
         self.compiler = SQLiteAssertionCompiler()
     
     def _create_models_service(self) -> ModelsService:
-        """根据config.mode创建对应的模型服务"""
+        """according toconfig.modecreate对应的模型服务"""
         from text2mem.services.service_factory import create_models_service
         from text2mem.core.config import ModelConfig
         
         mode = self.config.mode or "auto"
         
-        # 根据mode创建对应的ModelConfig
+        # according tomodecreate对应的ModelConfig
         if mode == "ollama":
             model_config = ModelConfig.for_ollama()
         elif mode == "openai":
@@ -137,7 +137,7 @@ class BenchRunner:
                 generation_provider="mock",
             )
         else:
-            # auto模式使用环境变量
+            # automodeUse环境变量
             model_config = None
         
         return create_models_service(mode=mode, config=model_config)
@@ -148,94 +148,94 @@ class BenchRunner:
         return self.run_sample(sample, sample_id=sample.get("id") or path.stem)
 
     def run_sample(self, sample: Mapping[str, Any], sample_id: Optional[str] = None) -> SampleRunResult:
-        """运行单个测试样本。
+        """runSingletestsample。
         
-        使用 Text2MemEngine 作为统一入口，传入自定义的 models_service（包含测试用的 embedding provider）。
-        这确保测试流程与生产环境保持一致。
+        Use Text2MemEngine 作为统一入口，传入custom的 models_service（includetest用的 embedding provider）。
+        这ensuretest流程与生产环境保持一致。
         
-        如果配置了timeout，将在超时后抛出TimeoutError。
+        ifconfiguration了timeout，will在超时后RaisesTimeoutError。
         """
         sample_id = sample_id or sample.get("id") or f"sample-{uuid4().hex[:8]}"
         
-        # 如果配置了timeout，使用带超时的执行
+        # ifconfiguration了timeout，Use带超时的execute
         if self.config.timeout is not None:
             return self._run_sample_with_timeout(sample, sample_id, self.config.timeout)
         else:
             return self._run_sample_impl(sample, sample_id)
     
     def _run_sample_impl(self, sample: Mapping[str, Any], sample_id: str) -> SampleRunResult:
-        """实际执行测试样本的内部方法。"""
+        """实际executetestsample的内部方法。"""
         init_db = sample.get("init_db")
         fixture_ids = sample.get("fixtures", [])
         results: List[Dict[str, Any]] = []
         assertions: List[AssertionOutcome] = []
         errors: List[str] = []
         
-        # 获取虚拟评测时间（如果有的话）
+        # get虚拟评测time（if有的话）
         eval_time_str = sample.get("expected", {}).get("meta", {}).get("eval_time_utc")
         virtual_now = None
         if eval_time_str:
             try:
                 from datetime import datetime
-                # 解析 ISO 8601 时间字符串
+                # 解析 ISO 8601 time字符串
                 virtual_now = datetime.fromisoformat(eval_time_str.replace('Z', '+00:00'))
             except Exception as e:
-                # 如果解析失败，记录警告但继续执行
+                # if解析failed，record警告但continueexecute
                 errors.append(f"Warning: Failed to parse eval_time_utc '{eval_time_str}': {e}")
 
         ranking_outcome: Optional[RankingOutcome]
         try:
             with self._prepared_database(init_db) as db_path:
-                # 创建适配器和引擎，传入自定义的 models_service 和虚拟时钟
+                # create适配器和引擎，传入custom的 models_service 和虚拟时钟
                 adapter = SQLiteAdapter(
                     str(db_path), 
                     models_service=self.models_service,
-                    virtual_now=virtual_now  # 传递虚拟时间
+                    virtual_now=virtual_now  # 传递虚拟time
                 )
                 engine = Text2MemEngine(
                     adapter=adapter,
                     models_service=self.models_service,
-                    validate_schema=False,  # bench 已经通过 Pydantic 验证
+                    validate_schema=False,  # bench already经via Pydantic verify
                 )
                 
                 try:
-                    # 执行prerequisites前置指令（内嵌在测试样本中的IR指令）
+                    # executeprerequisites前置指令（内嵌在testsample中的IR指令）
                     prerequisites = sample.get("prerequisites", [])
                     if prerequisites:
                         for idx, prereq_ir_obj in enumerate(prerequisites):
                             try:
                                 ir = IR.model_validate(prereq_ir_obj)
                                 exec_res = engine.execute(ir.model_dump(mode='json', exclude_none=True))
-                                # Prerequisite执行失败记录错误
+                                # Prerequisiteexecutefailedrecord错误
                                 if not getattr(exec_res, "success", True):
                                     errors.append(f"Prerequisite {idx+1} failed: {ir.op}")
                             except Exception as e:
                                 errors.append(f"Prerequisite {idx+1} error: {str(e)}")
                     
-                    # 执行测试样本的IR指令
+                    # executetestsample的IR指令
                     all_schemas = sample.get("schema_list", [])
                     
-                    # 根据配置过滤 schema
+                    # according toconfiguration过滤 schema
                     if self.config.schema_filter:
-                        # 按操作名称过滤
+                        # 按操作name过滤
                         schemas_to_run = [
                             s for s in all_schemas 
                             if s.get("op") in self.config.schema_filter
                         ]
                     elif self.config.schema_indices:
-                        # 按索引过滤
+                        # 按index过滤
                         schemas_to_run = [
                             all_schemas[i] for i in self.config.schema_indices 
                             if 0 <= i < len(all_schemas)
                         ]
                     else:
-                        # 默认：执行所有 schema
+                        # default：executeall schema
                         schemas_to_run = all_schemas
                     
                     for ir_obj in schemas_to_run:
-                        # Pydantic 验证
+                        # Pydantic verify
                         ir = IR.model_validate(ir_obj)
-                        # 通过 Engine 执行（统一入口）
+                        # via Engine execute（统一入口）
                         exec_res = engine.execute(ir.model_dump(mode='json', exclude_none=True))
                         results.append({
                             "op": ir.op,
@@ -272,11 +272,11 @@ class BenchRunner:
         )
     
     def _run_sample_with_timeout(self, sample: Mapping[str, Any], sample_id: str, timeout: float) -> SampleRunResult:
-        """使用线程+超时执行测试样本。
+        """Use线程+超时executetestsample。
         
-        注意：这个实现使用threading，在Python中无法真正中断线程，
-        只能检测超时并返回错误结果。对于真正需要中断的场景，
-        建议使用进程级别的超时控制。
+        Note:这个实现Usethreading，在Python中unable to真正中断线程，
+        只能检测超时并Returns错误result。for真正需要中断的场景，
+        建议Use进程级别的超时控制。
         """
         result_container = []
         exception_container = []
@@ -332,7 +332,7 @@ class BenchRunner:
                 compiled: CompiledAssertion = self.compiler.compile(spec)
                 cursor = conn.execute(compiled.sql, compiled.params)
                 row = cursor.fetchone()
-                # SQL中使用的是 COUNT(*) as actual，所以列名是actual
+                # SQL中Use的是 COUNT(*) as actual，therefore列名是actual
                 actual = row["actual"] if row is not None and "actual" in row.keys() else None
                 ok, message = evaluate_expectation(compiled.expectation, actual)
                 outcomes.append(
@@ -385,10 +385,10 @@ class BenchRunner:
     def _evaluate_ranking(
         self, db_path: Path, ranking_spec: Optional[Mapping[str, Any]], sample: Optional[Mapping[str, Any]] = None
     ) -> Optional[RankingOutcome]:
-        """评估ranking结果
+        """评估rankingresult
         
-        对于filter类型的Retrieve：直接从schema_results中获取结果
-        对于search类型的Retrieve：使用query执行语义检索
+        forfiltertype的Retrieve：直接fromschema_results中getresult
+        forsearchtype的Retrieve：Usequeryexecute语义检索
         """
         if not ranking_spec:
             return None
@@ -398,13 +398,13 @@ class BenchRunner:
         allow_extra = bool(ranking_spec.get("allow_extra", False))
         min_hits = int(ranking_spec.get("min_hits", len(gold_ids) if gold_ids else 0))
         
-        # 检查sample中是否已经执行了Retrieve操作
-        # 如果是filter类型，直接使用已执行的结果
+        # checksample中whetheralready经execute了Retrieve操作
+        # if是filtertype，直接Usealreadyexecute的result
         retrieved_ids = []
         query_text = ""
         
         if sample:
-            # 从schema_list检查是否为filter类型
+            # fromschema_listcheckwhether为filtertype
             is_filter_retrieve = False
             for schema in sample.get('schema_list', []):
                 if schema.get('op') == 'Retrieve':
@@ -418,15 +418,15 @@ class BenchRunner:
                         query_text = intent.get('query', '')
                     break
             
-            # 如果是filter类型，从执行结果中提取ID
-            # 注意：这需要在run_sample中保存结果
-            # 暂时先尝试从数据库直接查询
+            # if是filtertype，fromexecuteresult中提取ID
+            # Note:这需要在run_sample中saveresult
+            # 暂时先尝试fromdata库直接query
             if is_filter_retrieve:
-                # 对于filter类型，直接检查数据库中的记录
-                # 因为prerequisites已经插入了数据
+                # forfiltertype，直接checkdata库中的record
+                # becauseprerequisitesalready经插入了data
                 adapter = SQLiteAdapter(str(db_path), models_service=self.models_service)
                 try:
-                    # 重新执行schema_list中的Retrieve操作获取结果
+                    # 重新executeschema_list中的Retrieve操作getresult
                     for schema in sample.get('schema_list', []):
                         if schema.get('op') == 'Retrieve':
                             ir = IR.model_validate(schema)
@@ -438,7 +438,7 @@ class BenchRunner:
                 finally:
                     adapter.close()
                 
-                # 对于filter类型，不使用similarity scores
+                # forfiltertype，不Usesimilarity scores
                 score_map = {}
                 
                 hits = [rid for rid in retrieved_ids if rid in gold_ids]
@@ -478,7 +478,7 @@ class BenchRunner:
                     scores=score_map,
                 )
         
-        # 对于search类型或没有sample信息的情况，使用原来的语义检索逻辑
+        # forsearchtypeor没有sample信息的情况，Use原to的语义检索逻辑
         query = ranking_spec.get("query") or query_text
         
         if not query:
@@ -498,9 +498,9 @@ class BenchRunner:
                 scores={},
             )
 
-        # 注意：不再自动为所有记录生成embeddings
-        # 现在测试通过prerequisites前置操作来准备必要的数据
-        # 如果需要预先生成embeddings，使用 bench/tools/pregenerate_embeddings.py
+        # Note:不再自动为allrecordgenerateembeddings
+        # 现在testviaprerequisites前置操作to准备必要的data
+        # if需要预先generateembeddings，Use bench/tools/pregenerate_embeddings.py
         
         adapter = SQLiteAdapter(str(db_path), models_service=self.models_service)
         try:
@@ -556,16 +556,16 @@ class BenchRunner:
         precision = (len(hits) / len(retrieved_ids)) if retrieved_ids else None
         recall = (len(hits) / len(gold_ids)) if gold_ids else None
 
-        # 检测是否使用Mock embedding模型
+        # 检测whetherUseMock embedding模型
         is_mock_mode = self._is_using_mock_embedding()
         
-        # 在Mock模式下，如果hits不足，降级为警告而不是失败
+        # 在Mockmode下，ifhits不足，降级为警告而不是failed
         if is_mock_mode and len(hits) < min_hits:
-            passed = True  # 标记为通过，但附带警告
+            passed = True  # 标记为via，但附带警告
             message_parts = [
                 f"⚠️ MOCK MODE: hits={len(hits)}/{len(gold_ids)} (min={min_hits})",
-                "Mock embedding使用随机向量，语义检索结果不可靠",
-                "配置真实embedding模型（Ollama/OpenAI）以验证检索功能"
+                "Mock embeddingUse随机向量，语义检索result不可靠",
+                "configuration真实embedding模型（Ollama/OpenAI）以verify检索features"
             ]
         else:
             passed = (len(hits) >= min_hits) and (allow_extra or not extras)
@@ -598,7 +598,7 @@ class BenchRunner:
         )
     
     def _is_using_mock_embedding(self) -> bool:
-        """检测是否使用Mock embedding模型"""
+        """检测whetherUseMock embedding模型"""
         try:
             from text2mem.services.models_service_mock import MockEmbeddingModel
             return isinstance(self.models_service.embedding_model, MockEmbeddingModel)
@@ -606,7 +606,7 @@ class BenchRunner:
             return False
 
     def _ensure_embeddings(self, db_path: Path) -> None:
-        """确保数据库中的记录都有嵌入向量（通过 models_service 生成）"""
+        """ensuredata库中的record都有嵌入向量（via models_service generate）"""
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -632,14 +632,14 @@ class BenchRunner:
             conn.close()
 
     def _prepare_embedding_update(self, memory_id: int, text: str) -> Optional[tuple[Any, ...]]:
-        """使用 models_service 生成嵌入向量"""
+        """Use models_service generate嵌入向量"""
         try:
             result = self.models_service.encode_memory(text)
             vector = result.vector
             dimension = result.dimension or (len(vector) if vector else None)
             model_name = result.model_name
             
-            # 检测 provider 名称
+            # 检测 provider name
             embedding_model = getattr(self.models_service, "embedding_model", None)
             provider_name = None
             if embedding_model:
@@ -673,7 +673,7 @@ class BenchRunner:
     @contextmanager
     def _prepared_database(self, snapshot_id: Optional[str]) -> Iterator[Path]:
         if not snapshot_id:
-            # 创建空表，使用完整的schema（与SQLiteAdapter一致）
+            # create空表，Use完整的schema（与SQLiteAdapter一致）
             temp_db = self._temp_db_path("ad-hoc")
             conn = sqlite3.connect(temp_db)
             conn.executescript("""

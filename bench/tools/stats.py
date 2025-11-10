@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-Benchmark数据统计分析工具
+Benchmarkdata统计分析工具
 
-功能：
-1. 统计样本分布（语言、场景、操作、指令类型、结构等）
-2. 分析数据质量指标
-3. 生成统计报告
-4. 检测异常样本
+Features:
+1. 统计sample分布（语言、场景、操作、指令type、结构等）
+2. 分析data质量指标
+3. generate统计report
+4. 检测异常sample
 
-用法：
-    # 统计最新run
+Usage:
+    # 统计latestrun
     python -m bench.tools.stats --run latest
     
-    # 统计指定run
+    # 统计specifiedrun
     python -m bench.tools.stats --run 20251015_131147
     
-    # 统计指定文件（向后兼容）
+    # 统计specifiedfile（向后兼容）
     python -m bench.tools.stats --input stage3.jsonl
     
-    # 生成详细报告
+    # generate详细report
     python -m bench.tools.stats --run latest --verbose
 """
 
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 class BenchmarkStats:
-    """Benchmark数据统计分析器"""
+    """Benchmarkdata统计分析器"""
     
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
@@ -48,11 +48,11 @@ class BenchmarkStats:
         self.stats: Dict[str, Any] = {}
         
     def load_samples(self, input_file: Path) -> int:
-        """加载样本数据"""
-        logger.info(f"📂 加载样本: {input_file}")
+        """loadsample count据"""
+        logger.info(f"📂 loadsample: {input_file}")
         
         if not input_file.exists():
-            raise FileNotFoundError(f"文件不存在: {input_file}")
+            raise FileNotFoundError(f"filedoes not exist: {input_file}")
         
         count = 0
         with input_file.open('r', encoding='utf-8') as f:
@@ -65,14 +65,14 @@ class BenchmarkStats:
                     self.samples.append(sample)
                     count += 1
                 except json.JSONDecodeError as e:
-                    logger.warning(f"⚠️  行 {line_num} 解析失败: {e}")
+                    logger.warning(f"⚠️  行 {line_num} 解析failed: {e}")
         
-        logger.info(f"✅ 加载 {count} 个样本")
+        logger.info(f"✅ load {count} 个sample")
         return count
     
     def analyze(self) -> Dict[str, Any]:
-        """分析样本数据"""
-        logger.info("📊 开始统计分析...")
+        """分析sample count据"""
+        logger.info("📊 start统计分析...")
         
         # 基本统计
         total = len(self.samples)
@@ -145,13 +145,13 @@ class BenchmarkStats:
                 op_details[main_op]['instruction_types'][instruction_type] += 1
                 op_details[main_op]['structures'][structure] += 1
                 
-                # 工作流中的所有操作
+                # 工作流中的all操作
                 if len(schema_list) > 1:
                     workflow_ops = [s.get('op') for s in schema_list]
-                    # 记录工作流模式
+                    # record工作流mode
                     # operations[f"workflow:{'+'.join(workflow_ops)}"] += 1
             
-            # 质量检查
+            # 质量check
             if sample.get('nl'):
                 has_nl += 1
             if schema_list:
@@ -161,7 +161,7 @@ class BenchmarkStats:
             if sample.get('prerequisites'):
                 has_prerequisites += 1
             
-            # 检查必填字段
+            # check必填字段
             required_fields = ['id', 'class', 'nl', 'schema_list']
             for field in required_fields:
                 if field not in sample or not sample[field]:
@@ -170,12 +170,7 @@ class BenchmarkStats:
                         'missing_field': field
                     })
         
-        # 构建统计结果
-        self.stats = {
-            'metadata': {
-                'analyzed_at': datetime.now().isoformat(),
-                'total_samples': total,
-        # 构建统计结果
+        # Build statistics result
         self.stats = {
             'metadata': {
                 'analyzed_at': datetime.now().isoformat(),
@@ -218,25 +213,25 @@ class BenchmarkStats:
             }
         }
         
-        logger.info("✅ 统计分析完成")
+        logger.info("✅ 统计分析complete")
         return self.stats
     
     def print_report(self):
-        """打印统计报告"""
+        """打印统计report"""
         if not self.stats:
-            logger.error("❌ 请先运行 analyze()")
+            logger.error("❌ 请先run analyze()")
             return
         
         stats = self.stats
         
         print("\n" + "="*80)
-        print("📊 Benchmark 数据统计报告")
+        print("📊 Benchmark data统计report")
         print("="*80)
         
         # 基本信息
         print(f"\n📝 基本信息:")
-        print(f"  总样本数: {stats['metadata']['total_samples']}")
-        print(f"  分析时间: {stats['metadata']['analyzed_at']}")
+        print(f"  总sample count: {stats['metadata']['total_samples']}")
+        print(f"  分析time: {stats['metadata']['analyzed_at']}")
         
         # 分布统计
         print(f"\n📈 分布统计:")
@@ -251,7 +246,7 @@ class BenchmarkStats:
             pct = count / stats['metadata']['total_samples'] * 100
             print(f"    {op}: {count} ({pct:.1f}%)")
         
-        print(f"\n  指令类型分布:")
+        print(f"\n  指令type分布:")
         for itype, count in stats['distribution']['instruction_types'].items():
             pct = count / stats['metadata']['total_samples'] * 100
             print(f"    {itype}: {count} ({pct:.1f}%)")
@@ -272,16 +267,16 @@ class BenchmarkStats:
         # 问题检测
         print(f"\n⚠️  问题检测:")
         issues = stats['issues']
-        print(f"  包含unknown的样本: {issues['unknown_fields_count']}")
-        print(f"  缺少必填字段的样本: {issues['missing_fields_count']}")
+        print(f"  includeunknown的sample: {issues['unknown_fields_count']}")
+        print(f"  缺少必填字段的sample: {issues['missing_fields_count']}")
         
         if issues['unknown_fields_count'] > 0 and self.verbose:
-            print(f"\n  包含unknown的样本详情:")
+            print(f"\n  includeunknown的sample详情:")
             for item in issues['unknown_fields'][:5]:  # 只显示前5个
                 print(f"    {item['sample_id']}: {item['fields']}")
         
         if issues['missing_fields_count'] > 0 and self.verbose:
-            print(f"\n  缺少字段的样本详情:")
+            print(f"\n  缺少字段的sample详情:")
             for item in issues['missing_fields'][:5]:
                 print(f"    {item['sample_id']}: missing {item['missing_field']}")
         
@@ -294,9 +289,9 @@ class BenchmarkStats:
         print("\n" + "="*80)
     
     def save_report(self, output_file: Path):
-        """保存统计报告到JSON文件"""
+        """save统计reporttoJSONfile"""
         if not self.stats:
-            logger.error("❌ 请先运行 analyze()")
+            logger.error("❌ 请先run analyze()")
             return
         
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -304,26 +299,26 @@ class BenchmarkStats:
         with output_file.open('w', encoding='utf-8') as f:
             json.dump(self.stats, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"💾 统计报告已保存: {output_file}")
+        logger.info(f"💾 统计reportalreadysave: {output_file}")
 
 
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="Benchmark数据统计分析工具",
+        description="Benchmarkdata统计分析工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  # 统计最新run
+example:
+  # 统计latestrun
   python -m bench.tools.stats --run latest
   
-  # 统计指定run
+  # 统计specifiedrun
   python -m bench.tools.stats --run 20251015_131147
   
-  # 统计指定文件（向后兼容）
+  # 统计specifiedfile（向后兼容）
   python -m bench.tools.stats --input stage3.jsonl
   
-  # 生成详细报告并保存
+  # generate详细report并save
   python -m bench.tools.stats --run latest --verbose
         """
     )
@@ -335,12 +330,12 @@ def main():
     parser.add_argument(
         '--input', '-i',
         type=Path,
-        help='输入文件路径（向后兼容，直接指定文件）'
+        help='输入filepath（向后兼容，直接specifiedfile）'
     )
     parser.add_argument(
         '--output', '-o',
         type=Path,
-        help='输出统计报告文件路径（JSON格式），默认保存到run目录'
+        help='输出统计reportfilepath（JSONformat），defaultsavetorundirectory'
     )
     parser.add_argument(
         '--verbose', '-v',
@@ -350,71 +345,71 @@ def main():
     
     args = parser.parse_args()
     
-    # 确定输入文件
+    # 确定输入file
     if args.run:
-        # 使用run ID
+        # userun ID
         run_manager = RunManager()
         try:
             input_file = run_manager.get_stage_file(args.run, 3)
             if not input_file.exists():
-                logger.error(f"❌ Run {args.run} 没有stage3数据")
-                logger.info(f"   文件不存在: {input_file}")
+                logger.error(f"❌ Run {args.run} 没有stage3data")
+                logger.info(f"   filedoes not exist: {input_file}")
                 return 1
-            logger.info(f"📂 使用run: {args.run}")
+            logger.info(f"📂 userun: {args.run}")
         except FileNotFoundError as e:
             logger.error(f"❌ {e}")
             return 1
     elif args.input:
-        # 直接指定文件（向后兼容）
+        # 直接specifiedfile（向后兼容）
         input_file = args.input
     else:
-        # 默认使用latest
+        # defaultuselatest
         run_manager = RunManager()
         latest_run = run_manager.get_latest_run()
         if not latest_run:
-            logger.error("❌ 没有找到任何run")
-            logger.info("💡 提示：请先运行生成工具")
+            logger.error("❌ 没有found任何run")
+            logger.info("💡 提示：请先rungenerate工具")
             logger.info("   python bench/generate/generate.py")
             return 1
         
         try:
             input_file = run_manager.get_stage_file('latest', 3)
-            logger.info(f"🔍 自动使用最新run: {latest_run}")
+            logger.info(f"🔍 自动uselatestrun: {latest_run}")
         except FileNotFoundError as e:
             logger.error(f"❌ {e}")
             return 1
     
-    # 检查输入文件
+    # check输入file
     if not input_file.exists():
-        logger.error(f"❌ 输入文件不存在: {input_file}")
+        logger.error(f"❌ 输入filedoes not exist: {input_file}")
         return 1
     
-    # 创建统计器
+    # create统计器
     analyzer = BenchmarkStats(verbose=args.verbose)
     
     try:
-        # 加载样本
+        # loadsample
         analyzer.load_samples(input_file)
         
         # 分析
         analyzer.analyze()
         
-        # 打印报告
+        # 打印report
         analyzer.print_report()
         
-        # 保存报告
+        # savereport
         if args.output:
             analyzer.save_report(args.output)
         else:
-            # 默认保存到输入文件同目录
+            # defaultsaveto输入file同directory
             default_output = input_file.parent / 'stats.json'
             analyzer.save_report(default_output)
         
-        print(f"\n✅ 统计完成！")
+        print(f"\n✅ 统计complete！")
         return 0
         
     except Exception as e:
-        logger.error(f"❌ 统计失败: {e}")
+        logger.error(f"❌ 统计failed: {e}")
         import traceback
         traceback.print_exc()
         return 1

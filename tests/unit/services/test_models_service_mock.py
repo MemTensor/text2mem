@@ -1,10 +1,11 @@
 """
-测试 text2mem.services.models_service_mock 模块
-重点测试：
-1. 服务提供商工厂
-2. 多提供商支持
-3. 配置验证和错误处理
-4. 服务切换机制
+Unit tests for text2mem.services.models_service_mock module.
+
+Focus areas:
+1. Service provider factory
+2. Multi-provider support
+3. Configuration validation and error handling
+4. Service mode switching mechanism
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
@@ -18,10 +19,10 @@ from text2mem.core.config import ModelConfig
 
 
 class TestModelsServiceProviders:
-    """测试模型服务提供商"""
+    """Tests for model service providers."""
     
     def test_create_mock_models_service(self):
-        """测试创建Mock模型服务"""
+        """Test creation of mock model service."""
         service = create_mock_models_service()
         
         assert service is not None
@@ -30,7 +31,7 @@ class TestModelsServiceProviders:
     
     @patch('text2mem.services.models_service_mock.create_openai_models_service')
     def test_create_models_service_openai_mode(self, mock_create_openai):
-        """测试创建OpenAI模式的模型服务"""
+        """Test creating model service in OpenAI mode."""
         mock_service = MagicMock()
         mock_create_openai.return_value = mock_service
         
@@ -40,7 +41,7 @@ class TestModelsServiceProviders:
     
     @patch('text2mem.services.models_service_mock.create_ollama_models_service')  
     def test_create_models_service_ollama_mode(self, mock_create_ollama):
-        """测试创建Ollama模式的模型服务"""
+        """Test creating model service in Ollama mode."""
         mock_service = MagicMock()
         mock_create_ollama.return_value = mock_service
         
@@ -49,7 +50,7 @@ class TestModelsServiceProviders:
         assert result == mock_service
     
     def test_create_models_service_mock_mode(self):
-        """测试创建Mock模式的模型服务"""
+        """Test creating model service in mock mode."""
         result = create_models_service(mode="mock")
         
         assert result is not None
@@ -57,16 +58,16 @@ class TestModelsServiceProviders:
         assert hasattr(result, 'generation_model')
     
     def test_create_models_service_invalid_mode(self):
-        """测试无效模式"""
+        """Test invalid service mode."""
         with pytest.raises(ValueError) as exc_info:
             create_models_service(mode="invalid")
         
-        assert "未知的模型服务模式" in str(exc_info.value)
+        assert "Unknown model service mode" in str(exc_info.value)
     
     @patch.dict('os.environ', {'MODEL_SERVICE': 'openai'})
     @patch('text2mem.services.models_service_mock.create_openai_models_service')
     def test_create_models_service_auto_mode_with_env(self, mock_create_openai):
-        """测试自动模式使用环境变量"""
+        """Test 'auto' mode using environment variable."""
         mock_service = MagicMock()
         mock_create_openai.return_value = mock_service
         
@@ -76,17 +77,17 @@ class TestModelsServiceProviders:
 
 
 class TestModelConfigValidation:
-    """测试模型配置验证"""
+    """Tests for model configuration validation."""
     
     def test_valid_config_attributes(self):
-        """测试有效配置的属性"""
+        """Test valid configuration attributes."""
         config = MagicMock()
         config.embedding_provider = "openai"
         config.generation_provider = "openai"
         config.embedding_model = "text-embedding-3-small"
         config.generation_model = "gpt-3.5-turbo"
         
-        # 验证配置属性存在
+        # Validate required attributes exist
         assert hasattr(config, 'embedding_provider')
         assert hasattr(config, 'generation_provider')
         assert hasattr(config, 'embedding_model')
@@ -94,12 +95,12 @@ class TestModelConfigValidation:
 
 
 class TestProviderFactoryIntegration:
-    """测试提供商工厂集成"""
+    """Integration tests for provider factory creation."""
 
     @patch('text2mem.services.models_service_openai.create_openai_models_service')
     @patch('text2mem.services.models_service_mock.ModelConfig')
     def test_openai_service_creation(self, mock_model_config, mock_create_openai):
-        """测试OpenAI服务创建"""
+        """Test OpenAI service creation."""
         mock_config = MagicMock()
         mock_model_config.load_openai_config.return_value = mock_config
 
@@ -115,7 +116,7 @@ class TestProviderFactoryIntegration:
     @patch('text2mem.services.models_service_ollama.create_models_service_from_config')
     @patch('text2mem.services.models_service_mock.ModelConfig')
     def test_ollama_service_creation(self, mock_model_config, mock_create_from_config):
-        """测试Ollama服务创建"""
+        """Test Ollama service creation."""
         mock_config = MagicMock()
         mock_model_config.load_ollama_config.return_value = mock_config
 
@@ -130,63 +131,57 @@ class TestProviderFactoryIntegration:
 
 
 class TestProviderErrorHandling:
-    """测试提供商错误处理"""
+    """Tests for provider error handling."""
     
     @patch('text2mem.services.models_service_openai.create_openai_models_service')
     @patch('text2mem.services.models_service_mock.ModelConfig')
     def test_openai_service_creation_error(self, mock_model_config, mock_create_openai):
-        """测试OpenAI服务创建错误"""
+        """Test error during OpenAI service creation."""
         mock_config = MagicMock()
         mock_model_config.load_openai_config.return_value = mock_config
         
-        # 模拟服务创建失败
-        mock_create_openai.side_effect = Exception("API密钥无效")
+        # Simulate creation failure
+        mock_create_openai.side_effect = Exception("Invalid API key")
         
         with pytest.raises(Exception) as exc_info:
             create_openai_models_service()
         
-        assert "API密钥无效" in str(exc_info.value)
+        assert "Invalid API key" in str(exc_info.value)
     
     @patch('text2mem.services.models_service_ollama.create_models_service_from_config')
     @patch('text2mem.services.models_service_mock.ModelConfig')
     def test_ollama_service_creation_error(self, mock_model_config, mock_create_from_config):
-        """测试Ollama服务创建错误"""
+        """Test error during Ollama service creation."""
         mock_config = MagicMock()
         mock_model_config.load_ollama_config.return_value = mock_config
         
-        # 模拟服务创建失败
-        mock_create_from_config.side_effect = Exception("Ollama服务未运行")
+        # Simulate creation failure
+        mock_create_from_config.side_effect = Exception("Ollama service not running")
         
         with pytest.raises(Exception) as exc_info:
             create_ollama_models_service()
         
-        assert "Ollama服务未运行" in str(exc_info.value)
+        assert "Ollama service not running" in str(exc_info.value)
 
 
 class TestProviderPerformance:
-    """测试提供商性能相关"""
+    """Performance-related tests for provider factory."""
     
     def test_multiple_mock_service_creations(self):
-        """测试多次Mock服务创建"""
+        """Test creating multiple mock services quickly."""
         import time
         
-        # 测试多次快速创建
         start_time = time.time()
-        
-        results = []
-        for i in range(5):
-            result = create_mock_models_service()
-            results.append(result)
-        
+        results = [create_mock_models_service() for _ in range(5)]
         end_time = time.time()
         
-        # 验证所有服务都创建成功
+        # Validate all services were created
         assert len(results) == 5
         
-        # 验证创建时间合理（应该很快）
+        # Validate creation time (should be fast)
         assert end_time - start_time < 1.0
         
-        # 验证每个服务都有必要的组件
+        # Validate each service has required components
         for service in results:
             assert hasattr(service, 'embedding_model')
             assert hasattr(service, 'generation_model')
@@ -194,28 +189,22 @@ class TestProviderPerformance:
     @patch('text2mem.services.models_service_mock.create_openai_models_service')
     @patch('text2mem.services.models_service_mock.create_ollama_models_service')
     def test_service_mode_switching(self, mock_create_ollama, mock_create_openai):
-        """测试服务模式切换"""
+        """Test switching between service modes."""
         openai_service = MagicMock()
         ollama_service = MagicMock()
         mock_create_openai.return_value = openai_service
         mock_create_ollama.return_value = ollama_service
         
-        # 测试不同模式
         modes = ["openai", "ollama", "mock"]
-        results = []
+        results = [(mode, create_models_service(mode=mode)) for mode in modes]
         
-        for mode in modes:
-            result = create_models_service(mode=mode)
-            results.append((mode, result))
-        
-        # 验证结果
         assert len(results) == 3
         
-        # 验证OpenAI和Ollama调用
+        # Verify OpenAI and Ollama services were each called once
         assert mock_create_openai.call_count == 1
         assert mock_create_ollama.call_count == 1
         
-        # 验证结果类型
+        # Validate results by mode
         mode_results = {mode: result for mode, result in results}
         assert mode_results["openai"] == openai_service
         assert mode_results["ollama"] == ollama_service

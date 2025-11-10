@@ -1,7 +1,7 @@
 """
 SQL Builder for SQLite Assertions
 
-编译测试断言为SQL查询
+编译test断言为SQLquery
 """
 
 from dataclasses import dataclass
@@ -18,14 +18,14 @@ class CompiledAssertion:
 
 
 class SQLiteAssertionCompiler:
-    """将断言规范编译为SQL查询"""
+    """will断言规范编译为SQLquery"""
     
     def compile(self, spec: Dict[str, Any]) -> CompiledAssertion:
         """
         编译断言规范
         
-        支持两种格式：
-        1. 旧格式（扁平）:
+        支持两种format：
+        1. 旧format（扁平）:
             {
                 "name": "record_created",
                 "from_table": "memory",
@@ -35,7 +35,7 @@ class SQLiteAssertionCompiler:
                 "params": {"keyword": "%test%"}
             }
         
-        2. 新格式（嵌套）:
+        2. 新format（嵌套）:
             {
                 "name": "record_created",
                 "select": {
@@ -56,25 +56,25 @@ class SQLiteAssertionCompiler:
         name = spec.get("name", "unnamed_assertion")
         params = spec.get("params", {})
         
-        # 检查使用新格式还是旧格式
+        # checkUse新format还是旧format
         if "select" in spec:
-            # 新格式
+            # 新format
             select_spec = spec["select"]
             table = select_spec.get("from", "memory")
             where_clauses = select_spec.get("where", [])
-            # agg字段暂时忽略，默认使用COUNT(*)
+            # agg字段暂时ignore，defaultUseCOUNT(*)
             
             expect_spec = spec.get("expect", {})
             expect_op = expect_spec.get("op", "==")
             expect_value = expect_spec.get("value")
         else:
-            # 旧格式（向后兼容）
+            # 旧format（向后兼容）
             table = spec.get("from_table", "memory")
             where_clauses = spec.get("where", [])
             expect_op = spec.get("expect_op", "==")
             expect_value = spec.get("expect_value")
         
-        # 构建SQL
+        # buildSQL
         sql = f"SELECT COUNT(*) as actual FROM {table}"
         
         if where_clauses:

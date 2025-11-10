@@ -1,6 +1,6 @@
 """
-Checkpoint Manager - 断点管理器
-支持进度保存和恢复
+Checkpoint Manager
+Supports progress saving and recovery
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from datetime import datetime
 
 @dataclass
 class StageProgress:
-    """阶段进度"""
+    """Stage progress tracking"""
     stage_name: str
     status: str  # pending, running, completed, failed
     total_batches: int
@@ -25,7 +25,7 @@ class StageProgress:
     
     @property
     def progress_percentage(self) -> float:
-        """进度百分比"""
+        """Progress percentage"""
         if self.total_batches == 0:
             return 0.0
         return (self.completed_batches / self.total_batches) * 100
@@ -33,47 +33,47 @@ class StageProgress:
 
 @dataclass
 class Checkpoint:
-    """断点数据"""
+    """Checkpoint data"""
     plan_name: str
     total_samples: int
     created_at: str
     updated_at: str
     
-    # 阶段进度
+    # Stage progress
     stages: Dict[str, StageProgress] = field(default_factory=dict)
     
-    # 完成的样本统计
+    # Completed sample statistics
     completed_by_scenario: Dict[str, int] = field(default_factory=dict)
     completed_by_operation: Dict[str, int] = field(default_factory=dict)
     
-    # 输出文件
+    # Output files
     output_files: Dict[str, str] = field(default_factory=dict)
     
-    # 错误记录
+    # Error logs
     errors: List[Dict[str, Any]] = field(default_factory=list)
     
     @property
     def total_completed(self) -> int:
-        """总完成数"""
+        """Total number of completed samples"""
         return sum(self.completed_by_scenario.values())
     
     @property
     def progress_percentage(self) -> float:
-        """总进度百分比"""
+        """Overall progress percentage"""
         if self.total_samples == 0:
             return 0.0
         return (self.total_completed / self.total_samples) * 100
 
 
 class CheckpointManager:
-    """断点管理器"""
+    """Checkpoint manager"""
     
     def __init__(self, checkpoint_file: Path):
         self.checkpoint_file = checkpoint_file
         self.checkpoint: Optional[Checkpoint] = None
     
     def load(self) -> Optional[Checkpoint]:
-        """加载断点"""
+        """Load checkpoint"""
         if not self.checkpoint_file.exists():
             return None
         
@@ -81,7 +81,7 @@ class CheckpointManager:
             with open(self.checkpoint_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # 重建Checkpoint对象
+            # Rebuild Checkpoint object
             checkpoint = Checkpoint(
                 plan_name=data["plan_name"],
                 total_samples=data["total_samples"],
@@ -93,7 +93,7 @@ class CheckpointManager:
                 errors=data.get("errors", []),
             )
             
-            # 重建StageProgress对象
+            # Rebuild StageProgress objects
             for stage_name, stage_data in data.get("stages", {}).items():
                 checkpoint.stages[stage_name] = StageProgress(
                     stage_name=stage_data["stage_name"],
@@ -110,24 +110,24 @@ class CheckpointManager:
             return checkpoint
             
         except Exception as e:
-            print(f"⚠️  加载断点失败: {e}")
+            print(f"⚠️  Failed to load checkpoint: {e}")
             return None
     
     def save(self, checkpoint: Optional[Checkpoint] = None):
-        """保存断点"""
+        """Save checkpoint"""
         if checkpoint:
             self.checkpoint = checkpoint
         
         if not self.checkpoint:
             return
         
-        # 更新时间
+        # Update timestamp
         self.checkpoint.updated_at = datetime.now().isoformat()
         
-        # 确保目录存在
+        # Ensure directory exists
         self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # 转换为字典
+        # Convert to dictionary
         data = {
             "plan_name": self.checkpoint.plan_name,
             "total_samples": self.checkpoint.total_samples,
@@ -140,16 +140,16 @@ class CheckpointManager:
             "stages": {},
         }
         
-        # 转换StageProgress
+        # Convert StageProgress objects
         for stage_name, stage_progress in self.checkpoint.stages.items():
             data["stages"][stage_name] = asdict(stage_progress)
         
-        # 保存
+        # Save to file
         with open(self.checkpoint_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     
     def create_new(self, plan_name: str, total_samples: int) -> Checkpoint:
-        """创建新断点"""
+        """Create a new checkpoint"""
         now = datetime.now().isoformat()
         self.checkpoint = Checkpoint(
             plan_name=plan_name,
@@ -160,7 +160,7 @@ class CheckpointManager:
         return self.checkpoint
     
     def delete(self):
-        """删除断点文件"""
+        """Delete checkpoint file"""
         if self.checkpoint_file.exists():
             self.checkpoint_file.unlink()
         self.checkpoint = None
@@ -173,7 +173,7 @@ class CheckpointManager:
         completed_batches: Optional[int] = None,
         output_file: Optional[str] = None,
     ):
-        """更新阶段进度"""
+        """Update stage progress"""
         if not self.checkpoint:
             return
         
@@ -212,7 +212,7 @@ class CheckpointManager:
         scenario: str,
         operation: str,
     ):
-        """添加完成的样本统计"""
+        """Add completed sample statistics"""
         if not self.checkpoint:
             return
         
@@ -225,7 +225,7 @@ class CheckpointManager:
         self.save()
     
     def mark_batch_failed(self, stage_name: str, batch_id: int, error: str):
-        """标记批次失败"""
+        """Mark batch as failed"""
         if not self.checkpoint:
             return
         
@@ -244,17 +244,17 @@ class CheckpointManager:
         self.save()
     
     def record_error(self, stage: str, batch_id: int, error: str):
-        """记录错误"""
+        """Record an error"""
         self.mark_batch_failed(stage, batch_id, error)
     
     def get_stage_progress(self, stage_name: str) -> Optional[StageProgress]:
-        """获取阶段进度"""
+        """Get stage progress"""
         if not self.checkpoint:
             return None
         return self.checkpoint.stages.get(stage_name)
     
     def get_progress_summary(self) -> str:
-        """获取进度摘要"""
+        """Get progress summary"""
         if not self.checkpoint:
             return "No checkpoint found"
         
@@ -266,7 +266,7 @@ class CheckpointManager:
                     f"({self.checkpoint.progress_percentage:.1f}%)")
         lines.append("")
         
-        # 阶段进度
+        # Stage progress
         for stage_name, stage in self.checkpoint.stages.items():
             status_emoji = {
                 "pending": "⏸️",
@@ -280,7 +280,7 @@ class CheckpointManager:
         
         lines.append("")
         
-        # 场景统计
+        # Scenario statistics
         if self.checkpoint.completed_by_scenario:
             lines.append("By Scenario:")
             for scenario, count in sorted(self.checkpoint.completed_by_scenario.items()):
@@ -288,17 +288,17 @@ class CheckpointManager:
         
         lines.append("")
         
-        # 操作统计
+        # Operation statistics
         if self.checkpoint.completed_by_operation:
             lines.append("By Operation:")
             for operation, count in sorted(self.checkpoint.completed_by_operation.items()):
                 lines.append(f"  {operation}: {count}")
         
-        # 错误统计
+        # Error statistics
         if self.checkpoint.errors:
             lines.append("")
             lines.append(f"Errors: {len(self.checkpoint.errors)}")
-            for error in self.checkpoint.errors[-3:]:  # 显示最后3个错误
+            for error in self.checkpoint.errors[-3:]:  # show the last 3 errors
                 lines.append(f"  [{error['stage']}] Batch {error['batch_id']}: {error['error'][:60]}")
         
         lines.append("=" * 60)

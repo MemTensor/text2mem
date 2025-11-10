@@ -50,7 +50,7 @@ def format_and_echo(echo, title: str, ir: Dict[str, Any], result: IRRunResult) -
     """Print a concise summary for a finished IR run."""
 
     if not result.ok:
-        echo(f"❌ {title} 失败: {result.error}")
+        echo(f"❌ {title} failed: {result.error}")
         return
 
     op = ir.get("op")
@@ -94,14 +94,14 @@ def run_basic_demo(echo, engine) -> Dict[str, Any]:
         "op": "Encode",
         "args": {
             "payload": {
-                "text": "这是一条用于功能自检的记忆，确认 Encode 是否正常。"
+                "text": "This is a memory entry for feature self-check to confirm Encode is working properly."
             },
-            "tags": ["demo", "自检"],
+            "tags": ["demo", "self-check"],
             "type": "note",
             "source": "cli_helpers.basic_demo",
             "facets": {
-                "subject": "CLI 快速体验",
-                "topic": "系统自检",
+                "subject": "CLI Quick Experience",
+                "topic": "System Self-Check",
             },
         },
     }
@@ -114,7 +114,7 @@ def run_basic_demo(echo, engine) -> Dict[str, Any]:
         "op": "Retrieve",
         "target": {
             "search": {
-                "intent": {"query": "功能自检"},
+                "intent": {"query": "feature self-check"},
                 "overrides": {"k": 5},
                 "limit": 5,
             }
@@ -134,7 +134,7 @@ def run_basic_demo(echo, engine) -> Dict[str, Any]:
                 "limit": 10,
             }
         },
-        "args": {"focus": "功能演示回顾", "max_tokens": 120},
+        "args": {"focus": "Feature Demo Review", "max_tokens": 120},
     }
     result = execute_ir(engine, summarize_ir)
     format_and_echo(echo, "Summarize", summarize_ir, result)

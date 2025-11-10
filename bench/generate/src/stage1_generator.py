@@ -1,6 +1,6 @@
 """
-Stage 1 Generator - 自然语言指令生成器
-根据场景和操作生成真实的用户指令
+Stage 1 Generator - Natural language instruction generator
+Generates realistic user instructions based on scenario and operation.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from bench.generate.src.plan_loader import TaskBatch, GenerationPlan
 
 @dataclass
 class NLInstruction:
-    """自然语言指令"""
+    """Natural language instruction"""
     instruction: str
     context: str
     classification: Dict[str, str]
@@ -23,7 +23,7 @@ class NLInstruction:
 
 
 class Stage1Generator:
-    """Stage 1: NL指令生成器"""
+    """Stage 1: Natural language instruction generator"""
     
     def __init__(
         self,
@@ -35,116 +35,112 @@ class Stage1Generator:
         self.plan = plan
         self.prompts_dir = prompts_dir
         
-        # 加载prompt模板（支持中英文）
+        # Load prompt templates (supports both Chinese and English)
         self.prompt_templates = {
             'zh': self._load_prompt_template('stage1_nl_generation.md'),
             'en': self._load_prompt_template('en_stage1_nl_generation.md'),
         }
     
     def _load_prompt_template(self, filename: str) -> str:
-        """加载prompt模板
+        """Load prompt template file
         
         Args:
-            filename: 模板文件名
+            filename: Template file name.
             
         Returns:
-            模板内容
+            Template content.
         """
         template_file = self.prompts_dir / filename
         
         if not template_file.exists():
-            raise FileNotFoundError(f"Prompt模板未找到: {template_file}")
+            raise FileNotFoundError(f"Prompt template not found: {template_file}")
         
         with open(template_file, 'r', encoding='utf-8') as f:
             return f.read()
     
-
-    
     def generate_batch(self, batch: TaskBatch) -> List[NLInstruction]:
         """
-        生成一批NL指令
-        支持多次重试
+        Generate a batch of NL instructions with retry support.
         
         Args:
-            batch: 任务批次
+            batch: Task batch definition.
             
         Returns:
-            NL指令列表
+            A list of NLInstruction objects.
         """
-        max_attempts = 3  # 最多尝试3次
+        max_attempts = 3  # Maximum of 3 attempts
         
         for attempt in range(max_attempts):
             try:
-                # 构建prompt
+                # Build prompt
                 prompt = self._build_prompt(batch)
                 
-                # 调用LLM
+                # Call LLM
                 response = self.llm_client.generate(
                     prompt=prompt,
                     temperature=0.7,
                     max_tokens=4000,
                 )
                 
-                # 解析响应
+                # Parse response
                 instructions = self._parse_response(response.content, batch)
                 
                 if instructions:
-                    # 验证
+                    # Validate
                     errors = self.validate_instructions(instructions, batch)
                     
-                    # 如果没有严重错误，或者数量足够，就接受
+                    # Accept if no severe errors or enough samples generated
                     if not errors or len(instructions) >= batch.count * 0.8:
                         if attempt > 0:
-                            print(f"      ✅ 第{attempt + 1}次尝试成功")
+                            print(f"      ✅ Attempt {attempt + 1} succeeded")
                         return instructions
                     else:
-                        # 验证失败太多，重试
+                        # Validation failed, retry if attempts remain
                         if attempt < max_attempts - 1:
-                            print(f"      ⚠️  第{attempt + 1}次尝试质量不足")
-                            print(f"      🔄 重试中...")
+                            print(f"      ⚠️  Attempt {attempt + 1} had poor quality")
+                            print(f"      🔄 Retrying...")
                             continue
                 else:
-                    # 解析失败，重试
+                    # Failed to parse, retry
                     if attempt < max_attempts - 1:
-                        print(f"      ⚠️  第{attempt + 1}次尝试解析失败")
-                        print(f"      🔄 重试中...")
+                        print(f"      ⚠️  Attempt {attempt + 1} failed to parse response")
+                        print(f"      🔄 Retrying...")
                         continue
                 
             except Exception as e:
                 if attempt < max_attempts - 1:
-                    print(f"      ⚠️  第{attempt + 1}次尝试出错: {e}")
-                    print(f"      🔄 重试中...")
+                    print(f"      ⚠️  Attempt {attempt + 1} encountered an error: {e}")
+                    print(f"      🔄 Retrying...")
                     import time
                     time.sleep(2)
                     continue
                 else:
                     raise
         
-        # 如果所有尝试都失败了，返回空列表（而不是抛出异常）
+        # If all attempts failed, return an empty list instead of raising an exception
         return []
     
     def _build_prompt(self, batch: TaskBatch) -> str:
         """
-        构建生成prompt
+        Build the generation prompt.
         
-        关键设计：
-        - batch.structures 已由 TaskAllocator 根据计划配置分配好
-        - 这里只是将具体的数量要求（如 "7个single + 1个workflow"）注入到prompt中
-        - 不在prompt中使用百分比，而是明确的数量，避免LLM理解偏差
-        - 根据batch.lang选择中文或英文prompt模板
+        Key design:
+        - `batch.structures` is already assigned by TaskAllocator according to the plan configuration.
+        - This method injects explicit sample counts (e.g., "7 single + 1 workflow") into the prompt.
+        - Avoid using percentages in prompts to prevent LLM misinterpretation.
+        - Select prompt language (Chinese or English) based on `batch.lang`.
         """
-        # 统计本批次的 structure 要求
+        # Count structure types in this batch
         workflow_count = batch.structures.count("workflow") if batch.structures else 0
         single_count = batch.structures.count("single") if batch.structures else batch.count
         
-        # 根据语言选择prompt模板
+        # Choose prompt template based on language
         lang = batch.lang if batch.lang in ['zh', 'en'] else 'zh'
         prompt_template = self.prompt_templates.get(lang, self.prompt_templates['zh'])
         
-        # 填充模板
+        # Fill in placeholders
         prompt = prompt_template
         
-        # 替换变量
         replacements = {
             "{count}": str(batch.count),
             "{operation}": batch.operation,
@@ -162,25 +158,24 @@ class Stage1Generator:
         for key, value in replacements.items():
             prompt = prompt.replace(key, value)
         
-        # 添加本批次的 structure 要求（明确数量，不是比例）
-        # 根据语言生成不同的描述
+        # Add explicit structure requirements (in quantities, not percentages)
         if workflow_count > 0 or single_count > 0:
             structure_requirement = []
             
             if lang == 'zh':
                 if single_count > 0:
-                    structure_requirement.append(f"**{single_count} 个 single 类型**（单一操作）")
+                    structure_requirement.append(f"**{single_count} 个 single type**（单一操作）")
                 if workflow_count > 0:
-                    structure_requirement.append(f"**{workflow_count} 个 workflow 类型**（3+步骤流程）")
+                    structure_requirement.append(f"**{workflow_count} 个 workflow type**（3步以上流程）")
                 
                 prompt += f"\n\n## ⚠️ 本批次结构要求\n\n请生成：{' 和 '.join(structure_requirement)}\n\n"
                 prompt += "**重要**：\n"
-                prompt += f"- 你必须生成 **恰好 {batch.count} 个样本**\n"
+                prompt += f"- 必须生成 **恰好 {batch.count} 个样本**\n"
                 if single_count > 0:
                     prompt += f"- 其中 **{single_count} 个** 必须是 single 结构（单一操作请求）\n"
                 if workflow_count > 0:
-                    prompt += f"- 其中 **{workflow_count} 个** 必须是 workflow 结构（包含3+步骤的流程）\n"
-                prompt += "\n请严格遵守数量要求，不多不少。\n"
+                    prompt += f"- 其中 **{workflow_count} 个** 必须是 workflow 结构（包含3步及以上的流程）\n"
+                prompt += "\n请严格遵守数量要求，不能多也不能少。\n"
             else:  # English
                 if single_count > 0:
                     structure_requirement.append(f"**{single_count} single type** (single operation)")
@@ -194,21 +189,20 @@ class Stage1Generator:
                     prompt += f"- Of which **{single_count}** must be single structure (single operation request)\n"
                 if workflow_count > 0:
                     prompt += f"- Of which **{workflow_count}** must be workflow structure (3+ step process)\n"
-                prompt += "\nPlease strictly follow the quantity requirements, no more, no less.\n"
+                prompt += "\nPlease strictly follow the quantity requirements — no more, no less.\n"
         
         return prompt
     
     def _parse_response(self, content: str, batch: TaskBatch) -> List[NLInstruction]:
-        """解析LLM响应"""
-        # 提取JSON内容
+        """Parse LLM response content into structured instructions"""
         content = content.strip()
         
-        # 尝试查找JSON数组
+        # Attempt to extract JSON array
         start = content.find('[')
         end = content.rfind(']')
         
         if start == -1 or end == -1:
-            print(f"      ⚠️  未找到JSON数组")
+            print(f"      ⚠️  JSON array not found")
             return []
         
         json_str = content[start:end+1]
@@ -217,10 +211,10 @@ class Stage1Generator:
             data = json.loads(json_str)
             
             if not isinstance(data, list):
-                print(f"      ⚠️  响应不是数组")
+                print(f"      ⚠️  Response is not a JSON array")
                 return []
             
-            # 转换为NLInstruction对象
+            # Convert to NLInstruction objects
             instructions = []
             for item in data:
                 try:
@@ -232,13 +226,13 @@ class Stage1Generator:
                     )
                     instructions.append(instruction)
                 except Exception as e:
-                    print(f"      ⚠️  解析指令失败: {e}")
+                    print(f"      ⚠️  Failed to parse instruction: {e}")
                     continue
             
             return instructions
             
         except json.JSONDecodeError as e:
-            print(f"      ⚠️  JSON解析失败: {e}")
+            print(f"      ⚠️  JSON parsing failed: {e}")
             return []
     
     def validate_instructions(
@@ -247,48 +241,47 @@ class Stage1Generator:
         batch: TaskBatch,
     ) -> List[str]:
         """
-        验证生成的指令
+        Validate the generated instructions.
         
         Returns:
-            错误列表，如果为空则验证通过
+            A list of error messages. Empty list means validation passed.
         """
         errors = []
         
         for idx, instruction in enumerate(instructions):
-            # 验证必填字段
+            # Required field validation
             if not instruction.instruction:
-                errors.append(f"样本{idx}: instruction为空")
+                errors.append(f"sample {idx}: instruction is empty")
             
             if not instruction.context:
-                errors.append(f"样本{idx}: context为空")
+                errors.append(f"sample {idx}: context is empty")
             
-            # 验证context长度
+            # Validate context length
             context_len = len(instruction.context)
             if context_len < self.plan.min_context_length:
-                errors.append(f"样本{idx}: context长度{context_len}小于最小值{self.plan.min_context_length}")
+                errors.append(f"sample {idx}: context length {context_len} below minimum {self.plan.min_context_length}")
             
-            # 验证classification
+            # Validate classification
             if not instruction.classification:
-                errors.append(f"样本{idx}: classification为空")
+                errors.append(f"sample {idx}: classification is empty")
             else:
                 required_fields = ["instruction_type", "structure", "lang"]
                 for field in required_fields:
                     if field not in instruction.classification:
-                        errors.append(f"样本{idx}: classification缺少{field}")
+                        errors.append(f"sample {idx}: classification missing '{field}'")
             
-            # 验证scenario_info
+            # Validate scenario info
             if not instruction.scenario_info:
-                errors.append(f"样本{idx}: scenario_info为空")
+                errors.append(f"sample {idx}: scenario_info is empty")
             else:
-                # 验证operation字段
                 if instruction.scenario_info.get("operation") != batch.operation:
                     errors.append(
-                        f"样本{idx}: operation不匹配，期望{batch.operation}，"
-                        f"实际{instruction.scenario_info.get('operation')}"
+                        f"sample {idx}: operation mismatch, expected '{batch.operation}', "
+                        f"got '{instruction.scenario_info.get('operation')}'"
                     )
         
-        # 验证数量
-        if len(instructions) < batch.count * 0.8:  # 允许20%的容错
-            errors.append(f"生成数量不足: 期望{batch.count}，实际{len(instructions)}")
+        # Validate total count
+        if len(instructions) < batch.count * 0.8:  # Allow 20% tolerance
+            errors.append(f"Insufficient generated samples: expected {batch.count}, got {len(instructions)}")
         
         return errors

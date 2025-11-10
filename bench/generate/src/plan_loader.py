@@ -1,5 +1,5 @@
 """
-Plan Loader - 加载和解析生成计划配置
+Plan Loader - Load and parse generation plan configuration
 """
 from __future__ import annotations
 
@@ -13,30 +13,30 @@ from collections import defaultdict
 
 @dataclass
 class GenerationPlan:
-    """生成计划"""
+    """Generation plan definition"""
     name: str
     total_samples: int
     batch_size: int
     
-    # 场景和操作配置
+    # Scenario and operation configuration
     scenario_proportions: Dict[str, float]
     operation_proportions: Dict[str, float]
     scenarios: Dict[str, Any]
     operations: Dict[str, Any]
     
-    # 特征分布
+    # Feature distributions
     characteristics: Dict[str, Any]
     
-    # LLM配置
+    # LLM configuration
     llm: Dict[str, Any]
     
-    # 阶段配置
+    # Stage configuration
     stages: Dict[str, Any]
     
-    # 输出配置
+    # Output configuration
     output: Dict[str, Any]
     
-    # 其他配置
+    # Other configuration
     min_context_length: int = 100
     max_context_length: int = 350
     resume_from_checkpoint: bool = True
@@ -46,21 +46,21 @@ class GenerationPlan:
 
 @dataclass
 class TaskBatch:
-    """任务批次"""
+    """Task batch unit"""
     batch_id: int
     scenario: str
     operation: str
     count: int
     lang: str = "zh"
-    structures: Optional[List[str]] = None  # single, workflow
+    structures: Optional[List[str]] = None  # e.g., ["single", "workflow"]
 
 
 class PlanLoader:
-    """计划加载器"""
+    """Plan loader"""
     
     @staticmethod
     def load(plan_file: Path) -> GenerationPlan:
-        """加载生成计划"""
+        """Load generation plan from YAML file"""
         with open(plan_file, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
         
@@ -87,48 +87,48 @@ class PlanLoader:
     
     @staticmethod
     def validate_plan(plan: GenerationPlan) -> List[str]:
-        """验证计划配置"""
+        """Validate generation plan configuration"""
         errors = []
         
-        # 验证比例总和
+        # Validate proportions sum to 1.0
         scenario_sum = sum(plan.scenario_proportions.values())
         if abs(scenario_sum - 1.0) > 0.01:
-            errors.append(f"场景比例总和应为1.0，当前为{scenario_sum:.3f}")
+            errors.append(f"Scenario proportions must sum to 1.0, got {scenario_sum:.3f}")
         
         operation_sum = sum(plan.operation_proportions.values())
         if abs(operation_sum - 1.0) > 0.01:
-            errors.append(f"操作比例总和应为1.0，当前为{operation_sum:.3f}")
+            errors.append(f"Operation proportions must sum to 1.0, got {operation_sum:.3f}")
         
-        # 验证场景和操作定义存在
+        # Validate scenario and operation definitions exist
         for scenario in plan.scenario_proportions.keys():
             if scenario not in plan.scenarios:
-                errors.append(f"场景 '{scenario}' 未在scenarios中定义")
+                errors.append(f"Scenario '{scenario}' not defined in 'scenarios'")
         
         for operation in plan.operation_proportions.keys():
             if operation not in plan.operations:
-                errors.append(f"操作 '{operation}' 未在operations中定义")
+                errors.append(f"Operation '{operation}' not defined in 'operations'")
         
         return errors
 
 
 class TaskAllocator:
-    """任务分配器 - 按比例分配场景和操作组合"""
+    """Task allocator - distribute (scenario, operation) combinations proportionally"""
     
     def __init__(self, plan: GenerationPlan):
         self.plan = plan
     
     def allocate_tasks(self, stage_name: str) -> List[TaskBatch]:
         """
-        根据计划分配任务批次
-        返回按 (scenario, operation) 组合的批次列表
+        Allocate task batches based on the plan configuration.
+        Returns a list of TaskBatch objects for each (scenario, operation) combination.
         """
         stage_config = self.plan.stages.get(stage_name, {})
         batch_size = stage_config.get("batch_size", self.plan.batch_size)
         
-        # 计算每个(scenario, operation)组合的样本数
+        # Calculate sample allocation for each (scenario, operation)
         allocations = self._calculate_allocations()
         
-        # 创建批次
+        # Create batches
         batches = []
         batch_id = 0
         
@@ -136,18 +136,18 @@ class TaskAllocator:
             if count <= 0:
                 continue
             
-            # 计算该组合需要的批次数
+            # Determine the number of batches for this combination
             num_batches = (count + batch_size - 1) // batch_size
             
             for i in range(num_batches):
-                # 计算该批次的样本数
+                # Determine sample count for the current batch
                 remaining = count - i * batch_size
                 batch_count = min(batch_size, remaining)
                 
-                # 确定该批次的structure分布
+                # Determine structure distribution for this batch
                 structures = self._get_structures_for_batch(batch_count)
                 
-                # 根据characteristics选择语言
+                # Determine language for this batch
                 lang = self._get_lang_for_batch()
                 
                 batches.append(TaskBatch(
@@ -165,45 +165,41 @@ class TaskAllocator:
     
     def _calculate_allocations(self) -> Dict[tuple, int]:
         """
-        计算每个(scenario, operation)组合的样本数
-        使用更合理的分配策略，确保所有操作都有样本
+        Calculate the number of samples for each (scenario, operation) combination.
+        Uses an adaptive strategy to ensure every operation has at least some samples.
         """
         total = self.plan.total_samples
         allocations = {}
         
-        # 检查是否是小样本情况（样本数 < 操作数 * 场景数）
+        # Check if this is a small-sample case (few samples compared to combinations)
         num_scenarios = len(self.plan.scenario_proportions)
         num_operations = len(self.plan.operation_proportions)
-        is_small_sample = total <= (num_operations * 2)  # 每个操作至少2个样本才算正常
+        is_small_sample = total <= (num_operations * 2)  # at least ~2 samples per operation
         
         if is_small_sample:
-            # 小样本情况：优先确保操作多样性
-            print(f"   ℹ️  小样本模式（{total}个样本），优先确保操作多样性")
+            # Small sample case: prioritize operation diversity
+            print(f"   ℹ️  Small-sample mode ({total} samples), prioritizing operation diversity")
             
-            # 为每个操作分配至少1个样本
+            # Allocate at least one sample per operation
             operation_samples = {}
             remaining = total
             
-            # 按操作比例分配
-            for operation, prop in sorted(self.plan.operation_proportions.items(), 
-                                         key=lambda x: -x[1]):  # 从大到小
-                # 至少1个，最多按比例
+            # Sort operations by proportion (descending)
+            for operation, prop in sorted(self.plan.operation_proportions.items(), key=lambda x: -x[1]):
                 count = max(1, round(total * prop))
-                count = min(count, remaining)  # 不超过剩余数
+                count = min(count, remaining)
                 operation_samples[operation] = count
                 remaining -= count
                 if remaining == 0:
                     break
             
-            # 如果还有剩余，分配给比例最大的操作
+            # Distribute remaining samples to the highest-proportion operation
             if remaining > 0:
-                max_op = max(self.plan.operation_proportions, 
-                           key=self.plan.operation_proportions.get)
+                max_op = max(self.plan.operation_proportions, key=self.plan.operation_proportions.get)
                 operation_samples[max_op] = operation_samples.get(max_op, 0) + remaining
             
-            # 为每个操作选择场景
+            # Assign scenarios for each operation
             for operation, op_count in operation_samples.items():
-                # 在场景中轮流分配
                 scenarios = list(self.plan.scenario_proportions.keys())
                 for i in range(op_count):
                     scenario = scenarios[i % len(scenarios)]
@@ -211,70 +207,67 @@ class TaskAllocator:
                     allocations[key] = allocations.get(key, 0) + 1
         
         else:
-            # 正常样本情况：按比例分配
-            # 第一步：计算理论分配（使用浮点数）
+            # Normal sample case: proportional allocation
             theoretical = {}
             for scenario, scenario_prop in self.plan.scenario_proportions.items():
                 for operation, operation_prop in self.plan.operation_proportions.items():
                     count = total * scenario_prop * operation_prop
-                    if count >= 0.1:  # 只要理论值 >= 0.1 就考虑
+                    if count >= 0.1:
                         theoretical[(scenario, operation)] = count
             
-            # 第二步：先分配整数部分
+            # Assign integer parts
             for key, value in theoretical.items():
                 allocations[key] = int(value)
             
-            # 第三步：计算剩余样本数
+            # Compute remaining samples
             allocated = sum(allocations.values())
             remaining = total - allocated
             
             if remaining > 0:
-                # 按小数部分排序，分配剩余样本
+                # Distribute remaining samples based on fractional parts
                 fractional_parts = []
                 for key, value in theoretical.items():
                     fractional = value - int(value)
                     if fractional > 0:
                         fractional_parts.append((fractional, key))
                 
-                # 按小数部分降序排序
                 fractional_parts.sort(reverse=True)
                 
-                # 分配剩余样本给小数部分最大的组合
                 for i in range(min(remaining, len(fractional_parts))):
                     key = fractional_parts[i][1]
                     allocations[key] += 1
             
             elif remaining < 0:
-                # 分配过多，从最大的组合中减少
+                # Over-allocated: reduce from largest allocations
                 while remaining < 0:
                     max_key = max(allocations, key=allocations.get)
-                    if allocations[max_key] > 1:  # 确保不会减到0
+                    if allocations[max_key] > 1:
                         allocations[max_key] -= 1
                         remaining += 1
                     else:
                         break
         
-        # 移除值为0的组合
+        # Remove zero-value entries
         allocations = {k: v for k, v in allocations.items() if v > 0}
         
         return allocations
     
     def _get_structures_for_batch(self, count: int) -> List[str]:
         """
-        根据计划配置的特征分布确定批次的structure列表
+        Determine structure types for this batch based on plan configuration.
         
-        这是structure分类的唯一决定点：
-        - 从 plan.characteristics.structure 读取配置的比例（如 85% single, 15% workflow）
-        - 为当前批次的样本分配具体的structure类型
-        - 返回的列表将传递给Stage1 prompt，指定每个样本的structure要求
+        This is the only point that determines structure classification:
+        - Read distribution from plan.characteristics['structure'] (e.g., 85% single, 15% workflow)
+        - Assign each sample in the batch a concrete structure type
+        - The resulting list will be passed to Stage 1 prompts
         
-        这样确保structure分类完全由计划配置控制，而不是在prompt中用脆弱的百分比描述
+        Ensures structure distribution is fully controlled by plan configuration,
+        rather than relying on prompt instructions.
         """
         structure_dist = self.plan.characteristics.get("structure", {})
         single_pct = self._parse_percentage(structure_dist.get("single", "85%"))
         workflow_pct = self._parse_percentage(structure_dist.get("workflow", "15%"))
         
-        # 计算该批次中workflow的数量
         workflow_count = round(count * workflow_pct / 100)
         single_count = count - workflow_count
         
@@ -282,26 +275,24 @@ class TaskAllocator:
         return structures
     
     def _get_lang_for_batch(self) -> str:
-        """根据characteristics中的语言配置随机选择语言"""
+        """Randomly select language for this batch based on 'lang' distribution in characteristics"""
         lang_dist = self.plan.characteristics.get("lang", {})
         
         if not lang_dist:
-            # 如果没有配置，默认中文
+            # Default to Chinese if no configuration
             return "zh"
         
-        # 解析语言分布
         langs = []
         weights = []
         for lang, pct in lang_dist.items():
             langs.append(lang)
             weights.append(self._parse_percentage(pct))
         
-        # 根据权重随机选择
         return random.choices(langs, weights=weights, k=1)[0]
     
     @staticmethod
     def _parse_percentage(value: str) -> float:
-        """解析百分比字符串"""
+        """Parse percentage string to float"""
         if isinstance(value, (int, float)):
             return float(value)
         if isinstance(value, str) and value.endswith("%"):

@@ -39,7 +39,7 @@ def validate_jsonl(input_path: Path, validator: Draft202012Validator) -> List[Va
         try:
             payload = json.loads(line)
         except json.JSONDecodeError as exc:
-            issues.append(ValidationIssue(idx, f"JSON 解析失败: {exc}", json_path="<root>"))
+            issues.append(ValidationIssue(idx, f"JSON parsing failed: {exc}", json_path="<root>"))
             continue
         errors = list(validator.iter_errors(payload))
         for err in errors:
@@ -59,17 +59,17 @@ def main(argv: list[str] | None = None) -> int:
     schema_path = Path(args.schema).expanduser().resolve()
 
     if not input_path.exists():
-        raise SystemExit(f"❌ 输入文件不存在: {input_path}")
+        raise SystemExit(f"❌ Input file does not exist: {input_path}")
     if not schema_path.exists():
-        raise SystemExit(f"❌ Schema 文件不存在: {schema_path}")
+        raise SystemExit(f"❌ Schema file does not exist: {schema_path}")
 
     validator = load_schema(schema_path)
     issues = validate_jsonl(input_path, validator)
 
     if issues:
-        print(f"❌ 校验失败 {len(issues)} 条记录不符合 schema")
+        print(f"❌ Validation failed {len(issues)}  entries do not conform to schema")
     else:
-        print("✅ 校验通过，所有条目均满足 schema")
+        print("✅ Validation passed, all entries meet schema")
 
     if args.out:
         report = {
@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
             "total_issues": len(issues),
         }
         Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"📝 已写入验证报告 -> {args.out}")
+        print(f"📝 Validation report written to {args.out}")
 
     return 0 if not issues else 1
 

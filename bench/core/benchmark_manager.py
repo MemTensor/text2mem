@@ -1,10 +1,10 @@
 """
-Benchmark Manager - 管理所有 benchmark 版本
+Benchmark Manager - Manage all benchmark versions
 
-功能：
-- 列出、查询、创建 benchmark 版本
-- 管理符号链接 (latest, stable, dev)
-- 提供统一的版本访问接口
+Features:
+- List, query, create benchmark versions
+- Manage symbolic links (latest, stable, dev)
+- Provide unified version access interface
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class BenchmarkVersion:
-    """单个 Benchmark 版本"""
+    """Single Benchmark version"""
     
     def __init__(self, version_dir: Path):
         self.version_dir = Path(version_dir)
@@ -54,7 +54,7 @@ class BenchmarkVersion:
     
     @property
     def metadata(self) -> Dict[str, Any]:
-        """加载元数据"""
+        """Load metadata"""
         if self._metadata is None:
             if self.metadata_file.exists():
                 with open(self.metadata_file, 'r', encoding='utf-8') as f:
@@ -65,7 +65,7 @@ class BenchmarkVersion:
     
     @property
     def stats(self) -> Dict[str, Any]:
-        """加载统计信息"""
+        """Load statistics"""
         if self._stats is None:
             if self.stats_file.exists():
                 with open(self.stats_file, 'r', encoding='utf-8') as f:
@@ -76,37 +76,37 @@ class BenchmarkVersion:
     
     @property
     def status(self) -> str:
-        """获取状态"""
+        """Get status"""
         return self.metadata.get('status', 'unknown')
     
     @property
     def created_at(self) -> Optional[str]:
-        """获取创建时间"""
+        """Get creation time"""
         return self.metadata.get('created_at')
     
     @property
     def sample_count(self) -> int:
-        """获取样本数"""
+        """Get sample count"""
         test_results = self.metadata.get('test_results', {})
         return test_results.get('passed', 0)
     
     @property
     def pass_rate(self) -> float:
-        """获取通过率"""
+        """Get pass rate"""
         test_results = self.metadata.get('test_results', {})
         total = test_results.get('total_samples', 0)
         passed = test_results.get('passed', 0)
         return passed / total if total > 0 else 0.0
     
     def save_metadata(self, metadata: Dict[str, Any]) -> None:
-        """保存元数据"""
+        """Save metadata"""
         self.version_dir.mkdir(parents=True, exist_ok=True)
         with open(self.metadata_file, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
         self._metadata = metadata
     
     def save_stats(self, stats: Dict[str, Any]) -> None:
-        """保存统计信息"""
+        """Save statistics"""
         self.version_dir.mkdir(parents=True, exist_ok=True)
         with open(self.stats_file, 'w', encoding='utf-8') as f:
             json.dump(stats, f, indent=2, ensure_ascii=False)
@@ -117,12 +117,12 @@ class BenchmarkVersion:
 
 
 class BenchmarkManager:
-    """Benchmark 管理器"""
+    """Benchmark Manager"""
     
     def __init__(self, data_root: Optional[Path] = None):
         """
         Args:
-            data_root: 数据根目录，默认为 bench/data
+            data_root: Data root directory, defaults to bench/data
         """
         if data_root is None:
             data_root = Path('bench/data')
@@ -131,67 +131,67 @@ class BenchmarkManager:
         self.benchmarks_dir = self.data_root / 'benchmarks'
         self.archive_dir = self.data_root / 'archive'
         
-        # 确保目录存在
+        # Ensure directories exist
         self.benchmarks_dir.mkdir(parents=True, exist_ok=True)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
     
     def list_versions(self, include_archived: bool = False) -> List[BenchmarkVersion]:
         """
-        列出所有版本
+        List all versions
         
         Args:
-            include_archived: 是否包含归档版本
+            include_archived: Whether to include archived versions
         
         Returns:
-            版本列表，按时间倒序排序
+            List of versions, sorted by time in descending order
         """
         versions = []
         
-        # 扫描 benchmarks 目录
+        # Scan benchmarks directory
         for item in self.benchmarks_dir.iterdir():
             if item.is_dir() and not item.is_symlink():
-                # 检查是否是有效的版本 ID (YYYYMMDD_HHMMSS)
+                # Check if it's a valid version ID (YYYYMMDD_HHMMSS)
                 if self._is_valid_version_id(item.name):
                     versions.append(BenchmarkVersion(item))
         
-        # 扫描 archive 目录
+        # Scan archive directory
         if include_archived:
             for item in self.archive_dir.iterdir():
                 if item.is_dir() and self._is_valid_version_id(item.name):
                     versions.append(BenchmarkVersion(item))
         
-        # 按版本 ID（时间戳）倒序排序
+        # Sort by version ID (timestamp) in descending order
         versions.sort(key=lambda v: v.id, reverse=True)
         
         return versions
     
     def get_version(self, version_id: str) -> BenchmarkVersion:
         """
-        获取指定版本
+        Get specified version
         
         Args:
-            version_id: 版本 ID，可以是：
-                - 时间戳 (如 "20251110_120000")
-                - 符号链接名称 (如 "latest", "stable", "dev")
+            version_id: Version ID, can be:
+                - Timestamp (e.g. "20251110_120000")
+                - Symbolic link name (e.g. "latest", "stable", "dev")
         
         Returns:
-            BenchmarkVersion 对象
+            BenchmarkVersion object
         
         Raises:
-            FileNotFoundError: 如果版本不存在
+            FileNotFoundError: If version does not exist
         """
-        # 检查是否是符号链接
+        # Check if it's a symbolic link
         link_path = self.benchmarks_dir / version_id
         if link_path.is_symlink():
             target = link_path.resolve()
             return BenchmarkVersion(target)
         
-        # 检查 benchmarks 目录
+        # Check benchmarks directory
         version_path = self.benchmarks_dir / version_id
         if version_path.exists():
             return BenchmarkVersion(version_path)
         
-        # 检查 archive 目录
+        # Check archive directory
         archive_path = self.archive_dir / version_id
         if archive_path.exists():
             return BenchmarkVersion(archive_path)
@@ -199,23 +199,23 @@ class BenchmarkManager:
         raise FileNotFoundError(f"Benchmark version not found: {version_id}")
     
     def get_latest(self) -> Optional[BenchmarkVersion]:
-        """获取最新版本（通过 latest 符号链接或最新时间戳）"""
+        """Get latest version (via latest symbolic link or newest timestamp)"""
         try:
             return self.get_version('latest')
         except FileNotFoundError:
-            # 如果 latest 链接不存在，返回最新的版本
+            # If latest link doesn't exist, return the newest version
             versions = self.list_versions()
             return versions[0] if versions else None
     
     def create_version(self, version_id: Optional[str] = None) -> BenchmarkVersion:
         """
-        创建新版本
+        Create new version
         
         Args:
-            version_id: 版本 ID，默认使用当前时间戳
+            version_id: Version ID, defaults to current timestamp
         
         Returns:
-            新创建的 BenchmarkVersion 对象
+            Newly created BenchmarkVersion object
         """
         if version_id is None:
             version_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -227,29 +227,29 @@ class BenchmarkManager:
     
     def create_link(self, version_id: str, link_name: str) -> None:
         """
-        创建符号链接
+        Create symbolic link
         
         Args:
-            version_id: 目标版本 ID
-            link_name: 链接名称（如 "latest", "stable", "dev"）
+            version_id: Target version ID
+            link_name: Link name (e.g. "latest", "stable", "dev")
         """
-        # 验证目标版本存在
+        # Verify target version exists
         version = self.get_version(version_id)
         if not version.exists:
             raise FileNotFoundError(f"Target version not found: {version_id}")
         
         link_path = self.benchmarks_dir / link_name
         
-        # 删除现有链接
+        # Remove existing link
         if link_path.exists() or link_path.is_symlink():
             link_path.unlink()
         
-        # 创建新链接（相对路径）
+        # Create new link (relative path)
         link_path.symlink_to(version_id)
         logger.info(f"Created symlink: {link_name} -> {version_id}")
     
     def remove_link(self, link_name: str) -> None:
-        """删除符号链接"""
+        """Remove symbolic link"""
         link_path = self.benchmarks_dir / link_name
         if link_path.is_symlink():
             link_path.unlink()
@@ -259,16 +259,16 @@ class BenchmarkManager:
     
     def archive_version(self, version_id: str) -> None:
         """
-        归档版本（移动到 archive 目录）
+        Archive version (move to archive directory)
         
         Args:
-            version_id: 要归档的版本 ID
+            version_id: Version ID to archive
         """
         version = self.get_version(version_id)
         if not version.exists:
             raise FileNotFoundError(f"Version not found: {version_id}")
         
-        # 不能归档符号链接指向的版本
+        # Cannot archive version referenced by symbolic link
         for link_name in ['latest', 'stable', 'dev']:
             try:
                 link_version = self.get_version(link_name)
@@ -280,11 +280,11 @@ class BenchmarkManager:
             except FileNotFoundError:
                 pass
         
-        # 移动到 archive
+        # Move to archive
         archive_path = self.archive_dir / version_id
         shutil.move(str(version.version_dir), str(archive_path))
         
-        # 更新元数据状态
+        # Update metadata status
         archived_version = BenchmarkVersion(archive_path)
         metadata = archived_version.metadata
         metadata['status'] = 'archived'
@@ -295,17 +295,17 @@ class BenchmarkManager:
     
     def delete_version(self, version_id: str, force: bool = False) -> None:
         """
-        删除版本
+        Delete version
         
         Args:
-            version_id: 要删除的版本 ID
-            force: 强制删除（即使被符号链接引用）
+            version_id: Version ID to delete
+            force: Force delete (even if referenced by symbolic link)
         """
         version = self.get_version(version_id)
         if not version.exists:
             raise FileNotFoundError(f"Version not found: {version_id}")
         
-        # 检查是否被符号链接引用
+        # Check if referenced by symbolic link
         if not force:
             for link_name in ['latest', 'stable', 'dev']:
                 try:
@@ -318,16 +318,16 @@ class BenchmarkManager:
                 except FileNotFoundError:
                     pass
         
-        # 删除目录
+        # Delete directory
         shutil.rmtree(version.version_dir)
         logger.info(f"Deleted version: {version_id}")
     
     def get_aliases(self) -> Dict[str, str]:
         """
-        获取所有符号链接别名
+        Get all symbolic link aliases
         
         Returns:
-            {link_name: version_id} 映射
+            {link_name: version_id} mapping
         """
         aliases = {}
         for item in self.benchmarks_dir.iterdir():
@@ -338,7 +338,7 @@ class BenchmarkManager:
     
     @staticmethod
     def _is_valid_version_id(version_id: str) -> bool:
-        """检查是否是有效的版本 ID (YYYYMMDD_HHMMSS 格式)"""
+        """Check if it's a valid version ID (YYYYMMDD_HHMMSS format)"""
         if len(version_id) != 15:  # YYYYMMDD_HHMMSS
             return False
         parts = version_id.split('_')

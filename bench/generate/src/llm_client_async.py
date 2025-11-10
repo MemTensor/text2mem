@@ -1,6 +1,6 @@
 """
-异步 LLM 客户端
-支持并发请求、自动重试、速率限制
+Asynchronous LLM client
+Supports concurrent requests, automatic retries, and rate limiting
 """
 from __future__ import annotations
 
@@ -20,27 +20,27 @@ from bench.generate.src.llm_client import LLMConfig, LLMResponse
 
 
 class AsyncLLMClient:
-    """异步 LLM 客户端"""
+    """Asynchronous LLM client"""
     
     def __init__(self, config: LLMConfig):
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
         
-        # 从环境变量读取配置
+        # Read configuration from environment variables
         self.max_retries = int(os.getenv("TEXT2MEM_BENCH_GEN_RETRY_MAX", "3"))
         self.retry_delay = float(os.getenv("TEXT2MEM_BENCH_GEN_RETRY_DELAY", "2"))
         
         if not AIOHTTP_AVAILABLE:
-            raise ImportError("aiohttp is required for async client. Install with: pip install aiohttp")
+            raise ImportError("aiohttp is required for the async client. Install with: pip install aiohttp")
     
     async def __aenter__(self):
-        """异步上下文管理器入口"""
+        """Async context manager entry"""
         timeout = aiohttp.ClientTimeout(total=self.config.timeout)
         self.session = aiohttp.ClientSession(timeout=timeout)
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """异步上下文管理器出口"""
+        """Async context manager exit"""
         if self.session:
             await self.session.close()
     
@@ -50,7 +50,7 @@ class AsyncLLMClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
-        """异步生成文本（带重试）"""
+        """Asynchronously generate text (with retries)"""
         last_error = None
         
         for attempt in range(self.max_retries):
@@ -67,7 +67,7 @@ class AsyncLLMClient:
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
-                    # 指数退避
+                    # Exponential backoff
                     delay = self.retry_delay * (2 ** attempt)
                     await asyncio.sleep(delay)
                     continue
@@ -82,7 +82,7 @@ class AsyncLLMClient:
         temperature: Optional[float],
         max_tokens: Optional[int],
     ) -> LLMResponse:
-        """OpenAI 异步调用"""
+        """OpenAI async API call"""
         url = f"{self.config.base_url}/chat/completions"
         
         headers = {
@@ -115,7 +115,7 @@ class AsyncLLMClient:
         temperature: Optional[float],
         max_tokens: Optional[int],
     ) -> LLMResponse:
-        """Ollama 异步调用"""
+        """Ollama async API call"""
         url = f"{self.config.base_url}/api/generate"
         
         data = {
@@ -144,7 +144,7 @@ class AsyncLLMClient:
         temperature: Optional[float],
         max_tokens: Optional[int],
     ) -> LLMResponse:
-        """Anthropic 异步调用"""
+        """Anthropic async API call"""
         url = f"{self.config.base_url}/v1/messages"
         
         headers = {
@@ -171,12 +171,12 @@ class AsyncLLMClient:
             )
     
     def test_connection(self) -> bool:
-        """测试连接（使用同步方式）"""
-        # 异步客户端的连接测试需要在异步上下文中进行
-        # 这里返回True，实际测试在第一次调用时进行
+        """Connection test (synchronous placeholder)"""
+        # The async client connection should be tested within an async context.
+        # Return True here; actual testing occurs during the first request.
         return True
 
 
 def create_async_llm_client(config: LLMConfig) -> AsyncLLMClient:
-    """创建异步LLM客户端"""
+    """Create an asynchronous LLM client"""
     return AsyncLLMClient(config)

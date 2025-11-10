@@ -1,144 +1,144 @@
-# Text2Mem Bench 测试样本生成计划
+# Text2Mem Bench - Test Sample Generation Plan
 
-# ==================== 总体配置 ====================
+# ==================== General Configuration ====================
 plan:
   name: "samples_by_proportion"
-  description: "按比例分配的测试样本生成计划"
+  description: "Proportion-based test sample generation plan"
   version: "3.0"
   
-  # 总目标数量
+  # Total number of samples to generate
   total_samples: 2000
   
-  # 每次LLM调用生成的数量
+  # Number of samples per LLM call
   batch_size: 10
   
-  # Context长度配置
+  # Context length configuration
   min_context_length: 100
   max_context_length: 350
   
-  # 断点恢复
+  # Checkpoint recovery
   resume_from_checkpoint: true
   checkpoint_file: "bench/generate/output/.checkpoint_{plan_name}.json"
 
-# ==================== 场景比例配置 ====================
+# ==================== Scenario Proportion Configuration ====================
 scenario_proportions:
-  incident_postmortem: 0.25    # 25% - 故障复盘
-  meeting_notes: 0.25          # 25% - 会议记录
-  project_tracking: 0.25       # 25% - 项目跟踪
-  knowledge_base: 0.25         # 25% - 知识库
+  incident_postmortem: 0.25    # 25% - Incident Postmortem
+  meeting_notes: 0.25          # 25% - Meeting Notes
+  project_tracking: 0.25       # 25% - Project Tracking
+  knowledge_base: 0.25         # 25% - Knowledge Base
 
-# ==================== 操作比例配置 ====================
+# ==================== Operation Proportion Configuration ====================
 operation_proportions:
-  # 核心操作 - 40%
-  encode: 0.20        # 20% - 编码/记录
-  retrieve: 0.12      # 12% - 检索
-  summarize: 0.08     # 8%  - 摘要
+  # Core operations - 40%
+  encode: 0.20        # 20% - Encode / Record
+  retrieve: 0.12      # 12% - Retrieve
+  summarize: 0.08     # 8%  - Summarize
   
-  # 标签和更新 - 25%
-  label: 0.12         # 12% - 标签
-  update: 0.13        # 13% - 更新
+  # Labeling and Update - 25%
+  label: 0.12         # 12% - Label
+  update: 0.13        # 13% - Update
 
-  # 生命周期管理 - 20%
-  promote: 0.08       # 8%  - 提升
-  demote: 0.07        # 7%  - 降级
-  delete: 0.05        # 5%  - 删除
+  # Lifecycle Management - 20%
+  promote: 0.08       # 8%  - Promote
+  demote: 0.07        # 7%  - Demote
+  delete: 0.05        # 5%  - Delete
   
-  # 高级操作 - 15%
-  lock: 0.04          # 4%  - 锁定
-  merge: 0.04         # 4%  - 合并
-  split: 0.04         # 4%  - 拆分
-  expire: 0.03        # 3%  - 过期
+  # Advanced Operations - 15%
+  lock: 0.04          # 4%  - Lock
+  merge: 0.04         # 4%  - Merge
+  split: 0.04         # 4%  - Split
+  expire: 0.03        # 3%  - Expire
 
-# ==================== 操作配置 ====================
+# ==================== Operation Definitions ====================
 operations:
   encode:
     enabled: true
-    description: "编码/写入记忆"
+    description: "Encode / Write memory"
   
   retrieve:
     enabled: true
-    description: "语义检索"
+    description: "Semantic retrieval"
   
   label:
     enabled: true
-    description: "添加标签"
+    description: "Add label"
   
   update:
     enabled: true
-    description: "更新字段"
+    description: "Update field"
   
   delete:
     enabled: true
-    description: "删除记录"
+    description: "Delete record"
   
   promote:
     enabled: true
-    description: "提升优先级"
+    description: "Promote priority"
   
   demote:
     enabled: true
-    description: "降级/归档"
+    description: "Demote / Archive"
   
   lock:
     enabled: true
-    description: "锁定保护"
+    description: "Lock protection"
   
   merge:
     enabled: true
-    description: "合并记录"
+    description: "Merge records"
   
   split:
     enabled: true
-    description: "拆分记录"
+    description: "Split record"
   
   expire:
     enabled: true
-    description: "设置过期"
+    description: "Set expiration"
   
   summarize:
     enabled: true
-    description: "生成摘要"
+    description: "Generate summary"
 
-# ==================== 场景定义 ====================
+# ==================== Scenario Definitions ====================
 scenarios:
   incident_postmortem:
-    name: "故障复盘"
+    name: "Incident Postmortem"
     name_en: "Incident Postmortem"
     enabled: true
   
   meeting_notes:
-    name: "会议记录"
+    name: "Meeting Notes"
     name_en: "Meeting Notes"
     enabled: true
   
   project_tracking:
-    name: "项目跟踪"
+    name: "Project Tracking"
     name_en: "Project Tracking"
     enabled: true
   
   knowledge_base:
-    name: "知识库"
+    name: "Knowledge Base"
     name_en: "Knowledge Base"
     enabled: true
 
-# ==================== 样本特征分布 ====================
+# ==================== Sample Characteristics Distribution ====================
 characteristics:
-  # 指令风格
+  # Instruction style
   instruction_style:
-    direct: 85%         # 直接指令
-    indirect: 15%       # 间接指令
+    direct: 85%         # Direct instruction
+    indirect: 15%       # Indirect instruction
   
-  # 结构复杂度
+  # Structural complexity
   structure:
-    single: 90%         # 单操作
-    workflow: 10%       # 多操作工作流
+    single: 90%         # Single operation
+    workflow: 10%       # Multi-operation workflow
   
-  # 语言分布
+  # Language distribution
   lang:
-    zh: 0%            # 中文
-    en: 100%            # 英文
+    zh: 0%              # Chinese
+    en: 100%            # English
 
-# ==================== LLM配置 ====================
+# ==================== LLM Configuration ====================
 llm:
   provider: "openai"
   model: "gpt-4o"
@@ -149,7 +149,7 @@ llm:
   max_tokens: 4000
   timeout: 120
 
-# ==================== 三阶段配置 ====================
+# ==================== Three-Stage Pipeline Configuration ====================
 stages:
   stage1_nl_generation:
     enabled: true
@@ -169,13 +169,13 @@ stages:
     max_tokens: 4000
     batch_size: 1
 
-# ==================== 输出配置 ====================
+# ==================== Output Configuration ====================
 output:
-  base_dir: "bench/data/raw"  # 输出到data/raw/目录
+  base_dir: "bench/data/raw"   # Output directory: data/raw/
   format: "jsonl"
   keep_intermediate: true
 
-# ==================== 日志配置 ====================
+# ==================== Logging Configuration ====================
 logging:
   level: "INFO"
   file: "bench/output/logs/generation.log"

@@ -8,10 +8,11 @@ version = "0.2.0"
 description = "Text2Mem: AI-Enhanced Memory System with Multi-Backend Support"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = { text = "MIT" }
 authors = [
-    {name = "Text2Mem Team", email = "hanyu@example.com"}
+    { name = "Text2Mem Team"}
 ]
+
 dependencies = [
     "pydantic>=2.7.0",
     "jsonschema>=4.21.0",
@@ -24,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# 开发工具
+# Development tools
 dev = [
     "pytest>=7.0.0",
     "black>=23.0.0",
@@ -33,30 +34,34 @@ dev = [
     "jupyter>=1.0.0"
 ]
 
-# 可视化工具
+# Visualization tools
 viz = [
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
     "plotly>=5.0.0"
 ]
 
-# 云API集成
+# Cloud API integration
 cloud = [
     "openai>=1.6.0"
 ]
 
-# 完整安装
+# Full installation (all extras)
 all = [
     "text2mem[dev,viz,cloud]"
 ]
 
 [tool.setuptools]
 packages = ["text2mem"]
-package-dir = {"" = "."}
+package-dir = { "" = "." }
 include-package-data = true
 
 [project.scripts]
 text2mem = "scripts.text2mem_cli:main"
+
+# -------------------------------
+# Tool Configurations
+# -------------------------------
 
 [tool.black]
 line-length = 100

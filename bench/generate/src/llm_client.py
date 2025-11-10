@@ -1,6 +1,6 @@
 """
-LLM Client - 统一的大语言模型客户端接口
-支持 OpenAI, Ollama, Anthropic
+LLM Client - Unified large language model client interface
+Supports OpenAI, Ollama, and Anthropic
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass
 class LLMConfig:
-    """LLM配置"""
+    """LLM configuration"""
     provider: str  # openai, ollama, anthropic
     model: str
     api_key: Optional[str] = None
@@ -20,24 +20,24 @@ class LLMConfig:
     temperature: float = 0.7
     max_tokens: int = 4000
     top_p: float = 1.0
-    timeout: int = 120  # 默认值，实际从环境变量读取
+    timeout: int = 120  # default value, can be overridden via environment variables
     
     @classmethod
     def from_dict(cls, config: Dict[str, Any]) -> LLMConfig:
-        """从字典创建配置"""
-        # 处理环境变量引用
+        """Create an LLM configuration from a dictionary"""
+        # Resolve environment variable references
         api_key = config.get("api_key", "")
         if api_key and api_key.startswith("${") and api_key.endswith("}"):
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var)
         elif not api_key:
-            # 尝试从环境变量读取
+            # Attempt to read from environment variables
             if config["provider"] == "openai":
                 api_key = os.getenv("OPENAI_API_KEY")
             elif config["provider"] == "anthropic":
                 api_key = os.getenv("ANTHROPIC_API_KEY")
         
-        # 处理base_url
+        # Resolve base_url
         base_url = config.get("base_url", "")
         if base_url and base_url.startswith("${") and base_url.endswith("}"):
             env_var = base_url[2:-1]
@@ -48,7 +48,7 @@ class LLMConfig:
             elif config["provider"] == "ollama":
                 base_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         
-        # 读取其他配置，优先使用字典中的值，否则使用环境变量
+        # Read other parameters, preferring dictionary values over environment defaults
         temperature = config.get("temperature")
         if temperature is None:
             temperature = float(os.getenv("TEXT2MEM_BENCH_GEN_TEMPERATURE", "0.7"))
@@ -75,14 +75,14 @@ class LLMConfig:
 
 @dataclass
 class LLMResponse:
-    """LLM响应"""
+    """LLM response object"""
     content: str
     usage: Optional[Dict[str, int]] = None
     model: Optional[str] = None
 
 
 class LLMClient:
-    """LLM客户端基类"""
+    """Base class for LLM clients"""
     
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -93,11 +93,11 @@ class LLMClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
-        """生成文本"""
+        """Generate text from a prompt"""
         raise NotImplementedError
     
     def test_connection(self) -> bool:
-        """测试连接"""
+        """Test connection by making a minimal API call"""
         try:
             response = self.generate("Hello", max_tokens=5)
             return bool(response.content)
@@ -106,14 +106,14 @@ class LLMClient:
 
 
 class OpenAIClient(LLMClient):
-    """OpenAI客户端"""
+    """OpenAI API client"""
     
     def __init__(self, config: LLMConfig):
         super().__init__(config)
         try:
             from openai import OpenAI
         except ImportError:
-            raise ImportError("请安装 openai: pip install openai")
+            raise ImportError("Please install openai: pip install openai")
         
         self.client = OpenAI(
             api_key=config.api_key,
@@ -127,7 +127,7 @@ class OpenAIClient(LLMClient):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
-        """调用OpenAI API"""
+        """Call OpenAI API"""
         response = self.client.chat.completions.create(
             model=self.config.model,
             messages=[{"role": "user", "content": prompt}],
@@ -148,7 +148,7 @@ class OpenAIClient(LLMClient):
 
 
 class OllamaClient(LLMClient):
-    """Ollama客户端"""
+    """Ollama API client"""
     
     def __init__(self, config: LLMConfig):
         super().__init__(config)
@@ -156,7 +156,7 @@ class OllamaClient(LLMClient):
             import requests
             self.requests = requests
         except ImportError:
-            raise ImportError("请安装 requests: pip install requests")
+            raise ImportError("Please install requests: pip install requests")
     
     def generate(
         self,
@@ -164,7 +164,7 @@ class OllamaClient(LLMClient):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
-        """调用Ollama API"""
+        """Call Ollama API"""
         url = f"{self.config.base_url}/api/generate"
         
         payload = {
@@ -188,14 +188,14 @@ class OllamaClient(LLMClient):
 
 
 class AnthropicClient(LLMClient):
-    """Anthropic客户端"""
+    """Anthropic API client"""
     
     def __init__(self, config: LLMConfig):
         super().__init__(config)
         try:
             from anthropic import Anthropic
         except ImportError:
-            raise ImportError("请安装 anthropic: pip install anthropic")
+            raise ImportError("Please install anthropic: pip install anthropic")
         
         self.client = Anthropic(api_key=config.api_key)
     
@@ -205,7 +205,7 @@ class AnthropicClient(LLMClient):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
-        """调用Anthropic API"""
+        """Call Anthropic API"""
         response = self.client.messages.create(
             model=self.config.model,
             max_tokens=max_tokens or self.config.max_tokens,
@@ -225,7 +225,7 @@ class AnthropicClient(LLMClient):
 
 
 def create_llm_client(config: LLMConfig) -> LLMClient:
-    """创建LLM客户端"""
+    """Factory: create an LLM client instance based on provider"""
     if config.provider == "openai":
         return OpenAIClient(config)
     elif config.provider == "ollama":
@@ -233,4 +233,4 @@ def create_llm_client(config: LLMConfig) -> LLMClient:
     elif config.provider == "anthropic":
         return AnthropicClient(config)
     else:
-        raise ValueError(f"不支持的provider: {config.provider}")
+        raise ValueError(f"Unsupported provider: {config.provider}")

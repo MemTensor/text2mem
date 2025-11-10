@@ -66,7 +66,7 @@ class BenchCLI:
         split_file = None
         search_paths = []
         
-        # 如果split是"benchmark"，则查找latest的benchmark.jsonl
+        # If split is "benchmark", find the latest benchmark.jsonl
         if split == "benchmark":
             search_paths = [
                 self.data_dir / "benchmarks" / "latest" / "benchmark.jsonl",  # benchmarks/latest/benchmark.jsonl
@@ -90,11 +90,11 @@ class BenchCLI:
             print(f"❌ Split '{split}' not found. Searched in:")
             for path in search_paths:
                 print(f"   - {path}")
-            print(f"\n💡 提示：如果要测试 benchmark 数据，请使用:")
+            print(f"\n💡 Tip: To test benchmark data, use:")
             print(f"   python -m bench run --split benchmark")
             return 1
         
-        print(f"📂 使用测试文件: {split_file.relative_to(self.root)}")
+        print(f"📂 Using test file: {split_file.relative_to(self.root)}")
         
         # Load samples - support multi-line JSON objects
         samples = self._load_json_samples(split_file)
@@ -122,10 +122,10 @@ class BenchCLI:
         config = BenchConfig(
             db_root=self.data_dir / "db",
             output_dir=self.output_dir,
-            mode=mode,  # 传递mode参数
-            timeout=timeout,  # 传递timeout参数
-            schema_filter=schema_filter,  # 传递schema_filter参数
-            schema_indices=schema_indices,  # 传递schema_indices参数
+            mode=mode,  # Pass mode argument
+            timeout=timeout,  # Pass timeout argument
+            schema_filter=schema_filter,  # Pass schema_filter argument
+            schema_indices=schema_indices,  # Pass schema_indices argument
         )
         runner = BenchRunner(config)
         
@@ -448,11 +448,11 @@ class BenchCLI:
             print(f"❌ Split '{split}' not found. Searched in:")
             for path in search_paths:
                 print(f"   - {path}")
-            print(f"\n💡 提示：如果要列出 benchmark 数据，请使用:")
+            print(f"\n💡 Tip: To list benchmark data, use:")
             print(f"   python -m bench list --split benchmark")
             return 1
         
-        print(f"📂 使用测试文件: {split_file.relative_to(self.root)}\n")
+        print(f"📂 Using test file: {split_file.relative_to(self.root)}\n")
         
         print(f"📋 Samples in '{split}' split:")
         print("=" * 80)

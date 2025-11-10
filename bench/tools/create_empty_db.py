@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-创建Text2Mem标准空数据库
+createText2Memstandard空data库
 
-这个工具创建一个标准的空数据库，包含完整的memory表schema。
-用于测试或初始化新的数据库实例。
+这个工具create一个standard的空data库，include完整的memory表schema。
+用于testor初始化新的data库实例。
 
-用法：
-    # 创建内存数据库（测试用）
+Usage:
+    # create内存data库（test用）
     python bench/tools/create_empty_db.py
     
-    # 创建文件数据库
+    # createfiledata库
     python bench/tools/create_empty_db.py --output /path/to/database.db
     
-    # 验证schema
+    # verifyschema
     python bench/tools/create_empty_db.py --verify /path/to/database.db
 """
 
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS memory (
     embedding TEXT,       -- JSON array, 原型先存 json
     embedding_dim INTEGER,        -- 嵌入向量维度（用于兼容性检索）
     embedding_model TEXT,         -- 嵌入模型名
-    embedding_provider TEXT,      -- 嵌入提供商（ollama/openai/dummy等）
+    embedding_provider TEXT,      -- 嵌入provide商（ollama/openai/dummy等）
 
     -- Provenance & lifecycle
     source TEXT,
@@ -81,13 +81,13 @@ CREATE TABLE IF NOT EXISTS memory (
 
 def create_empty_db(output_path: str = ":memory:") -> sqlite3.Connection:
     """
-    创建一个空的Text2Mem数据库
+    create一个空的Text2Memdata库
     
     Args:
-        output_path: 数据库文件路径，默认为内存数据库
+        output_path: data库filepath，defaults to内存data库
         
     Returns:
-        sqlite3.Connection: 数据库连接对象
+        sqlite3.Connection: data库连接object
     """
     conn = sqlite3.connect(output_path)
     conn.executescript(MEMORY_TABLE_DDL)
@@ -96,32 +96,32 @@ def create_empty_db(output_path: str = ":memory:") -> sqlite3.Connection:
 
 def verify_schema(db_path: str) -> bool:
     """
-    验证数据库schema是否正确
+    verifydata库schemawhether正确
     
     Args:
-        db_path: 数据库文件路径
+        db_path: data库filepath
         
     Returns:
-        bool: Schema是否正确
+        bool: Schemawhether正确
     """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # 检查表是否存在
+        # check表whetherexist
         cursor.execute("""
             SELECT name FROM sqlite_master 
             WHERE type='table' AND name='memory'
         """)
         if not cursor.fetchone():
-            print("❌ 错误: memory表不存在")
+            print("❌ 错误: memory表不exist")
             return False
         
-        # 获取表结构
+        # get表结构
         cursor.execute("PRAGMA table_info(memory)")
         columns = {row[1]: row[2] for row in cursor.fetchall()}
         
-        # 必需的列
+        # required的列
         required_columns = {
             'id': 'INTEGER',
             'text': 'TEXT',
@@ -136,7 +136,7 @@ def verify_schema(db_path: str) -> bool:
             'deleted': 'INTEGER',
         }
         
-        # 验证列
+        # verify列
         missing = []
         wrong_type = []
         
@@ -150,38 +150,38 @@ def verify_schema(db_path: str) -> bool:
             if missing:
                 print(f"❌ 缺少列: {', '.join(missing)}")
             if wrong_type:
-                print(f"❌ 类型错误: {', '.join(wrong_type)}")
+                print(f"❌ type错误: {', '.join(wrong_type)}")
             return False
         
-        print(f"✅ Schema验证通过")
+        print(f"✅ Schemaverifyvia")
         print(f"   - 表: memory")
         print(f"   - 列数: {len(columns)}")
-        print(f"   - 必需列: 全部存在")
+        print(f"   - required列: 全部exist")
         
-        # 显示记录数
+        # 显示record数
         cursor.execute("SELECT COUNT(*) FROM memory")
         count = cursor.fetchone()[0]
-        print(f"   - 记录数: {count}")
+        print(f"   - record数: {count}")
         
         conn.close()
         return True
         
     except Exception as e:
-        print(f"❌ 验证失败: {e}")
+        print(f"❌ verifyfailed: {e}")
         return False
 
 
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="创建Text2Mem标准空数据库",
+        description="createText2Memstandard空data库",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  # 创建数据库文件
+example:
+  # createdata库file
   python bench/tools/create_empty_db.py --output test.db
   
-  # 验证现有数据库
+  # verifyexistingdata库
   python bench/tools/create_empty_db.py --verify test.db
   
   # 显示schema
@@ -191,13 +191,13 @@ def main():
     
     parser.add_argument(
         '--output', '-o',
-        help='输出数据库文件路径'
+        help='输出data库filepath'
     )
     
     parser.add_argument(
         '--verify', '-v',
         metavar='DB_PATH',
-        help='验证现有数据库的schema'
+        help='verifyexistingdata库的schema'
     )
     
     parser.add_argument(
@@ -216,55 +216,55 @@ def main():
         print(MEMORY_TABLE_DDL)
         return 0
     
-    # 验证数据库
+    # verifydata库
     if args.verify:
         db_path = args.verify
         if not Path(db_path).exists():
-            print(f"❌ 错误: 文件不存在: {db_path}")
+            print(f"❌ 错误: file不exist: {db_path}")
             return 1
         
-        print(f"验证数据库: {db_path}")
+        print(f"verifydata库: {db_path}")
         print("-" * 70)
         success = verify_schema(db_path)
         return 0 if success else 1
     
-    # 创建数据库
+    # createdata库
     output_path = args.output or ":memory:"
     
     if output_path != ":memory:":
         output_file = Path(output_path)
         if output_file.exists():
-            print(f"⚠️  警告: 文件已存在: {output_path}")
-            response = input("是否覆盖? (y/N): ")
+            print(f"⚠️  警告: filealreadyexist: {output_path}")
+            response = input("whetheroverride? (y/N): ")
             if response.lower() != 'y':
-                print("已取消")
+                print("alreadycancel")
                 return 1
         
-        # 确保目录存在
+        # Ensure directories exist
         output_file.parent.mkdir(parents=True, exist_ok=True)
     
-    print(f"创建数据库: {output_path}")
+    print(f"createdata库: {output_path}")
     print("-" * 70)
     
     try:
         conn = create_empty_db(output_path)
         
         if output_path == ":memory:":
-            print("✅ 内存数据库创建成功")
-            print("\n提示: 内存数据库在程序退出后会消失")
-            print("      使用 --output 参数创建文件数据库")
+            print("✅ 内存data库createsuccess")
+            print("\n提示: 内存data库在程序退出后会消失")
+            print("      Use --output Argscreatefiledata库")
         else:
-            print(f"✅ 数据库创建成功: {output_path}")
+            print(f"✅ data库createsuccess: {output_path}")
             
-            # 验证创建的数据库
+            # verifycreate的data库
             conn.close()
-            print("\n验证schema...")
+            print("\nverifyschema...")
             verify_schema(output_path)
         
         return 0
         
     except Exception as e:
-        print(f"❌ 创建失败: {e}")
+        print(f"❌ createfailed: {e}")
         import traceback
         traceback.print_exc()
         return 1
