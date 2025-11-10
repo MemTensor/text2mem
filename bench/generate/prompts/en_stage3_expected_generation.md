@@ -84,7 +84,7 @@ This is the virtual "current time" of the test, make sure:
 Stage 2 output (JSONL), one test sample per line:
 
 ```jsonl
-{"id": "t2m-zh-direct-single-enc-001", "class":{...} , "nl":{...} , "prerequisites":[], "schema_list":[...] , "init_db":null, "notes":"..."}
+{"id": "t2m-en-direct-single-enc-001", "class":{...} , "nl":{...} , "prerequisites":[], "schema_list":[...] , "init_db":null, "notes":"..."}
 ```
 
 ---
@@ -94,7 +94,7 @@ Stage 2 output (JSONL), one test sample per line:
 ⚠️ **Must output JSONL directly** (one full test sample per line)
 
 ```jsonl
-{"id": "t2m-zh-direct-single-enc-001", "class":{...} , "nl":{...} , "prerequisites":[], "schema_list":[...] , "init_db":null, "expected":{"assertions":[...] , "ranking":null, "triggers":[], "meta":{"dialect": "sqlite", "eval_time_utc": "2025-10-21T00:00:00Z", "step_index":0}}, "notes":"..."}
+{"id": "t2m-en-direct-single-enc-001", "class":{...} , "nl":{...} , "prerequisites":[], "schema_list":[...] , "init_db":null, "expected":{"assertions":[...] , "ranking":null, "triggers":[], "meta":{"dialect": "sqlite", "eval_time_utc": "2025-10-21T00:00:00Z", "step_index":0}}, "notes":"..."}
 ```
 
 **Formatting Requirements**:

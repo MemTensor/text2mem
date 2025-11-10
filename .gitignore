@@ -54,6 +54,23 @@ Desktop.ini
 cache/
 outputs/
 bench/data/v1/db/
+bench/data/benchmark/*.jsonl
+bench/data/benchmark/*.json
+!bench/data/benchmark/.gitkeep
+bench/data/results/
+!bench/data/results/.gitkeep
+bench/data/raw/
+!bench/data/raw/.gitkeep
+bench/generate/output/
+bench/generate/logs/
 
 # Archived documentation
 .archived_docs/
+
+# Temporary scripts
+simplify_bench.sh
+
+# Build artifacts
+text2mem.egg-info/
+dist/
+build/

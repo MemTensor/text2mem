@@ -1,133 +1,90 @@
-# Text2Mem Benchmark
+# Text2Mem Benchmark System
 
-## ✨ 新特性
+完整的 Benchmark 测试系统，支持生成、验证、测试、管理全流程。
 
-- ✅ **完整的中英文支持** - 根据配置自动生成中文或英文测试样本
-- ✅ **清晰的数据流程** - raw → runs → benchmarks
-- ✅ **简化的工具集** - 生成、测试、清洗、构建一体化
-- ✅ **自动化流程** - 一键完成测试到benchmark的全流程
+---
 
-> 📖 **详细重构说明请查看**: [README_REFACTORED.md](README_REFACTORED.md)
-
-## 快速开始
-
-### 1. 生成测试数据
+## 🚀 快速开始
 
 ```bash
-# 编辑配置：bench/generate/config/generation_plan.yaml
-# 设置语言分布: characteristics.lang: {zh: 50%, en: 50%}
-python bench/generate/generate.py
-# → 输出到: bench/data/raw/YYYYMMDD_HHMMSS/
+# 1. 查看当前 benchmark
+./bench-cli info
+
+# 2. 运行测试
+./bench-cli run --mode mock -v
+
+# 3. 查看结果
+./bench-cli show-result latest
 ```
 
-### 2. 测试、清洗并构建Benchmark
+---
+
+## 📖 核心功能
+
+### 日常测试
 
 ```bash
-# 运行完整流程
-python -m bench.tools.pipeline --raw latest --version v2
-# → 输出到: bench/data/benchmarks/v2/
+./bench-cli run --mode ollama -v              # 完整测试
+./bench-cli run --filter "lang:zh" -v         # 只测中文
+./bench-cli run --schema-filter Encode -v     # 测试特定操作
 ```
 
-### 3. 验证Benchmark
+### 生成新 Benchmark
 
 ```bash
-python -m bench run --split benchmark --verbose
+# 完整流程: 生成 → 验证 → 提升
+./bench-cli generate
+./bench-cli validate <generation_id> --run-tests
+./bench-cli promote <generation_id>
 ```
 
-## 数据流程
-
-```
-1. Generate → bench/data/raw/YYYYMMDD_HHMMSS/
-                ├── stage1.jsonl  (NL指令)
-                ├── stage2.jsonl  (IR样本)
-                └── stage3.jsonl  (完整样本)
-
-2. Test → bench/data/runs/YYYYMMDD_HHMMSS/tests/
-            ├── passed.jsonl   (通过的样本)
-            ├── failed.jsonl   (失败的样本)
-            └── summary.json   (测试摘要)
-
-3. Clean → bench/data/runs/YYYYMMDD_HHMMSS/cleaned/
-             └── cleaned.jsonl  (清洗后的样本)
-
-4. Build → bench/data/benchmarks/v2/
-             ├── benchmark.jsonl  (最终benchmark)
-             └── metadata.json
-```
-
-## 分步执行（可选）
-
-如果需要更细粒度的控制：
+### 结果管理
 
 ```bash
-# 1. 生成原始数据
-python bench/generate/generate.py
-
-# 2. 测试
-python -m bench.tools.test --raw latest
-
-# 3. 清洗  
-python -m bench.tools.clean --run latest
-
-# 4. 构建
-python -m bench.tools.build --run latest --version v2
+./bench-cli list-results                      # 查看历史
+./bench-cli show-result latest                # 查看详情
+./bench-cli compare <id1> <id2>               # 对比结果
 ```
 
-## 工具说明
+---
 
-- **generate/generate.py** - 生成原始测试数据（3阶段）
-- **tools/test.py** - 运行测试，创建run
-- **tools/clean.py** - 清洗数据，过滤失败样本
-- **tools/build.py** - 构建最终benchmark
-- **tools/pipeline.py** - 完整自动化流程
+## 📊 数据结构
 
-## 配置
-
-主配置文件：`bench/generate/config/generation_plan.yaml`
-
-关键配置项：
-
-```yaml
-plan:
-  total_samples: 2000
-  batch_size: 10
-
-operation_proportions:
-  encode: 0.20
-  retrieve: 0.12
-  # ...
-
-# 语言分布配置（新增）
-characteristics:
-  lang:
-    zh: 50%  # 50%中文
-    en: 50%  # 50%英文
-
-llm:
-  provider: "openai"
-  model: "gpt-4o"
+```
+bench/data/
+├── benchmark/      # 当前 benchmark
+├── results/        # 测试历史
+├── raw/            # 生成的原始数据
+└── archive/        # 备份
 ```
 
-## 文档
+---
 
-- [README_REFACTORED.md](README_REFACTORED.md) - 详细的重构说明和最佳实践
-- [WORKFLOW.md](WORKFLOW.md) - 完整工作流程文档
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - 快速参考
+## 📚 完整文档
 
-## 语言支持
+- **[GUIDE.md](GUIDE.md)** - 完整使用指南 ⭐
+- **[TEST_REPORT.md](TEST_REPORT.md)** - 测试报告
+- **[docs/](docs/)** - 文档索引和归档
 
-系统现在支持自动生成中英文混合的测试样本：
+---
 
-- 在 `characteristics.lang` 中配置语言比例
-- 系统会自动选择对应的prompt模板（中文/英文）
-- 生成的样本ID会包含语言标记（例如：`t2m-zh-*` 或 `t2m-en-*`）
+## 🎯 所有命令
 
-示例：
-
-```yaml
-characteristics:
-  lang:
-    zh: 60%  # 60%中文样本
-    en: 40%  # 40%英文样本
+```bash
+./bench-cli run              # 运行测试
+./bench-cli generate         # 生成新 benchmark
+./bench-cli validate <id>    # 验证质量
+./bench-cli promote <id>     # 提升为 benchmark
+./bench-cli list-results     # 列出历史
+./bench-cli show-result <id> # 查看详情
+./bench-cli compare <id1> <id2>  # 对比
+./bench-cli info             # Benchmark 信息
 ```
 
+每个命令都支持 `--help` 查看详细参数。
+
+---
+
+**系统状态**: ✅ 完整可用  
+**版本**: v1.0  
+**最后更新**: 2025-11-10

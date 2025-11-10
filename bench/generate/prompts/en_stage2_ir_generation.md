@@ -107,7 +107,7 @@ Output 1 JSON object per sample：
 
 ```json
 {
-  "nl":{"zh":"<natural language Instruction>"},
+  "nl":{"en":"<natural language Instruction>"},
   "context": "<input context>",
   "classification":{"instruction_type":"...","structure":"...","lang":"..."},
   "scenario_info":{"scenario":"...","operation":"...","style":"...","topic":"..."},
@@ -149,9 +149,9 @@ Output 1 JSON object per sample：
 ```json
 [
   {
-    "nl":{"zh": "Find the minutes of last week's meeting on product design"},
+    "nl":{"en": "Find the minutes of last week's meeting on product design"},
     "context": "The user is advancing the design review of the new version",
-    "classification":{"instruction_type":"direct","structure":"single","lang":"zh"},
+    "classification":{"instruction_type":"direct","structure":"single","lang":"en"},
     "scenario_info": {"scenario": "meeting_notes", "operation": "retrieve", "style": "concise", "topic": "product design"},
     "prerequisites":[
       {"stage": "ENC", "op":"Encode","args":{"workload":{"text":"Product design review meeting: confirm the new version of the interaction plan","knowledge_type": "fact", "source":"meeting minutes", "context":"Design review-second time"}, "type": "knowledge", "tags":["Meeting", "Product Design","Review"], "time":" 2025-10-18T10:00:00Z","facets":{"phase":"review"}}},
@@ -878,14 +878,14 @@ Before generating each sample, please confirm:
 
 ```json
 {
-  "id": "t2m-zh-direct-single-ret-001", // ✅ Required
+  "id": "t2m-en-direct-single-ret-001", // ✅ Required
   "class": { // ✅ Required
     "instruction": "direct", "structure": "single", // Required
     "structure": "single", "lang": "zip", "lang".
-    "lang": "zh"
+    "lang": "en"
   },
   "nl": { // ✅ Required
-    "zh": "natural language instructions"
+    "en": "natural language instructions"
   },
   "prerequisites": [ // ✅ Required (array, can be empty [])
     {
@@ -932,19 +932,19 @@ Before generating each sample, please confirm:
 
 **Example 1: Retrieve operation (with prerequisites)
 ```
-{"id": "t2m-zh-direct-single-ret-001", "class":{"instruction": "direct", "structure": "single", "lang": "zh"}, "nl":{"zh": "Finding the minutes of the last week"},"" prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Product Design Meeting Minutes", "knowledge_type": "fact", "source": "Meeting Systems"}, "type". "knowledge", "tags":["conference", "product"], "time": "2025-10-18T10:00:00Z"}}], "schema_list":[{"stage": "RET", "op": "Retrieve", "target":{"search":{ "intent":{"query": "minutes"}, "overrides":{"k":5, "alpha":0.7}}}, "args":{"include":["id", "text", "tags"]}}], "init_db":null, "notes":{"Retrieve last week's minutes"}
+{"id": "t2m-en-direct-single-ret-001", "class":{"instruction": "direct", "structure": "single", "lang": "en"}, "nl":{"en": "Finding the minutes of the last week"},"" prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Product Design Meeting Minutes", "knowledge_type": "fact", "source": "Meeting Systems"}, "type". "knowledge", "tags":["conference", "product"], "time": "2025-10-18T10:00:00Z"}}], "schema_list":[{"stage": "RET", "op": "Retrieve", "target":{"search":{ "intent":{"query": "minutes"}, "overrides":{"k":5, "alpha":0.7}}}, "args":{"include":["id", "text", "tags"]}}], "init_db":null, "notes":{"Retrieve last week's minutes"}
 ```
 
 **Example 2: Encode operation (no prerequisites)
 ```
-{"id": "t2m-zh-direct-single-enc-001", "class":{"instruction": "direct", "structure": "single", "lang": "zh"}, "nl":{"zh": "Record today's meeting"},"" prerequisites":[], "schema_list":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "The meeting discussed product design options", "knowledge_type": "fact"," source": "meeting_minutes"}, "type": "knowledge", "tags":["meeting", "product"], "time": "2025-10-20T10:00:00Z"}}], "init_db":null, "notes": "Recorded the meeting content"}
+{"id": "t2m-en-direct-single-enc-001", "class":{"instruction": "direct", "structure": "single", "lang": "en"}, "nl":{"en": "Record today's meeting"},"" prerequisites":[], "schema_list":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "The meeting discussed product design options", "knowledge_type": "fact"," source": "meeting_minutes"}, "type": "knowledge", "tags":["meeting", "product"], "time": "2025-10-20T10:00:00Z"}}], "init_db":null, "notes": "Recorded the meeting content"}
 ```
 
 ### 5. Examples of errors (❌ These are errors)
 
 **Error 1: Missing required fields**
 ```json
-{"nl":{"zh": "Find Meeting"}, "context":"..."}  // ❌ missing id, class, prerequisites, schema_list, init_db, notes
+{"nl":{"en": "Find Meeting"}, "context":"..."}  // ❌ missing id, class, prerequisites, schema_list, init_db, notes
 ```
 
 **Error 2: with notes text**
@@ -1038,7 +1038,7 @@ Here's the generated sample:
 **Output**
 
 ```json
-{"id": "t2m-zh-direct-single-enc-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "zh"}, "nl":{"zh": "Recording this morning's team meeting"}, "context": "Users just finished the daily station meeting", "prerequisites":[], "schema_list":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text":{"text": "Today's morning meeting discussed the current version of testing progress and task planning for next week", "knowledge_type": "fact", "source": "meeting_minutes", "context": "team_day_meeting"}, "type": "note", "tags":["meeting", "daily", "project_progress"], "time": "2025-10- 21T09:00:00Z", "facets":{"certainty": "confirmed"}}}], "init_db":null, "notes": "No predecessor operations"}
+{"id": "t2m-en-direct-single-enc-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "en"}, "nl":{"en": "Recording this morning's team meeting"}, "context": "Users just finished the daily station meeting", "prerequisites":[], "schema_list":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text":{"text": "Today's morning meeting discussed the current version of testing progress and task planning for next week", "knowledge_type": "fact", "source": "meeting_minutes", "context": "team_day_meeting"}, "type": "note", "tags":["meeting", "daily", "project_progress"], "time": "2025-10- 21T09:00:00Z", "facets":{"certainty": "confirmed"}}}], "init_db":null, "notes": "No predecessor operations"}
 ```
 
 ---
@@ -1059,7 +1059,7 @@ Here's the generated sample:
 **Output**
 
 ```json
-{"id": "t2m-zh-direct-single-ret-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "zh"}, "nl":{"zh": "Finding minutes from last week's meeting about the project budget. "}, "context": "User ready to report on budget progress", "prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Budget Review Meeting: Confirmed Q4 Budget Goal of 2 Million CNY"," knowledge_type": "fact", "source": "Finance Department Meeting", "context": "Q4 Budget Discussion"}, "type": "knowledge", "tags":["meeting", "budget"], "time": "2025-10-18T10:00:00Z"," facets":{"amount":2,000,000, "currency": "CNY"}}},{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Budgeted expenditures need to be kept within the upper limit of 2 million", "knowledge _type": "constraint", "source": "finance director", "context": "budget constraints"}, "type": "knowledge", "tags":["budget", "constraints"], "time": "2025-10-18T10:05:00Z", "facets" :{"amount_limit":2000000, "currency": "CNY"}}},{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "The R&D department is requesting an increase of 10% in the budget for performance optimization.", "knowledge_type":{"payload":{"text": "R&D department is requesting an increase of 10% in the budget for performance optimization.", "knowledge_type":{"knowledge_type":{"payload":{"text": "R&D department is requesting an increase of 10% in the budget for performance optimization."," knowledge_type": "request", "source": "R&D Manager", "context": "Budget Request"}, "type": "knowledge", "tags":["budget", "R&D"], "time": "2025-10-17T14:00:00Z"," facets":{"increase_ratio":0.1}}], "schema_list":[{"stage": "RET", "op": "Retrieve", "target":{"filter":{"has_tags":["meeting", "budget"], "time_ range":{"relative": "last", "amount":7, "unit": "days"}}}, "args":{"include":["id", "text", "tags"]}}], "init_db":null, "notes": "Retrieve minutes of budget-related meetings "}
+{"id": "t2m-en-direct-single-ret-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "en"}, "nl":{"en": "Finding minutes from last week's meeting about the project budget. "}, "context": "User ready to report on budget progress", "prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Budget Review Meeting: Confirmed Q4 Budget Goal of 2 Million CNY"," knowledge_type": "fact", "source": "Finance Department Meeting", "context": "Q4 Budget Discussion"}, "type": "knowledge", "tags":["meeting", "budget"], "time": "2025-10-18T10:00:00Z"," facets":{"amount":2,000,000, "currency": "CNY"}}},{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "Budgeted expenditures need to be kept within the upper limit of 2 million", "knowledge _type": "constraint", "source": "finance director", "context": "budget constraints"}, "type": "knowledge", "tags":["budget", "constraints"], "time": "2025-10-18T10:05:00Z", "facets" :{"amount_limit":2000000, "currency": "CNY"}}},{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "The R&D department is requesting an increase of 10% in the budget for performance optimization.", "knowledge_type":{"payload":{"text": "R&D department is requesting an increase of 10% in the budget for performance optimization.", "knowledge_type":{"knowledge_type":{"payload":{"text": "R&D department is requesting an increase of 10% in the budget for performance optimization."," knowledge_type": "request", "source": "R&D Manager", "context": "Budget Request"}, "type": "knowledge", "tags":["budget", "R&D"], "time": "2025-10-17T14:00:00Z"," facets":{"increase_ratio":0.1}}], "schema_list":[{"stage": "RET", "op": "Retrieve", "target":{"filter":{"has_tags":["meeting", "budget"], "time_ range":{"relative": "last", "amount":7, "unit": "days"}}}, "args":{"include":["id", "text", "tags"]}}], "init_db":null, "notes": "Retrieve minutes of budget-related meetings "}
 ```
 
 ---
@@ -1080,7 +1080,7 @@ Here's the generated sample:
 **Output**
 
 ```json
-{"id": "t2m-zh-direct-single-sto-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "zh"}, "nl":{"zh": "Marks the security audit result as a High Priority"}, "context": "User is managing recent security audit tasks", "prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "October 2025 Security Audit Finds Two Critical Vulnerabilities"," knowledge_type": "fact", "source": "security_team_report", "context": "Monthly Security Audit"}, "type": "knowledge", "tags":["security", "vulnerabilities"], "time": "2025-10-18T11:00:00Z"," facets":{"severity": "critical"}}}], "schema_list":[{"stage": "STO", "op": "Label", "target":{"filter":{"has_tags":["security", "vulnerability"], "time_ range":{"relative": "last", "amount":7, "unit": "days"}}}, "args":{"tags":["high_priority"], "mode": "add"}}], "init_db":null, "notes": "Tag critical vulnerability results"}
+{"id": "t2m-en-direct-single-sto-001", "class":{"instruction_type": "direct", "structure": "single", "lang": "en"}, "nl":{"en": "Marks the security audit result as a High Priority"}, "context": "User is managing recent security audit tasks", "prerequisites":[{"stage": "ENC", "op": "Encode", "args":{"payload":{"text": "October 2025 Security Audit Finds Two Critical Vulnerabilities"," knowledge_type": "fact", "source": "security_team_report", "context": "Monthly Security Audit"}, "type": "knowledge", "tags":["security", "vulnerabilities"], "time": "2025-10-18T11:00:00Z"," facets":{"severity": "critical"}}}], "schema_list":[{"stage": "STO", "op": "Label", "target":{"filter":{"has_tags":["security", "vulnerability"], "time_ range":{"relative": "last", "amount":7, "unit": "days"}}}, "args":{"tags":["high_priority"], "mode": "add"}}], "init_db":null, "notes": "Tag critical vulnerability results"}
 ```
 
 ---

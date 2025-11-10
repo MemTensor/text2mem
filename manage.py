@@ -1,72 +1,121 @@
 #!/usr/bin/env python3
 """
-Project manager for Text2Mem CLI utilities.
+Text2Mem 项目管理工具
 
-Provides a consolidated entrypoint for environment setup, demos, workflows,
-interactive tooling, and validation helpers. Run ``python manage.py help`` to
-see an overview or ``python manage.py help <command>`` for details.
+提供统一的环境配置、演示、测试和交互功能入口。
+
+快速开始:
+  python manage.py status              # 查看环境状态
+  python manage.py config --provider ollama  # 配置环境
+  python manage.py demo                # 运行演示
+  python manage.py session             # 进入交互模式
+
+详细帮助:
+  python manage.py help [command]      # 查看命令帮助
 """
-import os, sys, subprocess, re, json, argparse, time, textwrap
+import os
+import sys
+import subprocess
+import json
+import argparse
+import textwrap
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, List
 from pathlib import Path
+
+# 导入核心工具
 from scripts.cli_core import (
-	echo, load_env_file, ENV_PATH as CORE_ENV_PATH,
-	build_models_service_from_env as _build_models_service_from_env,
-	build_engine_and_adapter as _build_engine_and_adapter,
+    echo, load_env_file, ENV_PATH as CORE_ENV_PATH,
+    build_models_service_from_env as _build_models_service_from_env,
+    build_engine_and_adapter as _build_engine_and_adapter,
 )
-from scripts.cli_helpers import run_basic_demo
 from scripts.config_helpers import generate_grouped_env
 from scripts.env_utils import which
 
 ROOT = Path(__file__).parent
 ENV_PATH = CORE_ENV_PATH
 
-# Load env values (and inject into process) once at startup
+# 在启动时加载环境变量
 ENV_VARS = load_env_file(ENV_PATH) if ENV_PATH.exists() else {}
 
 
 @dataclass(frozen=True)
 class CommandInfo:
-	name: str
-	handler: Callable[[], Optional[int]]
-	summary: str
-	group: str
-	aliases: Tuple[str, ...] = ()
-	description: Optional[str] = None
+    name: str
+    handler: Callable[[], Optional[int]]
+    summary: str
+    group: str
+    aliases: Tuple[str, ...] = ()
+    description: Optional[str] = None
 
-	def matches(self, candidate: str) -> bool:
-		return candidate == self.name or candidate in self.aliases
+    def matches(self, candidate: str) -> bool:
+        return candidate == self.name or candidate in self.aliases
 
 
 COMMAND_GROUPS: Tuple[Tuple[str, str], ...] = (
-	("core", "核心 / 环境"),
-	("demos", "功能演示 / 典型流程"),
-	("workflows", "工作流"),
-	("interaction", "交互 / 会话"),
-	("models", "模型快速验证"),
-	("ops", "运维 / 测试 / 依赖"),
+    ("core", "🔧 核心配置"),
+    ("demos", "🎯 功能演示"),
+    ("workflows", "📋 工作流执行"),
+    ("interaction", "💬 交互模式"),
+    ("models", "🤖 模型管理"),
+    ("ops", "⚙️  运维工具"),
 )
 
+
+# ============================================================================
+# 环境配置命令
+# ============================================================================
+
+
+# ============================================================================
+# 环境配置命令
+# ============================================================================
+
 def cmd_status():
-	"""显示环境与依赖状态。"""
-	from text2mem.core.config import ModelConfig
-	env_exists = ENV_PATH.exists()
-	cfg = ModelConfig.from_env()
-	db_path = os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db'
-	echo("[环境]")
-	echo(f"  .env: {'存在' if env_exists else '缺失'} -> {ENV_PATH}")
-	echo(f"  Provider: {cfg.provider} | embed={cfg.embedding_provider}:{cfg.embedding_model} | gen={cfg.generation_provider}:{cfg.generation_model}")
-	if cfg.embedding_provider == 'ollama' or cfg.generation_provider == 'ollama':
-		echo(f"  Ollama: {os.environ.get('TEXT2MEM_OLLAMA_BASE_URL') or os.environ.get('OLLAMA_BASE_URL') or cfg.ollama_base_url}")
-	if cfg.provider == 'openai' or cfg.embedding_provider == 'openai' or cfg.generation_provider == 'openai':
-		api_key_set = bool(os.environ.get('OPENAI_API_KEY'))
-		echo(f"  OpenAI API Key: {'已设置' if api_key_set else '未设置'}")
-	echo("[数据库]")
-	echo(f"  路径: {db_path}")
-	echo("[依赖探测]")
-	echo(f"  ollama: {'可用' if which('ollama') else '不可用'}")
-	return 0
+    """显示环境与依赖状态"""
+    from text2mem.core.config import ModelConfig
+    
+    env_exists = ENV_PATH.exists()
+    cfg = ModelConfig.from_env()
+    db_path = os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db'
+    
+    echo("=" * 60)
+    echo("📊 Text2Mem 环境状态")
+    echo("=" * 60)
+    
+    echo("\n[环境文件]")
+    if env_exists:
+        echo(f"  ✅ .env 已配置 -> {ENV_PATH}")
+    else:
+        echo(f"  ⚠️  .env 未找到 -> {ENV_PATH}")
+        echo(f"  💡 运行: python manage.py config --provider ollama")
+    
+    echo("\n[模型配置]")
+    echo(f"  Provider: {cfg.provider}")
+    echo(f"  嵌入模型: {cfg.embedding_provider}:{cfg.embedding_model}")
+    echo(f"  生成模型: {cfg.generation_provider}:{cfg.generation_model}")
+    
+    if cfg.embedding_provider == 'ollama' or cfg.generation_provider == 'ollama':
+        ollama_url = os.environ.get('TEXT2MEM_OLLAMA_BASE_URL') or \
+                     os.environ.get('OLLAMA_BASE_URL') or \
+                     cfg.ollama_base_url
+        echo(f"  Ollama URL: {ollama_url}")
+    
+    if 'openai' in (cfg.provider, cfg.embedding_provider, cfg.generation_provider):
+        api_key_set = bool(os.environ.get('OPENAI_API_KEY'))
+        echo(f"  OpenAI API Key: {'✅ 已设置' if api_key_set else '❌ 未设置'}")
+    
+    echo("\n[数据库]")
+    db_exists = Path(db_path).exists()
+    echo(f"  路径: {db_path}")
+    echo(f"  状态: {'✅ 存在' if db_exists else '⚠️  未创建（首次使用时自动创建）'}")
+    
+    echo("\n[依赖工具]")
+    echo(f"  ollama: {'✅ 可用' if which('ollama') else '❌ 未安装'}")
+    echo(f"  pytest: {'✅ 可用' if which('pytest') else '⚠️  未安装'}")
+    
+    echo("")
+    return 0
 
 def cmd_config():
 	"""生成/更新 .env 文件。"""
@@ -76,10 +125,12 @@ def cmd_config():
 	parser.add_argument('--ollama-base-url', default='http://localhost:11434')
 	parser.add_argument('--embed-model', default=None)
 	parser.add_argument('--gen-model', default=None)
+	parser.add_argument('--db-path', default='./text2mem.db', help='数据库路径')
 	try:
 		args = parser.parse_args(sys.argv[2:])
 	except SystemExit:
-		echo('用法: manage.py config --provider [mock|ollama|openai] [--openai-key ...]'); return 2
+		echo('用法: manage.py config --provider [mock|ollama|openai] [--openai-key ...] [--db-path ...]')
+		return 2
 
 	existing = dict(ENV_VARS)
 	provider = args.provider
@@ -87,47 +138,60 @@ def cmd_config():
 	existing['TEXT2MEM_PROVIDER'] = provider
 	existing['TEXT2MEM_EMBEDDING_PROVIDER'] = 'openai' if provider=='openai' else ('ollama' if provider=='ollama' else provider)
 	existing['TEXT2MEM_GENERATION_PROVIDER'] = existing['TEXT2MEM_EMBEDDING_PROVIDER']
+	existing['TEXT2MEM_DB_PATH'] = args.db_path
 
 	if provider == 'mock':
-		# Minimal
 		existing.setdefault('TEXT2MEM_EMBEDDING_MODEL', 'dummy-embedding')
 		existing.setdefault('TEXT2MEM_GENERATION_MODEL', 'dummy-llm')
 	elif provider == 'ollama':
 		existing['TEXT2MEM_OLLAMA_BASE_URL'] = args.ollama_base_url
 		existing['OLLAMA_BASE_URL'] = args.ollama_base_url
 		existing['TEXT2MEM_EMBEDDING_MODEL'] = args.embed_model or 'nomic-embed-text'
-		existing['TEXT2MEM_GENERATION_MODEL'] = args.gen_model or 'qwen2:0.5b'
+		existing['TEXT2MEM_GENERATION_MODEL'] = args.gen_model or 'qwen2.5:0.5b'
 	else:  # openai
 		if args.openai_key:
 			existing['OPENAI_API_KEY'] = args.openai_key
 		existing['TEXT2MEM_EMBEDDING_MODEL'] = args.embed_model or 'text-embedding-3-small'
-		existing['TEXT2MEM_GENERATION_MODEL'] = args.gen_model or 'gpt-3.5-turbo'
+		existing['TEXT2MEM_GENERATION_MODEL'] = args.gen_model or 'gpt-4o-mini'
 
 	content = generate_grouped_env(existing, provider)
 	ENV_PATH.write_text(content, encoding='utf-8')
 	echo(f"✅ 已写入 .env -> {ENV_PATH}")
+	echo(f"💡 提示: 运行 'python manage.py status' 验证配置")
 	return 0
 
 def cmd_setup_ollama():
 	"""拉取常用 Ollama 模型。"""
 	exe = which('ollama')
 	if not exe:
-		echo('❌ 未找到 ollama 可执行文件，请先安装 https://ollama.ai'); return 1
+		echo('❌ 未找到 ollama 可执行文件，请先安装 https://ollama.ai')
+		echo('💡 安装指南: https://github.com/ollama/ollama#readme')
+		return 1
+	
 	from text2mem.core.config import ModelConfig
 	cfg = ModelConfig.for_ollama()
 	emb = os.environ.get('TEXT2MEM_EMBEDDING_MODEL') or cfg.embedding_model
 	gen = os.environ.get('TEXT2MEM_GENERATION_MODEL') or cfg.generation_model
-	echo(f"⬇️ 拉取嵌入模型: {emb}")
+	
+	echo("🚀 开始拉取 Ollama 模型...")
+	echo(f"⬇️  嵌入模型: {emb}")
 	try:
 		subprocess.run([exe, 'pull', emb], check=True)
+		echo(f"✅ {emb} 下载完成")
 	except Exception as e:
-		echo(f"⚠️ 拉取 {emb} 失败: {e}")
-	echo(f"⬇️ 拉取生成模型: {gen}")
+		echo(f"❌ 拉取 {emb} 失败: {e}")
+		return 1
+	
+	echo(f"⬇️  生成模型: {gen}")
 	try:
 		subprocess.run([exe, 'pull', gen], check=True)
+		echo(f"✅ {gen} 下载完成")
 	except Exception as e:
-		echo(f"⚠️ 拉取 {gen} 失败: {e}")
-	echo('✅ 完成')
+		echo(f"❌ 拉取 {gen} 失败: {e}")
+		return 1
+	
+	echo('🎉 所有模型下载完成！')
+	echo('💡 运行 python manage.py models-smoke 测试模型')
 	return 0
 
 def cmd_setup_openai():
@@ -154,33 +218,77 @@ def cmd_setup_openai():
 
 def cmd_test():
 	"""运行测试（优先 pytest，否则做最小冒烟）。"""
+	parser = argparse.ArgumentParser(prog='manage.py test', add_help=False)
+	parser.add_argument('-v', '--verbose', action='store_true', help='详细输出')
+	parser.add_argument('-k', '--keyword', default=None, help='仅运行匹配的测试')
+	parser.add_argument('--smoke', action='store_true', help='仅运行冒烟测试')
 	try:
-		r = subprocess.run([sys.executable, '-m', 'pytest', '-q'], cwd=str(ROOT))
-		return r.returncode
-	except Exception:
-		echo('⚠️ 无法运行 pytest，改为最小冒烟测试')
+		args = parser.parse_args(sys.argv[2:])
+	except SystemExit:
+		args = argparse.Namespace(verbose=False, keyword=None, smoke=False)
+	
+	if args.smoke:
+		echo('🧪 运行最小冒烟测试...')
 		try:
 			service = _build_models_service_from_env(None)
 			emb = service.encode_memory('hello embeddings')
-			echo(f"✅ Embedding ok, dim={emb.dimension}")
+			echo(f"✅ Embedding ok, dim={emb.dimension}, model={emb.model}")
 			gen = service.generation_model.generate('一句话总结：Text2Mem 是什么？')
 			echo(f"✅ Generation ok, model={gen.model}")
+			echo(f"📝 输出: {gen.text[:100]}...")
 			return 0
 		except Exception as e:
 			echo(f"❌ 冒烟失败: {e}")
 			return 1
+	
+	try:
+		cmd = [sys.executable, '-m', 'pytest']
+		if args.verbose:
+			cmd.append('-v')
+		else:
+			cmd.append('-q')
+		if args.keyword:
+			cmd.extend(['-k', args.keyword])
+		
+		echo(f"🧪 运行测试: {' '.join(cmd)}")
+		r = subprocess.run(cmd, cwd=str(ROOT))
+		return r.returncode
+	except Exception as e:
+		echo(f'⚠️ 无法运行 pytest: {e}')
+		echo('💡 安装 pytest: pip install pytest')
+		return 1
 
 def cmd_models_info():
 	"""显示当前模型解析配置。"""
 	from text2mem.core.config import ModelConfig
 	cfg = ModelConfig.from_env()
-	echo("[模型解析]")
-	echo(f"  provider={cfg.provider}")
-	echo(f"  embedding: provider={cfg.embedding_provider} model={cfg.embedding_model}")
-	echo(f"  generation: provider={cfg.generation_provider} model={cfg.generation_model}")
-	echo(f"  ollama_base_url={cfg.ollama_base_url}")
-	if os.environ.get('OPENAI_API_BASE'):
-		echo(f"  openai_api_base={os.environ.get('OPENAI_API_BASE')}")
+	
+	echo("=" * 60)
+	echo("🤖 模型配置详情")
+	echo("=" * 60)
+	echo(f"\n[总体配置]")
+	echo(f"  Provider: {cfg.provider}")
+	
+	echo(f"\n[嵌入模型]")
+	echo(f"  Provider: {cfg.embedding_provider}")
+	echo(f"  Model: {cfg.embedding_model}")
+	
+	echo(f"\n[生成模型]")
+	echo(f"  Provider: {cfg.generation_provider}")
+	echo(f"  Model: {cfg.generation_model}")
+	
+	if cfg.embedding_provider == 'ollama' or cfg.generation_provider == 'ollama':
+		echo(f"\n[Ollama 配置]")
+		echo(f"  Base URL: {cfg.ollama_base_url}")
+	
+	if cfg.embedding_provider == 'openai' or cfg.generation_provider == 'openai':
+		echo(f"\n[OpenAI 配置]")
+		api_key = os.environ.get('OPENAI_API_KEY', '')
+		echo(f"  API Key: {'✅ 已设置 (' + api_key[:8] + '...)' if api_key else '❌ 未设置'}")
+		if os.environ.get('OPENAI_API_BASE'):
+			echo(f"  API Base: {os.environ.get('OPENAI_API_BASE')}")
+	
+	echo("")
 	return 0
 
 
@@ -226,30 +334,45 @@ def cmd_run_demo():
 	parser.add_argument('--mode', choices=['mock','ollama','openai','auto'], default=None)
 	parser.add_argument('--db', dest='db_path', default=None)
 	parser.add_argument('--set', choices=['workflows','individual','scenarios'], default='workflows')
+	parser.add_argument('--verbose', action='store_true', help='详细输出')
 	try:
 		args = parser.parse_args(sys.argv[2:])
 	except SystemExit:
-		echo('用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set workflows|individual|scenarios]'); return 2
+		echo('用法: python manage.py demo [--mode mock|ollama|openai|auto] [--db path] [--set workflows|individual|scenarios] [--verbose]')
+		return 2
 
 	service, engine = _build_engine_and_adapter(args.mode, args.db_path)
+	db_path_display = args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db'
+	
+	echo("=" * 60)
+	echo("🎯 Text2Mem 演示模式")
+	echo("=" * 60)
 	echo(f"🧠 模型服务: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
-	echo(f"🗄️  数据库: {args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db'}")
+	echo(f"🗄️  数据库: {db_path_display}")
+	echo(f"📦 演示集: {args.set}")
+	echo("=" * 60)
+	echo("")
 
 	from text2mem.core.engine import Text2MemEngine
 	from text2mem.adapters.sqlite_adapter import SQLiteAdapter
-	# Rebuild engine to ensure same service but fresh adapter DB path
 	adapter = SQLiteAdapter(args.db_path or os.environ.get('TEXT2MEM_DB_PATH') or './text2mem.db', models_service=service)
 	engine = Text2MemEngine(adapter=adapter, models_service=service)
 
 	import json as _json
 
-	def _echo_ir_result(ir_obj, out):
+	def _echo_ir_result(ir_obj, out, verbose=False):
 		op = ir_obj.get('op') if isinstance(ir_obj, dict) else None
+		if verbose:
+			try:
+				echo(f"   📄 完整输出: {_json.dumps(out, ensure_ascii=False)[:300]}...")
+			except Exception:
+				pass
+		
 		if op == 'Encode':
 			rid = None
 			if isinstance(out, dict):
 				rid = out.get('inserted_id') or out.get('id')
-			echo(f"   ✅ id={rid} dim={out.get('embedding_dim') if isinstance(out, dict) else 'n/a'}")
+			echo(f"   ✅ Encode | id={rid} dim={out.get('embedding_dim') if isinstance(out, dict) else 'n/a'}")
 		elif op == 'Retrieve':
 			if isinstance(out, list):
 				rows = out
@@ -257,69 +380,96 @@ def cmd_run_demo():
 				rows = out.get('rows') or out.get('matches') or []
 			else:
 				rows = []
-			echo(f"   ✅ rows={len(rows)}")
+			echo(f"   ✅ Retrieve | 检索到 {len(rows)} 条记录")
+			if verbose and rows:
+				for idx, row in enumerate(rows[:2], 1):
+					echo(f"      [{idx}] {str(row)[:80]}...")
 		elif op == 'Summarize':
 			summary = ''
 			if isinstance(out, dict):
 				summary = str(out.get('summary',''))
-			echo(f"   📝 {summary[:160]}{'…' if len(summary)>160 else ''}")
+			echo(f"   ✅ Summarize | {summary[:100]}{'…' if len(summary)>100 else ''}")
 		else:
 			affected = None
 			if isinstance(out, dict):
 				affected = out.get('affected_rows') or out.get('updated_rows') or out.get('success_count')
 			if affected is not None:
-				echo(f"   ✅ affected={affected}")
+				echo(f"   ✅ {op} | 受影响行数: {affected}")
 			else:
-				echo("   ✅ 完成")
+				echo(f"   ✅ {op} | 完成")
 
 	ran = 0
+	failed = 0
+	
 	if args.set == 'individual':
 		ir_dir = ROOT / 'examples' / 'ir_operations'
+		if not ir_dir.exists():
+			echo(f'ℹ️  目录不存在: {ir_dir}')
+			return 0
 		files = sorted(ir_dir.glob('*.json'))
 		if not files:
-			echo('ℹ️ 未找到 examples/ir_operations 下的示例。'); return 0
+			echo('ℹ️  未找到 examples/ir_operations 下的示例。')
+			return 0
 		for path in files:
 			ir = _json.loads(path.read_text(encoding='utf-8'))
 			echo(f"🚀 执行 {path.name} -> {ir.get('op')} ({ir.get('stage')})")
 			try:
 				res = engine.execute(ir)
 			except Exception as e:
-				echo(f"❌ 执行失败: {e}"); return 1
+				echo(f"❌ 执行异常: {e}")
+				failed += 1
+				continue
 			if not getattr(res, 'success', False):
-				echo(f"❌ 失败: {res.error}"); return 1
+				echo(f"❌ 失败: {res.error}")
+				failed += 1
+				continue
 			out = res.data or {}
-			_echo_ir_result(ir, out)
+			_echo_ir_result(ir, out, args.verbose)
 			ran += 1
-		echo(f"🎉 demo 完成，共执行 {ran} 步")
-		return 0
+		echo(f"\n{'='*60}")
+		echo(f"🎉 Demo 完成 | 成功: {ran} | 失败: {failed}")
+		return 0 if failed == 0 else 1
 
 	if args.set == 'scenarios':
 		wf_dir = ROOT / 'examples' / 'real_world_scenarios'
+		if not wf_dir.exists():
+			echo(f'ℹ️  目录不存在: {wf_dir}')
+			return 0
 		files = sorted(wf_dir.glob('*.json'))
 		if not files:
-			echo('ℹ️ 未找到 examples/real_world_scenarios 下的工作流。'); return 0
+			echo('ℹ️  未找到 examples/real_world_scenarios 下的工作流。')
+			return 0
 		for path in files:
 			data = _json.loads(path.read_text(encoding='utf-8'))
 			steps = data.get('steps', [])
-			echo(f"🚀 运行 {path.name} | 步骤 {len(steps)}")
+			echo(f"🚀 运行场景: {path.name} | {len(steps)} 步骤")
 			for i, step in enumerate(steps, start=1):
 				ir = step.get('ir') or step
 				title = step.get('name') or step.get('description') or f'step {i}'
-				echo(f"➡️  [{path.name}] {title} -> {ir.get('op')}")
+				echo(f"➡️  [{i}/{len(steps)}] {title} -> {ir.get('op')}")
 				try:
 					res = engine.execute(ir)
 				except Exception as e:
-					echo(f"❌ 执行失败: {e}"); return 1
+					echo(f"❌ 执行异常: {e}")
+					failed += 1
+					continue
 				if not getattr(res, 'success', False):
-					echo(f"❌ 失败: {res.error}"); return 1
+					echo(f"❌ 失败: {res.error}")
+					failed += 1
+					continue
 				out = res.data or {}
-				_echo_ir_result(ir, out)
+				_echo_ir_result(ir, out, args.verbose)
 				ran += 1
-		echo(f"🎉 demo 完成，共执行 {ran} 步")
-		return 0
+		echo(f"\n{'='*60}")
+		echo(f"🎉 Demo 完成 | 成功: {ran} | 失败: {failed}")
+		return 0 if failed == 0 else 1
 
 	# workflows: run curated op workflows
 	wf_dir = ROOT / 'examples' / 'op_workflows'
+	if not wf_dir.exists():
+		echo(f'ℹ️  目录不存在: {wf_dir}')
+		return 0
+	
 	files = [
 		'op_encode.json',
 		'op_label.json',
@@ -327,6 +477,7 @@ def cmd_run_demo():
 		'op_label_via_search.json',
 		'op_promote.json',
 		'op_promote_search.json',
+		'op_promote_remind.json',
 		'op_demote.json',
 		'op_update.json',
 		'op_delete_search.json',
@@ -346,22 +497,27 @@ def cmd_run_demo():
 			continue
 		data = _json.loads(path.read_text(encoding='utf-8'))
 		steps = data.get('steps', [])
-		echo(f"🚀 运行 {name} | 步骤 {len(steps)}")
+		echo(f"🚀 运行工作流: {name} | {len(steps)} 步骤")
 		for i, step in enumerate(steps, start=1):
 			ir = step.get('ir') or step
 			title = step.get('name') or f'step {i}'
-			echo(f"➡️  [{name}] {title} -> {ir.get('op')}")
+			echo(f"➡️  [{i}/{len(steps)}] {title} -> {ir.get('op')}")
 			try:
 				res = engine.execute(ir)
 			except Exception as e:
-				echo(f"❌ 执行失败: {e}"); return 1
+				echo(f"❌ 执行异常: {e}")
+				failed += 1
+				continue
 			if not getattr(res, 'success', False):
-				echo(f"❌ 失败: {res.error}"); return 1
+				echo(f"❌ 失败: {res.error}")
+				failed += 1
+				continue
 			out = res.data or {}
-			_echo_ir_result(ir, out)
+			_echo_ir_result(ir, out, args.verbose)
 			ran += 1
-	echo(f"🎉 demo 完成，共执行 {ran} 步")
-	return 0
+	echo(f"\n{'='*60}")
+	echo(f"🎉 Demo 完成 | 成功: {ran} | 失败: {failed}")
+	return 0 if failed == 0 else 1
 
 
 def cmd_list_workflows():
@@ -764,30 +920,58 @@ def cmd_models_smoke():
 	if len(sys.argv) >= 3:
 		mode = sys.argv[2].lower()
 
+	echo("=" * 60)
+	echo("🧪 模型冒烟测试")
+	echo("=" * 60)
+	
 	try:
 		service = _build_models_service_from_env(mode)
 		from text2mem.services.models_service import GenerationResult
-		echo(f"🧪 正在使用: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
+		echo(f"🔧 使用模型:")
+		echo(f"   Embedding: {service.embedding_model.__class__.__name__}")
+		echo(f"   Generation: {service.generation_model.__class__.__name__}")
+		echo("")
 
 		# 1) 测试嵌入
+		echo("📍 测试 1/2: 嵌入模型...")
 		text = "用于嵌入的测试文本。Hello embeddings!"
 		emb = service.encode_memory(text)
-		echo(f"✅ Embedding 维度: {emb.dimension}, 模型: {emb.model}")
+		echo(f"✅ Embedding 成功")
+		echo(f"   维度: {emb.dimension}")
+		echo(f"   模型: {emb.model}")
+		echo("")
 
 		# 2) 测试生成
+		echo("📍 测试 2/2: 生成模型...")
 		prompt = "请用一句话总结：Text2Mem 是一个文本记忆处理系统。"
 		gen = service.generation_model.generate(prompt, temperature=0.2, max_tokens=60)
-		echo(f"✅ Generation 模型: {gen.model}")
-		echo(f"📝 输出: {gen.text[:200]}...")
+		echo(f"✅ Generation 成功")
+		echo(f"   模型: {gen.model}")
+		echo(f"   输出: {gen.text[:150]}{'...' if len(gen.text) > 150 else ''}")
+		echo("")
+		
+		echo("=" * 60)
+		echo("🎉 所有测试通过！")
+		echo("=" * 60)
 	except Exception as e:
-		echo(f"❌ 模型冒烟测试失败: {e}")
+		echo("")
+		echo("=" * 60)
+		echo(f"❌ 模型冒烟测试失败")
+		echo("=" * 60)
+		echo(f"错误: {e}")
+		echo("")
+		echo("💡 故障排查:")
+		echo("   1. 检查 .env 配置: python manage.py status")
+		echo("   2. 验证模型配置: python manage.py models-info")
+		echo("   3. Ollama 用户: 确保服务运行 (ollama serve)")
+		echo("   4. OpenAI 用户: 检查 API Key 是否正确")
 		sys.exit(1)
 	sys.exit(0)
 
 def cmd_run_workflow():
 	"""运行一个工作流JSON文件，按顺序执行每个IR步骤。
 	用法:
-	  python manage.py workflow <path-to-workflow.json> [--mode mock|ollama|openai|auto] [--db <db_path>]
+	  python manage.py workflow <path-to-workflow.json> [--mode mock|ollama|openai|auto] [--db <db_path>] [--verbose]
 	"""
 	import argparse, json
 	from text2mem.core.engine import Text2MemEngine
@@ -797,10 +981,11 @@ def cmd_run_workflow():
 	parser.add_argument("workflow", help="工作流JSON文件路径")
 	parser.add_argument("--mode", choices=["mock","ollama","openai","auto"], default=None)
 	parser.add_argument("--db", dest="db_path", default=None, help="数据库路径（默认读取 TEXT2MEM_DB_PATH 或 ./text2mem.db）")
+	parser.add_argument("--verbose", action="store_true", help="详细输出")
 	try:
 		args = parser.parse_args(sys.argv[2:])
 	except SystemExit:
-		echo("用法: python manage.py workflow <workflow.json> [--mode mock|ollama|openai|auto] [--db path]")
+		echo("用法: python manage.py workflow <workflow.json> [--mode mock|ollama|openai|auto] [--db path] [--verbose]")
 		sys.exit(2)
 
 	wf_path = Path(args.workflow)
@@ -808,84 +993,91 @@ def cmd_run_workflow():
 		echo(f"❌ 工作流文件不存在: {wf_path}")
 		sys.exit(2)
 
-	# 选择数据库
 	db_path = args.db_path or os.environ.get("TEXT2MEM_DB_PATH") or "./text2mem.db"
-	# 构建模型服务
 	service = _build_models_service_from_env(args.mode)
-
-	# 引擎与适配器
 	adapter = SQLiteAdapter(db_path, models_service=service)
 	engine = Text2MemEngine(adapter=adapter, models_service=service)
 
-	# 读取工作流
 	data = json.loads(wf_path.read_text(encoding="utf-8"))
+	workflow_name = data.get("name") or data.get("title") or wf_path.name
 	steps = data.get("steps", [])
-	echo(f"🚀 运行工作流: {wf_path.name} | 步骤数: {len(steps)} | DB: {db_path}")
+	
+	echo("=" * 60)
+	echo(f"🚀 运行工作流: {workflow_name}")
+	echo("=" * 60)
+	echo(f"📄 文件: {wf_path}")
+	echo(f"📦 步骤数: {len(steps)}")
 	echo(f"🧠 模型: embed={service.embedding_model.__class__.__name__}, gen={service.generation_model.__class__.__name__}")
+	echo(f"🗄️  数据库: {db_path}")
+	echo("=" * 60)
+	echo("")
 
 	success_count = 0
+	failed_count = 0
+	
 	for idx, step in enumerate(steps, start=1):
 		title = step.get("name") or step.get("description") or f"Step {step.get('step', idx)}"
-		ir = step.get("ir") or step  # 容错：若直接是IR
+		ir = step.get("ir") or step
 		if not isinstance(ir, dict) or not ir.get("op"):
-			echo(f"⚠️ 跳过无效步骤[{idx}]: 缺少IR")
+			echo(f"⚠️  [{idx}/{len(steps)}] 跳过无效步骤: {title}")
 			continue
-		echo(f"➡️ [{idx}/{len(steps)}] {title} -> {ir.get('op')}")
+		
+		echo(f"➡️  [{idx}/{len(steps)}] {title}")
+		echo(f"    操作: {ir.get('op')} | 阶段: {ir.get('stage', 'N/A')}")
+		
 		try:
 			result = engine.execute(ir)
 		except Exception as e:
-			echo(f"❌ 执行失败: {e}")
-			sys.exit(1)
+			echo(f"❌ 执行异常: {e}")
+			if args.verbose:
+				import traceback
+				traceback.print_exc()
+			failed_count += 1
+			continue
 
 		if not getattr(result, "success", False):
 			echo(f"❌ 步骤失败: {result.error}")
-			sys.exit(1)
+			failed_count += 1
+			continue
 
-		# 结果摘要输出
 		data_out = result.data or {}
 		op = ir.get("op")
+		
 		if op == "Encode":
 			rid = data_out.get("inserted_id") or data_out.get("id")
 			emb_dim = data_out.get("embedding_dim")
-			emb_model = data_out.get("embedding_model")
-			emb_provider = data_out.get("embedding_provider")
-			echo(f"   ✅ 已编码，ID={rid}")
-			if emb_model or emb_dim or emb_provider:
-				echo(f"      🧩 向量: dim={emb_dim} model={emb_model} provider={emb_provider}")
+			echo(f"    ✅ 已编码 | ID={rid}, dim={emb_dim}")
 		elif op == "Retrieve":
 			rows = []
 			if isinstance(data_out, list):
 				rows = data_out
 			elif isinstance(data_out, dict):
 				rows = data_out.get("rows", []) or []
-			note = data_out.get("note")
-			echo(f"   ✅ 检索到 {len(rows)} 条" + (f" | {note}" if note else ""))
-			if rows:
-				# 打印一条简短预览
-				import json as _json
-				try:
-					pv = _json.dumps(rows[0], ensure_ascii=False)[:200]
-				except Exception:
-					pv = str(rows[0])[:200]
-				echo(f"      📋 示例: {pv}…")
+			echo(f"    ✅ 检索成功 | 返回 {len(rows)} 条记录")
+			if args.verbose and rows:
+				echo(f"       示例: {str(rows[0])[:120]}...")
 		elif op == "Summarize":
 			summary = str(data_out.get("summary", ""))
-			model = data_out.get("model")
-			usage = data_out.get("tokens") or {}
-			echo(f"   📝 摘要: {summary[:200]}{'…' if len(summary)>200 else ''}")
-			if model:
-				echo(f"      🔎 模型: {model} | tokens: {usage}")
+			echo(f"    ✅ 摘要生成 | {summary[:120]}{'...' if len(summary) > 120 else ''}")
 		else:
-			# 通用反馈
 			affected = data_out.get("affected_rows") or data_out.get("updated_rows")
 			if affected is not None:
-				echo(f"   ✅ 完成 | 受影响行: {affected}")
+				echo(f"    ✅ 完成 | 受影响行: {affected}")
 			else:
-				echo("   ✅ 完成")
+				echo(f"    ✅ 完成")
+		
 		success_count += 1
+		echo("")
 
-	echo(f"🎉 工作流完成: {success_count}/{len(steps)} 步成功")
-	sys.exit(0)
+	echo("=" * 60)
+	echo(f"🎉 工作流完成")
+	echo("=" * 60)
+	echo(f"✅ 成功: {success_count}/{len(steps)}")
+	if failed_count > 0:
+		echo(f"❌ 失败: {failed_count}/{len(steps)}")
+	echo("=" * 60)
+	
+	sys.exit(0 if failed_count == 0 else 1)
 
 def cmd_set_env():
 	"""设置环境变量"""
@@ -1006,7 +1198,7 @@ def print_usage() -> None:
 	echo("")
 	echo("示例:")
 	echo("  python manage.py demo --mode mock")
-	echo("  python manage.py ir --mode mock --inline '{\"stage\":\"RET\",\"op\":\"Retrieve\",\"args\":{\"query\":\"测试\",\"k\":2}}'")
+	echo("  python manage.py ir --mode mock --inline '{\"stage\":\"RET\",\"op\":...")
 	echo("  python manage.py session --mode mock --output full")
 
 

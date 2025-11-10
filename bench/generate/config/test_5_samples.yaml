@@ -1,0 +1,113 @@
+# 测试用小规模生成计划 - 5个样本
+
+plan:
+  name: "test_5_samples"
+  description: "测试用小规模生成 - 只生成5个样本"
+  version: "1.0"
+  
+  total_samples: 5
+  batch_size: 5
+  
+  min_context_length: 100
+  max_context_length: 200
+  
+  resume_from_checkpoint: false
+  checkpoint_file: "bench/generate/output/.checkpoint_test_5_samples.json"
+
+# 场景比例
+scenario_proportions:
+  incident_postmortem: 0.4
+  meeting_notes: 0.3
+  project_tracking: 0.3
+
+# 操作比例
+operation_proportions:
+  encode: 0.40
+  retrieve: 0.30
+  summarize: 0.20
+  label: 0.10
+
+# 操作定义
+operations:
+  encode:
+    enabled: true
+    description: "编码/写入记忆"
+  retrieve:
+    enabled: true
+    description: "语义检索"
+  summarize:
+    enabled: true
+    description: "生成摘要"
+  label:
+    enabled: true
+    description: "添加标签"
+
+# 场景定义
+scenarios:
+  incident_postmortem:
+    name: "故障复盘"
+    name_en: "Incident Postmortem"
+    enabled: true
+  meeting_notes:
+    name: "会议记录"
+    name_en: "Meeting Notes"
+    enabled: true
+  project_tracking:
+    name: "项目跟踪"
+    name_en: "Project Tracking"
+    enabled: true
+
+# 样本特征
+characteristics:
+  instruction_style:
+    direct: 100%
+    indirect: 0%
+  
+  structure:
+    single: 100%
+    workflow: 0%
+  
+  lang:
+    zh: 50%
+    en: 50%
+
+# LLM配置
+llm:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  api_key_env: "OPENAI_API_KEY"
+  base_url: ""
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 120
+
+# 三阶段配置
+stages:
+  stage1_nl_generation:
+    enabled: true
+    temperature: 0.7
+    max_tokens: 2000
+    batch_size: 5
+  
+  stage2_ir_generation:
+    enabled: true
+    temperature: 0.5
+    max_tokens: 2000
+    batch_size: 1
+  
+  stage3_expected_generation:
+    enabled: true
+    temperature: 0.5
+    max_tokens: 2000
+    batch_size: 1
+
+# 输出配置
+output:
+  base_dir: "bench/data/raw"
+  format: "jsonl"
+  keep_intermediate: true
+
+# 日志配置
+logging:
+  level: "INFO"
+  console: true

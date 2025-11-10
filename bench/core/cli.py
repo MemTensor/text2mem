@@ -40,6 +40,8 @@ class BenchCLI:
         output: Optional[str] = None,
         mode: Optional[str] = None,
         timeout: Optional[float] = None,
+        schema_filter: Optional[List[str]] = None,
+        schema_indices: Optional[List[int]] = None,
     ) -> int:
         """Run benchmark tests.
         
@@ -110,6 +112,10 @@ class BenchCLI:
             print(f"🔧 Using engine mode: {mode}")
         if timeout:
             print(f"⏱️  Timeout per sample: {timeout}s")
+        if schema_filter:
+            print(f"🔍 Schema filter: {', '.join(schema_filter)}")
+        if schema_indices:
+            print(f"🔍 Schema indices: {schema_indices}")
         print("=" * 60)
         
         # Configure runner
@@ -118,6 +124,8 @@ class BenchCLI:
             output_dir=self.output_dir,
             mode=mode,  # 传递mode参数
             timeout=timeout,  # 传递timeout参数
+            schema_filter=schema_filter,  # 传递schema_filter参数
+            schema_indices=schema_indices,  # 传递schema_indices参数
         )
         runner = BenchRunner(config)
         
@@ -491,6 +499,10 @@ def main():
                            help="Engine mode (default: from TEXT2MEM_BENCH_MODE env or 'auto')")
     run_parser.add_argument("--timeout", type=float, default=None, 
                            help="Timeout in seconds for each sample (default: from TEXT2MEM_BENCH_TIMEOUT env or no timeout)")
+    run_parser.add_argument("--schema-filter", type=str, default=None,
+                           help="Filter schemas by operation names (comma-separated, e.g., 'Encode,Retrieve')")
+    run_parser.add_argument("--schema-indices", type=str, default=None,
+                           help="Filter schemas by indices (comma-separated, e.g., '0,2')")
     
     # Generate command
     gen_parser = subparsers.add_parser("generate", help="Generate sample template")
@@ -513,6 +525,19 @@ def main():
     
     try:
         if args.command == "run":
+            # Parse schema_filter and schema_indices
+            schema_filter = None
+            if args.schema_filter:
+                schema_filter = [s.strip() for s in args.schema_filter.split(',') if s.strip()]
+            
+            schema_indices = None
+            if args.schema_indices:
+                try:
+                    schema_indices = [int(i.strip()) for i in args.schema_indices.split(',') if i.strip()]
+                except ValueError:
+                    print("❌ Error: --schema-indices must be comma-separated integers")
+                    return 1
+            
             return cli.run_tests(
                 split=args.split,
                 filter_expr=args.filter,
@@ -520,6 +545,8 @@ def main():
                 output=args.output,
                 mode=args.mode,
                 timeout=args.timeout,
+                schema_filter=schema_filter,
+                schema_indices=schema_indices,
             )
         elif args.command == "generate":
             return cli.generate_template(

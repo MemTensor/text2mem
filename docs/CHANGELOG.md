@@ -1,5 +1,37 @@
 # Text2Mem 变更日志
 
+## [未发布] - 2025-01-26
+
+### CLI 现代化
+- **重构 manage.py**: 全面优化命令结构和用户体验
+  - 改进代码风格，符合 PEP 8 规范
+  - 重新组织命令分组 (核心配置 / 功能演示 / 工作流执行 / 交互模式 / 模型管理 / 运维工具)
+  - 增强命令功能：
+    - `config`: 新增 `--db-path` 参数，更新默认模型版本
+    - `test`: 新增 `-v/--verbose`, `-k/--keyword`, `--smoke` 参数
+    - `demo`: 新增 `--verbose` 参数，改进错误处理和统计
+    - `workflow`: 新增 `--verbose` 参数，详细步骤信息
+    - `models-smoke`: 美化输出格式，添加故障排查指南
+    - `setup-ollama`: 改进下载进度提示
+  - 统一输出格式，添加分隔线和 emoji 图标
+  - 所有命令保持向后兼容
+
+### 文档整理与合并
+- **bench/ 文档清理**:
+  - 合并 `QUICKSTART.md` + `QUICK_REFERENCE.md` → `GUIDE.md` (统一入口)
+  - 保留 `WORKFLOW.md` (详细工作流说明)
+  - 保留 `README.md` (项目概览)
+- **docs/ 文档优化**:
+  - 删除 `INSTALL.md` (内容过时，已并入主 README)
+  - 重构 `CONFIG.md` → `CONFIGURATION.md` (更清晰的配置指南)
+  - 保留 `CHANGELOG.md` (本文件)
+- **文档结构**:
+  - 根目录: `README.md` (主项目文档)
+  - `docs/`: 配置和变更日志
+  - `bench/`: Benchmark 相关文档
+  - `examples/`: 示例说明
+- **减少重复**: 从 19 个活跃文档减少到 6 个核心文档
+
 ## [1.1.0] - 2025-01-05
 
 ### CLI 优化

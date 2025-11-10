@@ -1,0 +1,669 @@
+#!/usr/bin/env python3
+"""
+Complete Bench CLI - 完整的 Benchmark 系统
+
+功能:
+1. run          - 运行测试 (使用现有 benchmark)
+2. generate     - 生成新 benchmark 候选数据
+3. validate     - 验证生成的数据质量
+4. promote      - 提升为正式 benchmark
+5. list-results - 列出测试结果
+6. show-result  - 显示结果详情
+7. compare      - 对比两个结果
+8. info         - 显示 benchmark 信息
+"""
+import argparse
+import json
+import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from bench.core.simple_manager import Benchmark, ResultsManager
+from bench.core.simple_runner import SimpleTestRunner
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+def cmd_run(args):
+    """运行 benchmark 测试"""
+    schema_filter = None
+    if args.schema_filter:
+        schema_filter = [s.strip() for s in args.schema_filter.split(',')]
+    
+    schema_indices = None
+    if args.schema_indices:
+        schema_indices = [int(i.strip()) for i in args.schema_indices.split(',')]
+    
+    runner = SimpleTestRunner(
+        mode=args.mode,
+        filter_expr=args.filter,
+        schema_filter=schema_filter,
+        schema_indices=schema_indices,
+        timeout=args.timeout,
+    )
+    
+    try:
+        result = runner.run(
+            result_id=args.output_id,
+            verbose=args.verbose
+        )
+        return 0
+    except Exception as e:
+        logger.error(f"测试失败: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
+
+
+def cmd_generate(args):
+    """生成新的 benchmark 候选数据"""
+    print("=" * 80)
+    print("🔄 生成 Benchmark 候选数据")
+    print("=" * 80)
+    print()
+    
+    import subprocess
+    from datetime import datetime
+    
+    gen_id = args.output_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # 准备输出目录
+    if args.use_generation_dir:
+        output_dir = Path(f'bench/data/generation/{gen_id}')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"📂 输出目录: {output_dir}")
+    else:
+        output_dir = None
+        print(f"📂 输出到默认位置 (bench/data/raw/)")
+    
+    print()
+    
+    # 运行生成脚本
+    cmd = [sys.executable, 'bench/generate/generate.py']
+    
+    if args.config:
+        cmd.extend(['--config', args.config])
+    
+    print(f"🏃 运行生成...")
+    print(f"   命令: {' '.join(cmd)}")
+    print()
+    
+    result = subprocess.run(cmd, cwd=Path.cwd())
+    
+    if result.returncode == 0:
+        print()
+        print("✅ 生成完成！")
+        print()
+        
+        # 查找生成的数据
+        raw_dir = Path('bench/data/raw')
+        if raw_dir.exists():
+            gen_dirs = sorted([d for d in raw_dir.iterdir() if d.is_dir()], 
+                            key=lambda x: x.name, reverse=True)
+            if gen_dirs:
+                latest_gen = gen_dirs[0].name
+                print("下一步:")
+                print(f"  1. 验证质量: ./bench-cli validate {latest_gen}")
+                print(f"  2. 提升为 benchmark: ./bench-cli promote {latest_gen}")
+    else:
+        print()
+        print("❌ 生成失败")
+    
+    return result.returncode
+
+
+def cmd_validate(args):
+    """验证生成的数据质量"""
+    gen_id = args.generation_id
+    
+    # 查找生成的数据
+    possible_paths = [
+        Path(f'bench/data/generation/{gen_id}'),
+        Path(f'bench/data/raw/{gen_id}'),
+    ]
+    
+    gen_dir = None
+    for p in possible_paths:
+        if p.exists():
+            gen_dir = p
+            break
+    
+    if not gen_dir:
+        logger.error(f"Generation not found: {gen_id}")
+        logger.error(f"Searched in: {', '.join(str(p) for p in possible_paths)}")
+        return 1
+    
+    print("=" * 80)
+    print(f"🔍 验证数据: {gen_id}")
+    print("=" * 80)
+    print(f"📂 位置: {gen_dir}")
+    print()
+    
+    # 查找 stage3.jsonl
+    stage3_file = gen_dir / 'stage3.jsonl'
+    if not stage3_file.exists():
+        logger.error(f"stage3.jsonl not found in {gen_dir}")
+        return 1
+    
+    # 统计样本数
+    samples = []
+    with open(stage3_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                try:
+                    samples.append(json.loads(line))
+                except:
+                    pass
+    
+    print(f"📊 总样本数: {len(samples)}")
+    print()
+    
+    # 快速统计
+    from collections import Counter
+    lang_counter = Counter()
+    op_counter = Counter()
+    
+    for sample in samples:
+        class_info = sample.get('class', {})
+        lang_counter[class_info.get('lang', 'unknown')] += 1
+        
+        for schema in sample.get('schema_list', []):
+            op_counter[schema.get('op', 'unknown')] += 1
+    
+    print("📈 数据分布:")
+    print(f"   语言: {dict(lang_counter)}")
+    print(f"   操作 (Top 5): {dict(op_counter.most_common(5))}")
+    print()
+    
+    # 运行测试验证
+    if args.run_tests:
+        print("🧪 运行测试验证...")
+        print()
+        
+        # 使用 mock 模式快速验证
+        import tempfile
+        import shutil
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 创建临时 benchmark
+            tmp_benchmark_dir = Path(tmpdir) / 'benchmark'
+            tmp_benchmark_dir.mkdir()
+            
+            shutil.copy(stage3_file, tmp_benchmark_dir / 'benchmark.jsonl')
+            
+            metadata = {
+                'total_samples': len(samples),
+                'created_at': 'validation',
+            }
+            with open(tmp_benchmark_dir / 'metadata.json', 'w') as f:
+                json.dump(metadata, f)
+            
+            # 临时运行测试
+            from bench.core.simple_manager import Benchmark
+            runner = SimpleTestRunner(mode='mock')
+            
+            original_dir = runner.benchmark.benchmark_dir
+            runner.benchmark.benchmark_dir = tmp_benchmark_dir
+            runner.benchmark.benchmark_file = tmp_benchmark_dir / 'benchmark.jsonl'
+            runner.benchmark.metadata_file = tmp_benchmark_dir / 'metadata.json'
+            
+            try:
+                result = runner.run(verbose=args.verbose)
+                
+                pass_rate = result.report['summary']['pass_rate']
+                print()
+                print(f"📊 测试通过率: {pass_rate*100:.1f}%")
+                print()
+                
+                if pass_rate >= 0.5:
+                    print("💡 质量评估: 良好，可以提升为正式 benchmark")
+                    print()
+                    print("下一步:")
+                    print(f"  ./bench-cli promote {gen_id}")
+                else:
+                    print("⚠️  质量评估: 通过率偏低，建议重新生成")
+                
+            finally:
+                runner.benchmark.benchmark_dir = original_dir
+    else:
+        print("💡 提示: 添加 --run-tests 参数可以运行完整测试验证")
+        print()
+        print("下一步:")
+        print(f"  ./bench-cli validate {gen_id} --run-tests  # 运行测试")
+        print(f"  ./bench-cli promote {gen_id}               # 提升为 benchmark")
+    
+    return 0
+
+
+def cmd_promote(args):
+    """将生成的数据提升为正式 benchmark"""
+    gen_id = args.generation_id
+    
+    # 查找生成的数据
+    possible_paths = [
+        Path(f'bench/data/generation/{gen_id}'),
+        Path(f'bench/data/raw/{gen_id}'),
+    ]
+    
+    gen_dir = None
+    for p in possible_paths:
+        if p.exists():
+            gen_dir = p
+            break
+    
+    if not gen_dir:
+        logger.error(f"Generation not found: {gen_id}")
+        return 1
+    
+    stage3_file = gen_dir / 'stage3.jsonl'
+    if not stage3_file.exists():
+        logger.error(f"stage3.jsonl not found in {gen_dir}")
+        return 1
+    
+    print("=" * 80)
+    print(f"⬆️  提升为正式 Benchmark: {gen_id}")
+    print("=" * 80)
+    print()
+    
+    # 确认
+    if not args.yes:
+        print("⚠️  这将替换当前的 benchmark！")
+        
+        try:
+            benchmark = Benchmark()
+            print(f"   当前 benchmark: {benchmark.sample_count} samples")
+        except:
+            print(f"   当前 benchmark: 不存在")
+        
+        with open(stage3_file, 'r') as f:
+            new_count = sum(1 for _ in f if _.strip())
+        print(f"   新 benchmark: {new_count} samples")
+        print()
+        
+        confirm = input("确认替换? (yes/no): ")
+        if confirm.lower() != 'yes':
+            print("已取消")
+            return 0
+    
+    # 备份当前 benchmark
+    import shutil
+    from datetime import datetime
+    
+    benchmark_dir = Path('bench/data/benchmark')
+    backup_dir = Path(f'bench/data/archive/benchmark_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+    backup_dir.parent.mkdir(parents=True, exist_ok=True)
+    
+    if benchmark_dir.exists():
+        shutil.copytree(benchmark_dir, backup_dir)
+        print(f"✓ 已备份当前 benchmark 到: {backup_dir}")
+        print()
+    
+    # 读取并过滤样本
+    print("🔄 处理数据...")
+    
+    samples = []
+    with open(stage3_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                try:
+                    samples.append(json.loads(line))
+                except:
+                    pass
+    
+    print(f"   原始样本: {len(samples)}")
+    
+    # 过滤无效数据
+    ALLOWED_OPERATIONS = {
+        'Encode', 'Retrieve', 'Update', 'Delete', 'Summarize', 'Label',
+        'Promote', 'Demote', 'Expire', 'Lock', 'Merge', 'Split',
+    }
+    
+    filtered_samples = []
+    for sample in samples:
+        schema_list = sample.get('schema_list', [])
+        if not schema_list:
+            continue
+        
+        # 检查是否包含 unknown
+        sample_str = json.dumps(sample)
+        if 'unknown' in sample_str.lower():
+            continue
+        
+        # 检查操作有效性
+        valid = True
+        for schema in schema_list:
+            if schema.get('op') not in ALLOWED_OPERATIONS:
+                valid = False
+                break
+        
+        if valid:
+            filtered_samples.append(sample)
+    
+    print(f"   过滤后: {len(filtered_samples)}")
+    print()
+    
+    # 保存到 benchmark
+    benchmark_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(benchmark_dir / 'benchmark.jsonl', 'w', encoding='utf-8') as f:
+        for sample in filtered_samples:
+            f.write(json.dumps(sample, ensure_ascii=False) + '\n')
+    
+    # 生成统计
+    from collections import Counter
+    
+    lang_counter = Counter()
+    op_counter = Counter()
+    structure_counter = Counter()
+    
+    for sample in filtered_samples:
+        class_info = sample.get('class', {})
+        lang_counter[class_info.get('lang', 'unknown')] += 1
+        structure_counter[class_info.get('structure', 'unknown')] += 1
+        
+        for schema in sample.get('schema_list', []):
+            op_counter[schema.get('op', 'unknown')] += 1
+    
+    stats = {
+        'total': len(filtered_samples),
+        'distribution': {
+            'languages': dict(lang_counter),
+            'operations': dict(op_counter),
+            'structures': dict(structure_counter),
+        }
+    }
+    
+    with open(benchmark_dir / 'stats.json', 'w', encoding='utf-8') as f:
+        json.dump(stats, f, indent=2, ensure_ascii=False)
+    
+    # 保存 metadata
+    metadata = {
+        'total_samples': len(filtered_samples),
+        'created_at': datetime.now().isoformat(),
+        'last_updated': datetime.now().isoformat(),
+        'source': f'{gen_dir.parent.name}/{gen_id}',
+        'notes': args.notes or f'Promoted from {gen_id}'
+    }
+    
+    with open(benchmark_dir / 'metadata.json', 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    
+    print("=" * 80)
+    print("✅ Benchmark 已更新！")
+    print("=" * 80)
+    print()
+    print(f"📊 新 Benchmark:")
+    print(f"   总样本数: {len(filtered_samples)}")
+    print(f"   语言分布: {dict(lang_counter)}")
+    print(f"   操作分布 (Top 5): {dict(op_counter.most_common(5))}")
+    print()
+    print("下一步:")
+    print("  ./bench-cli run --mode ollama -v  # 运行完整测试")
+    print()
+    
+    return 0
+
+
+def cmd_list_results(args):
+    """列出测试结果"""
+    manager = ResultsManager()
+    results = manager.list_results(limit=args.limit)
+    
+    if not results:
+        print("没有找到测试结果")
+        return 0
+    
+    print()
+    print("=" * 100)
+    print(f"{'ID':<20} {'Mode':<10} {'Pass Rate':<12} {'Duration':<12} {'Timestamp':<20}")
+    print("=" * 100)
+    
+    for result in results:
+        config = result.config
+        report = result.report
+        
+        mode = config.get('test_config', {}).get('mode', 'unknown')
+        summary = report.get('summary', {})
+        pass_rate = summary.get('pass_rate', 0.0)
+        duration = summary.get('duration_seconds', 0.0)
+        timestamp = config.get('timestamp', '')
+        
+        if timestamp and 'T' in timestamp:
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                timestamp = dt.strftime('%Y-%m-%d %H:%M')
+            except:
+                timestamp = timestamp[:16]
+        
+        print(f"{result.result_id:<20} {mode:<10} {pass_rate*100:>6.1f}%      {duration:>8.1f}s    {timestamp:<20}")
+    
+    print()
+    return 0
+
+
+def cmd_show_result(args):
+    """显示测试结果详情"""
+    manager = ResultsManager()
+    
+    try:
+        result = manager.get_result(args.result_id)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return 1
+    
+    config = result.config
+    report = result.report
+    
+    print()
+    print("=" * 80)
+    print(f"📊 测试结果: {result.result_id}")
+    print("=" * 80)
+    print()
+    
+    test_config = config.get('test_config', {})
+    print("⚙️  配置:")
+    print(f"  模式: {test_config.get('mode', 'unknown')}")
+    print(f"  样本数: {config.get('benchmark_samples', 0)}")
+    
+    filters = test_config.get('filters', {})
+    if filters.get('filter_expr'):
+        print(f"  过滤: {filters['filter_expr']}")
+    if filters.get('schema_filter'):
+        print(f"  Schema 过滤: {', '.join(filters['schema_filter'])}")
+    
+    print()
+    
+    summary = report.get('summary', {})
+    print("📈 摘要:")
+    print(f"  总数: {summary.get('total', 0)}")
+    print(f"  通过: {summary.get('passed', 0)}")
+    print(f"  失败: {summary.get('failed', 0)}")
+    print(f"  通过率: {summary.get('pass_rate', 0)*100:.1f}%")
+    print(f"  耗时: {summary.get('duration_seconds', 0):.1f}s")
+    print()
+    
+    by_op = report.get('by_operation', {})
+    if by_op:
+        print("📋 按操作:")
+        sorted_ops = sorted(by_op.items(), key=lambda x: x[1]['total'], reverse=True)
+        for op, stats in sorted_ops[:10]:
+            print(f"  {op:<12} {stats['passed']:>4}/{stats['total']:<4} ({stats['pass_rate']*100:>5.1f}%)")
+        print()
+    
+    by_lang = report.get('by_language', {})
+    if by_lang:
+        print("🌐 按语言:")
+        for lang, stats in sorted(by_lang.items()):
+            print(f"  {lang:<6} {stats['passed']:>4}/{stats['total']:<4} ({stats['pass_rate']*100:>5.1f}%)")
+        print()
+    
+    if args.show_failed and result.failed_file.exists():
+        print("❌ 失败样本:")
+        with open(result.failed_file, 'r', encoding='utf-8') as f:
+            failed = [json.loads(line) for line in f if line.strip()]
+        
+        for item in failed[:10]:
+            sample_id = item.get('sample_id', 'unknown')
+            errors = item.get('errors', [])
+            print(f"  {sample_id}")
+            if errors:
+                print(f"    {errors[0][:80]}...")
+        
+        if len(failed) > 10:
+            print(f"  ... 还有 {len(failed) - 10} 个")
+        print()
+    
+    print(f"📂 结果目录: bench/data/results/{result.result_id}/")
+    print()
+    
+    return 0
+
+
+def cmd_compare(args):
+    """对比两个测试结果"""
+    manager = ResultsManager()
+    
+    try:
+        result1 = manager.get_result(args.result_id1)
+        result2 = manager.get_result(args.result_id2)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return 1
+    
+    report1 = result1.report
+    report2 = result2.report
+    
+    summary1 = report1.get('summary', {})
+    summary2 = report2.get('summary', {})
+    
+    print()
+    print("=" * 80)
+    print("📊 结果对比")
+    print("=" * 80)
+    print()
+    print(f"左:  {result1.result_id}")
+    print(f"右: {result2.result_id}")
+    print()
+    
+    print("📈 摘要:")
+    print(f"{'指标':<20} {'左':<15} {'右':<15} {'变化':<15}")
+    print("-" * 65)
+    
+    total1 = summary1.get('total', 0)
+    total2 = summary2.get('total', 0)
+    print(f"{'总数':<20} {total1:<15} {total2:<15} {total2 - total1:+15}")
+    
+    passed1 = summary1.get('passed', 0)
+    passed2 = summary2.get('passed', 0)
+    print(f"{'通过':<20} {passed1:<15} {passed2:<15} {passed2 - passed1:+15}")
+    
+    rate1 = summary1.get('pass_rate', 0)
+    rate2 = summary2.get('pass_rate', 0)
+    print(f"{'通过率':<20} {rate1*100:.1f}%{'':<11} {rate2*100:.1f}%{'':<11} {(rate2-rate1)*100:+.1f}%")
+    
+    dur1 = summary1.get('duration_seconds', 0)
+    dur2 = summary2.get('duration_seconds', 0)
+    print(f"{'耗时 (s)':<20} {dur1:.1f}{'':<11} {dur2:.1f}{'':<11} {dur2-dur1:+.1f}")
+    
+    print()
+    return 0
+
+
+def cmd_info(args):
+    """显示 benchmark 信息"""
+    try:
+        benchmark = Benchmark()
+        print(benchmark.info())
+        return 0
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        logger.error("Benchmark 不存在，请先生成或导入 benchmark")
+        return 1
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Text2Mem Benchmark CLI - 完整系统',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='可用命令')
+    
+    # run
+    run_parser = subparsers.add_parser('run', help='运行 benchmark 测试')
+    run_parser.add_argument('--mode', default='auto',
+                           choices=['auto', 'mock', 'ollama', 'openai'],
+                           help='测试模式')
+    run_parser.add_argument('--filter', help='样本过滤 (如 "lang:zh")')
+    run_parser.add_argument('--schema-filter', help='Schema 过滤 (如 "Encode,Retrieve")')
+    run_parser.add_argument('--schema-indices', help='Schema 索引 (如 "0,2")')
+    run_parser.add_argument('--timeout', type=float, help='超时 (秒)')
+    run_parser.add_argument('--output-id', help='结果 ID (默认: 时间戳)')
+    run_parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
+    
+    # generate
+    gen_parser = subparsers.add_parser('generate', help='生成新的 benchmark 候选数据')
+    gen_parser.add_argument('--config', help='配置文件路径')
+    gen_parser.add_argument('--output-id', help='输出 ID (默认: 时间戳)')
+    gen_parser.add_argument('--use-generation-dir', action='store_true', 
+                           help='使用 generation/ 目录而不是 raw/')
+    
+    # validate
+    val_parser = subparsers.add_parser('validate', help='验证生成的数据质量')
+    val_parser.add_argument('generation_id', help='Generation ID')
+    val_parser.add_argument('--run-tests', action='store_true', help='运行测试验证')
+    val_parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
+    
+    # promote
+    pro_parser = subparsers.add_parser('promote', help='提升为正式 benchmark')
+    pro_parser.add_argument('generation_id', help='Generation ID')
+    pro_parser.add_argument('--yes', '-y', action='store_true', help='跳过确认')
+    pro_parser.add_argument('--notes', help='备注')
+    
+    # list-results
+    list_parser = subparsers.add_parser('list-results', help='列出测试结果')
+    list_parser.add_argument('--limit', type=int, default=20, help='限制数量')
+    
+    # show-result
+    show_parser = subparsers.add_parser('show-result', help='显示结果详情')
+    show_parser.add_argument('result_id', help='结果 ID (或 "latest")')
+    show_parser.add_argument('--show-failed', action='store_true', help='显示失败样本')
+    
+    # compare
+    cmp_parser = subparsers.add_parser('compare', help='对比两个结果')
+    cmp_parser.add_argument('result_id1', help='结果 ID 1')
+    cmp_parser.add_argument('result_id2', help='结果 ID 2')
+    
+    # info
+    info_parser = subparsers.add_parser('info', help='显示 benchmark 信息')
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        return 1
+    
+    commands = {
+        'run': cmd_run,
+        'generate': cmd_generate,
+        'validate': cmd_validate,
+        'promote': cmd_promote,
+        'list-results': cmd_list_results,
+        'show-result': cmd_show_result,
+        'compare': cmd_compare,
+        'info': cmd_info,
+    }
+    
+    return commands[args.command](args)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

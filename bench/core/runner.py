@@ -38,6 +38,8 @@ class BenchConfig:
     mode: Optional[str] = None  # engine mode: auto/mock/ollama/openai
     fixtures_root: Optional[Path] = None  # fixtures directory
     timeout: Optional[float] = None  # timeout in seconds for each sample (None = no timeout)
+    schema_filter: Optional[List[str]] = None  # filter schemas by operation names (e.g., ["Encode", "Retrieve"])
+    schema_indices: Optional[List[int]] = None  # filter schemas by indices (e.g., [0, 2])
 
     def __post_init__(self):
         """Load timeout from environment if not explicitly set."""
@@ -211,7 +213,26 @@ class BenchRunner:
                                 errors.append(f"Prerequisite {idx+1} error: {str(e)}")
                     
                     # 执行测试样本的IR指令
-                    for ir_obj in sample.get("schema_list", []):
+                    all_schemas = sample.get("schema_list", [])
+                    
+                    # 根据配置过滤 schema
+                    if self.config.schema_filter:
+                        # 按操作名称过滤
+                        schemas_to_run = [
+                            s for s in all_schemas 
+                            if s.get("op") in self.config.schema_filter
+                        ]
+                    elif self.config.schema_indices:
+                        # 按索引过滤
+                        schemas_to_run = [
+                            all_schemas[i] for i in self.config.schema_indices 
+                            if 0 <= i < len(all_schemas)
+                        ]
+                    else:
+                        # 默认：执行所有 schema
+                        schemas_to_run = all_schemas
+                    
+                    for ir_obj in schemas_to_run:
                         # Pydantic 验证
                         ir = IR.model_validate(ir_obj)
                         # 通过 Engine 执行（统一入口）

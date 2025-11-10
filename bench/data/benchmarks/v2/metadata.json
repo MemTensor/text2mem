@@ -1,8 +1,0 @@
-{
-  "version": "v2",
-  "created_at": "2025-10-22T23:13:24.522728",
-  "source_run": "20251022_184604",
-  "source_path": "bench/data/runs/20251022_184604/cleaned/cleaned.jsonl",
-  "total_samples": 1163,
-  "rebuilt_ids": true
-}

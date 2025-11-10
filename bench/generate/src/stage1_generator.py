@@ -5,7 +5,6 @@ Stage 1 Generator - 自然语言指令生成器
 from __future__ import annotations
 
 import json
-import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
@@ -30,22 +29,17 @@ class Stage1Generator:
         self,
         llm_client: LLMClient,
         plan: GenerationPlan,
-        seeds_dir: Path,
+        prompts_dir: Path,
     ):
         self.llm_client = llm_client
         self.plan = plan
-        self.seeds_dir = seeds_dir
-        self.prompts_dir = seeds_dir.parent / "prompts"
+        self.prompts_dir = prompts_dir
         
         # 加载prompt模板（支持中英文）
         self.prompt_templates = {
             'zh': self._load_prompt_template('stage1_nl_generation.md'),
             'en': self._load_prompt_template('en_stage1_nl_generation.md'),
         }
-        
-        # 加载seeds数据
-        self.scenarios_config = self._load_scenarios()
-        self.operations_config = self._load_operations()
     
     def _load_prompt_template(self, filename: str) -> str:
         """加载prompt模板
@@ -64,29 +58,7 @@ class Stage1Generator:
         with open(template_file, 'r', encoding='utf-8') as f:
             return f.read()
     
-    def _load_scenarios(self) -> Dict[str, Any]:
-        """加载场景配置"""
-        scenarios_file = self.seeds_dir / "scenarios.yaml"
-        
-        if not scenarios_file.exists():
-            return {}
-        
-        with open(scenarios_file, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-        
-        return data.get("scenarios", {})
-    
-    def _load_operations(self) -> Dict[str, Any]:
-        """加载操作配置"""
-        operations_file = self.seeds_dir / "operations.yaml"
-        
-        if not operations_file.exists():
-            return {}
-        
-        with open(operations_file, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-        
-        return data.get("operations", {})
+
     
     def generate_batch(self, batch: TaskBatch) -> List[NLInstruction]:
         """
@@ -161,28 +133,13 @@ class Stage1Generator:
         - 不在prompt中使用百分比，而是明确的数量，避免LLM理解偏差
         - 根据batch.lang选择中文或英文prompt模板
         """
-        # 获取场景和操作配置
-        scenario_config = self.scenarios_config.get(batch.scenario, {})
-        operation_config = self.operations_config.get(batch.operation, {})
-        
         # 统计本批次的 structure 要求
         workflow_count = batch.structures.count("workflow") if batch.structures else 0
         single_count = batch.structures.count("single") if batch.structures else batch.count
         
-        # 根据语言选择prompt模板和表达方式
+        # 根据语言选择prompt模板
         lang = batch.lang if batch.lang in ['zh', 'en'] else 'zh'
         prompt_template = self.prompt_templates.get(lang, self.prompt_templates['zh'])
-        
-        # 构建操作表达方式（根据语言选择）
-        expressions_key = f"expressions_{lang}" if lang == 'zh' else "expressions_en"
-        expressions = operation_config.get(expressions_key, operation_config.get("expressions_zh", []))
-        operation_expressions = "\n".join([f"- {expr}" for expr in expressions[:5]])
-        
-        # 根据语言选择scenario和operation的名称
-        scenario_name = scenario_config.get("name_en" if lang == 'en' else "name", batch.scenario)
-        operation_name = operation_config.get("name_en" if lang == 'en' else "name", batch.operation)
-        operation_desc = operation_config.get("description_en" if lang == 'en' else "description", "")
-        scenario_desc = scenario_config.get("description_en" if lang == 'en' else "description", "")
         
         # 填充模板
         prompt = prompt_template
@@ -191,11 +148,11 @@ class Stage1Generator:
         replacements = {
             "{count}": str(batch.count),
             "{operation}": batch.operation,
-            "{operation_name}": operation_name,
-            "{operation_description}": operation_desc,
-            "{operation_expressions}": operation_expressions,
-            "{scenario}": scenario_name,
-            "{scenario_description}": scenario_desc,
+            "{operation_name}": batch.operation,
+            "{operation_description}": "",
+            "{operation_expressions}": "",
+            "{scenario}": batch.scenario,
+            "{scenario_description}": "",
             "{lang}": batch.lang,
             "{min_context_length}": str(self.plan.min_context_length),
             "{max_context_length}": str(self.plan.max_context_length),

@@ -72,10 +72,9 @@ class GenerationController:
             self.checkpoint = self._create_new_checkpoint()
         
         # 初始化生成器
-        seeds_dir = Path(__file__).parent.parent / "seeds"
         prompts_dir = Path(__file__).parent.parent / "prompts"
         
-        self.stage1_generator = Stage1Generator(self.llm_client, self.plan, seeds_dir)
+        self.stage1_generator = Stage1Generator(self.llm_client, self.plan, prompts_dir)
         self.stage2_generator = Stage2Generator(self.llm_client, self.plan, prompts_dir, llm_config)
         self.stage3_generator = Stage3Generator(self.llm_client, self.plan, prompts_dir, llm_config)
         
