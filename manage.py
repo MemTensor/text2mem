@@ -1162,3 +1162,105 @@ def cmd_set_env():
 	env_path.write_text(env_content, encoding="utf-8")
 	echo(f"✅ Environment variable set: {key}={value} / 已写入 .env 文件")
 	return 0
+
+
+def _normalize_docstring(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    return textwrap.dedent(text.expandtabs()).strip()
+
+
+COMMAND_DEFINITIONS: Tuple[CommandInfo, ...] = (
+    CommandInfo("status", cmd_status, "Environment status (dependencies / .env / service detection) | 环境状态（依赖 / .env / 服务探测）", "core"),
+    CommandInfo("config", cmd_config, "Generate or update .env (--provider ...) | 生成或更新 .env (--provider ...)", "core"),
+    CommandInfo("set-env", cmd_set_env, "Quickly write a single environment variable | 快速写入单个环境变量", "core", aliases=("set_env",)),
+    CommandInfo("models-info", cmd_models_info, "Show parsed model configuration | 显示解析后的模型配置", "core"),
+    CommandInfo("demo", cmd_run_demo, "Execute preset IR or workflow demos in batch | 批量执行预置 IR / 工作流示例", "demos"),
+    CommandInfo("ir", cmd_ir, "Execute a single IR JSON (--file | --inline) | 执行单条 IR JSON (--file | --inline)", "demos"),
+    CommandInfo("workflow", cmd_run_workflow, "Run a workflow file step-by-step | 按步骤顺序运行工作流文件", "workflows"),
+    CommandInfo("list-workflows", cmd_list_workflows, "List example workflow JSON files | 列出示例工作流 JSON 文件", "workflows", aliases=("list_workflows",)),
+    CommandInfo("session", cmd_session, "Enhanced persistent session (supports 12 shortcut operations) | 增强型持久会话（支持12种操作快捷方式）", "interaction"),
+    CommandInfo("models-smoke", cmd_models_smoke, "Minimal model smoke test (embed + generate) | 最小模型冒烟测试（嵌入 + 生成）", "models", aliases=("models_smoke",)),
+    CommandInfo("setup-ollama", cmd_setup_ollama, "Pull default Ollama models | 拉取默认的 Ollama 模型", "ops"),
+    CommandInfo("setup-openai", cmd_setup_openai, "Generate .env for OpenAI usage | 生成 OpenAI 使用的 .env 文件", "ops"),
+    CommandInfo("test", cmd_test, "Run pytest or minimal smoke test | 运行 pytest 或最小冒烟测试", "ops"),
+)
+
+COMMAND_LOOKUP: Dict[str, CommandInfo] = {}
+for info in COMMAND_DEFINITIONS:
+    COMMAND_LOOKUP[info.name] = info
+    for alias in info.aliases:
+        COMMAND_LOOKUP[alias] = info
+
+
+def _command_names(info: CommandInfo) -> str:
+    names = [info.name, *info.aliases]
+    return ", ".join(names)
+
+
+def print_usage() -> None:
+    echo("Usage 用法: python manage.py <command> [options]")
+    echo("")
+    for key, label in COMMAND_GROUPS:
+        group_items = [info for info in COMMAND_DEFINITIONS if info.group == key]
+        if not group_items:
+            continue
+        echo(f"[{label}]")
+        for info in group_items:
+            names = _command_names(info)
+            echo(f"  {names:<28} {info.summary}")
+        echo("")
+    echo("Use 'python manage.py help <command>' for detailed instructions.")
+    echo("使用 'python manage.py help <command>' 查看详细说明。")
+    echo("")
+    echo("Examples 示例:")
+    echo("  python manage.py demo --mode mock")
+    echo("  python manage.py ir --mode mock --inline '{\"stage\":\"RET\",\"op\":...}'")
+    echo("  python manage.py session --mode mock --output full")
+
+
+def print_command_help(name: str) -> int:
+    info = COMMAND_LOOKUP.get(name)
+    if not info:
+        echo(f"Unknown command: {name} | 未知命令: {name}")
+        echo("Use 'python manage.py help' to see available commands.")
+        echo("使用 'python manage.py help' 查看可用命令。")
+        return 1
+    label = next((lbl for key, lbl in COMMAND_GROUPS if key == info.group), info.group)
+    echo(f"Command 命令: {_command_names(info)}")
+    echo(f"Group 分组: {label}")
+    echo(f"Summary 概要: {info.summary}")
+    details = _normalize_docstring(info.description or info.handler.__doc__)
+    if details:
+        echo("")
+        for line in details.splitlines():
+            echo(line)
+    return 0
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_usage()
+        return 1
+
+    cmd = sys.argv[1]
+    if cmd in ("help", "-h", "--help"):
+        target = sys.argv[2] if len(sys.argv) > 2 else None
+        if not target:
+            print_usage()
+            return 0
+        return print_command_help(target)
+
+    info = COMMAND_LOOKUP.get(cmd)
+    if not info:
+        echo(f"Unknown command: {cmd} | 未知命令: {cmd}")
+        echo("Use 'python manage.py help' to view available commands.")
+        echo("使用 'python manage.py help' 查看命令列表。")
+        return 2
+
+    result = info.handler()
+    return result if isinstance(result, int) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
