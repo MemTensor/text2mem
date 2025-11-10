@@ -13,13 +13,14 @@ _ENV_LOADED = False
 
 
 def load_env_vars() -> None:
+    """Load environment variables from .env file"""
     global _ENV_LOADED
     if _ENV_LOADED:
         return
     # core/config.py -> project root .env at ../../.env
     dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env"
     if not dotenv_path.exists():
-        logger.debug("未找到.env文件")
+        logger.debug(".env file not found")
         _ENV_LOADED = True
         return
     try:
@@ -40,7 +41,7 @@ def load_env_vars() -> None:
                     os.environ[key] = value
         _ENV_LOADED = True
     except Exception as e:
-        logger.warning(f"加载.env文件时出错: {e}")
+        logger.warning(f"Error loading .env file: {e}")
         _ENV_LOADED = True
 
 
@@ -49,6 +50,7 @@ load_env_vars()
 
 @dataclass
 class ModelConfig:
+    """Model Configuration"""
     # Global provider (applies to both unless explicitly overridden)
     provider: str = "ollama"
 
@@ -126,7 +128,7 @@ class ModelConfig:
             try:
                 models_map = json.loads(models_raw)
             except Exception as _e:
-                logger.warning("TEXT2MEM_MODELS 解析失败，将忽略该配置")
+                logger.warning("Failed to parse TEXT2MEM_MODELS, ignoring configuration")
                 models_map = None
 
         # Resolve embedding model & base_url
@@ -147,7 +149,7 @@ class ModelConfig:
                 embedding_model = embed_model_env or os.getenv("TEXT2MEM_OLLAMA_EMBEDDING_MODEL") or OLLAMA_DEFAULT_EMBED
                 ollama_base_url = os.getenv("TEXT2MEM_OLLAMA_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or os.getenv("TEXT2MEM_EMBEDDING_BASE_URL") or "http://localhost:11434"
             if embed_model_env and embed_model_env.startswith("text-embedding-"):
-                logger.warning("检测到 OpenAI 嵌入模型与 provider=ollama 不匹配，已回退为默认 ollama 嵌入模型")
+                logger.warning("Detected OpenAI embedding model mismatch with provider=ollama, falling back to default ollama embedding model")
                 embedding_model = OLLAMA_DEFAULT_EMBED
         else:  # openai
             if models_map and isinstance(models_map.get("openai"), dict):
@@ -158,7 +160,7 @@ class ModelConfig:
             # keep ollama base url around in case generation uses ollama
             ollama_base_url = os.getenv("TEXT2MEM_OLLAMA_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
             if embed_model_env and not embed_model_env.startswith("text-embedding-"):
-                logger.warning("检测到非 OpenAI 嵌入模型与 provider=openai 不匹配，已回退为默认 openai 嵌入模型")
+                logger.warning("Detected non-OpenAI embedding model mismatch with provider=openai, falling back to default openai embedding model")
                 embedding_model = OPENAI_DEFAULT_EMBED
 
         # Resolve generation model and ensure we have an ollama_base_url
@@ -171,7 +173,7 @@ class ModelConfig:
             if 'ollama_base_url' not in locals():
                 ollama_base_url = os.getenv("TEXT2MEM_OLLAMA_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or os.getenv("TEXT2MEM_GENERATION_BASE_URL") or "http://localhost:11434"
             if gen_model_env and gen_model_env.startswith("gpt-"):
-                logger.warning("检测到 OpenAI 生成模型与 provider=ollama 不匹配，已回退为默认 ollama 生成模型")
+                logger.warning("Detected OpenAI generation model mismatch with provider=ollama, falling back to default ollama generation model")
                 generation_model = OLLAMA_DEFAULT_GEN
         else:  # openai
             if models_map and isinstance(models_map.get("openai"), dict):
@@ -181,7 +183,7 @@ class ModelConfig:
             if 'ollama_base_url' not in locals():
                 ollama_base_url = os.getenv("TEXT2MEM_OLLAMA_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
             if gen_model_env and not gen_model_env.startswith("gpt-"):
-                logger.warning("检测到非 OpenAI 生成模型与 provider=openai 不匹配，已回退为默认 openai 生成模型")
+                logger.warning("Detected non-OpenAI generation model mismatch with provider=openai, falling back to default openai generation model")
                 generation_model = OPENAI_DEFAULT_GEN
 
         return cls(
@@ -247,7 +249,7 @@ class ModelConfig:
         api_key_value = api_key or os.getenv("OPENAI_API_KEY")
         api_base_value = api_base or os.getenv("OPENAI_API_BASE")
         if not api_key_value:
-            logger.warning("未设置OpenAI API密钥，请在.env文件或环境变量中设置OPENAI_API_KEY")
+            logger.warning("OpenAI API key not set, please set OPENAI_API_KEY in .env file or environment variables")
         return cls(
             provider="openai",
             embedding_provider="openai",

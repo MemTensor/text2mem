@@ -1,7 +1,7 @@
 """
-Text2Mem 核心引擎（core/engine.py）
+Text2Mem Core Engine (core/engine.py)
 
-负责协调适配器、模型验证和执行流程，集成LLM和嵌入模型服务。
+Responsible for coordinating adapters, model validation, and execution flow, integrating LLM and embedding model services.
 """
 from typing import Dict, Any, Optional
 import json
@@ -13,12 +13,12 @@ from .validate import validate_ir
 from text2mem.adapters.base import BaseAdapter, ExecutionResult
 from text2mem.services.models_service import ModelsService, get_models_service
 
-# 配置日志
+# Configure logging
 logger = logging.getLogger("text2mem.engine")
 
 
 class Text2MemEngine:
-    """Text2Mem 核心引擎"""
+    """Text2Mem Core Engine"""
 
     def __init__(
         self,
@@ -28,22 +28,22 @@ class Text2MemEngine:
         schema_path: Optional[str] = None,
         validate_schema: bool = False,
     ):
-        # 支持两种初始化方式：配置对象 或 直接传递适配器
+        # Support two initialization methods: config object or direct adapter
         if config is not None:
-            # 从配置创建适配器
+            # Create adapter from config
             from text2mem.adapters.sqlite_adapter import SQLiteAdapter
 
             self.adapter = SQLiteAdapter(config.database.path)
             self.models_service = models_service
         else:
-            # 传统方式
+            # Traditional method
             self.adapter = adapter
             self.models_service = models_service or get_models_service()
 
         self.logger = logging.getLogger("text2mem.engine")
         self._validate_schema = validate_schema
 
-        # 加载schema
+        # Load schema
         if schema_path is None:
             # core/engine.py -> ../../schema/text2mem-ir-v1.json
             schema_path = Path(__file__).resolve().parent.parent / "schema" / "text2mem-ir-v1.json"
@@ -52,39 +52,39 @@ class Text2MemEngine:
             self.schema = json.load(f)
 
         self.logger.info(
-            f"引擎初始化完成 - 适配器: {self.adapter.__class__.__name__}, "
-            f"模型服务: {self.models_service.__class__.__name__}"
+            f"Engine initialized - Adapter: {self.adapter.__class__.__name__}, "
+            f"Models service: {self.models_service.__class__.__name__}"
         )
 
     def set_models_service(self, models_service: ModelsService):
-        """设置模型服务"""
+        """Set model service"""
         self.models_service = models_service
-        self.logger.info(f"模型服务已更新: {models_service.__class__.__name__}")
+        self.logger.info(f"Models service updated: {models_service.__class__.__name__}")
 
     async def process_ir(self, ir: Dict[str, Any]):
-        """处理IR请求（异步版本）"""
+        """Process IR request (async version)"""
         try:
-            # 调用同步版本
+            # Call synchronous version
             result = self.execute(ir)
             return result
         except Exception as e:
-            self.logger.error(f"处理IR失败: {e}")
-            # 返回失败结果
+            self.logger.error(f"Failed to process IR: {e}")
+            # Return failure result
             return ExecutionResult(success=False, data={}, error=str(e))
 
     def execute(self, ir: Dict[str, Any]) -> Dict[str, Any]:
-        """执行IR操作"""
-        # 可选：执行Schema验证
+        """Execute IR operation"""
+        # Optional: perform schema validation
         if self._validate_schema:
             validation_result = validate_ir(ir, self.schema)
             if not validation_result.valid:
-                raise ValueError(f"IR验证失败: {validation_result.error}")
+                raise ValueError(f"IR validation failed: {validation_result.error}")
 
-        # 解析为IR对象
+        # Parse to IR object
         ir_obj = IR.model_validate(ir)
 
-        # 执行操作
+        # Execute operation
         result = self.adapter.execute(ir_obj)
 
-        self.logger.info(f"执行 {ir['op']} 操作完成")
+        self.logger.info(f"Executed {ir['op']} operation successfully")
         return result

@@ -94,16 +94,16 @@ class DummyGenerationModel(BaseGenerationModel):
     def __init__(self):
         self.model_name = "dummy-llm"
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
-        if "摘要" in prompt or "总结" in prompt:
-            response = "这是一个自动生成的摘要。实际应用中会调用真实的LLM API。"
-        elif "澄清" in prompt or "问题" in prompt:
-            response = "请提供更多详细信息以便我更好地理解您的需求。"
-        elif "标签" in prompt or "分类" in prompt:
-            response = "重要, 工作, 会议"
-        elif "分割" in prompt:
-            response = "建议在以下位置分割: [100, 250, 400]"
+        if "summary" in prompt or "summary" in prompt:
+            response = "This is an automatically generated summary. In actual use, real LLM API would be called."
+        elif "clarification" in prompt or "question" in prompt:
+            response = "Please provide more details so I can better understand your needs."
+        elif "tags" in prompt or "classification" in prompt:
+            response = "important, work, meeting"
+        elif "split" in prompt:
+            response = "Suggested split positions: [100, 250, 400]"
         else:
-            response = f"基于提示生成的响应: {prompt[:50]}..."
+            response = f"Response generated based on prompt: {prompt[:50]}..."
         return GenerationResult(
             text=response,
             model=self.model_name,
@@ -115,18 +115,18 @@ class DummyGenerationModel(BaseGenerationModel):
     def generate_structured(self, prompt: str, schema: Dict[str, Any], **kwargs) -> GenerationResult:
         if "clarify" in prompt.lower():
             structured_output = {
-                "question": "请提供更多详细信息",
-                "missing_slots": ["时间", "地点", "人物"],
-                "suggestions": ["今天", "明天", "办公室", "Alice", "Bob"],
+                "question": "Please provide more details",
+                "missing_slots": ["time", "location", "people"],
+                "suggestions": ["today", "tomorrow", "office", "Alice", "Bob"],
             }
         elif "summary" in prompt.lower():
             structured_output = {
-                "summary": "这是结构化摘要",
-                "key_points": ["要点1", "要点2", "要点3"],
+                "summary": "This is a structured summary",
+                "key_points": ["Point 1", "Point 2", "Point 3"],
                 "confidence": 0.8,
             }
         else:
-            structured_output = {"result": "结构化输出"}
+            structured_output = {"result": "structured output"}
         return GenerationResult(
             text=json.dumps(structured_output, ensure_ascii=False),
             model=self.model_name,
@@ -145,7 +145,7 @@ class ModelsService:
         self.debug_last_split_prompt = None
         self.debug_last_split_raw_output = None
         logger.info(
-            f"模型服务初始化: 嵌入模型={self.embedding_model.__class__.__name__}, 生成模型={self.generation_model.__class__.__name__}"
+            f"Model service initialized: embedding model={self.embedding_model.__class__.__name__}, generation model={self.generation_model.__class__.__name__}"
         )
 
     def encode_memory(self, text: str) -> EmbeddingResult:
@@ -153,7 +153,7 @@ class ModelsService:
 
     def compute_similarity(self, vector1: List[float], vector2: List[float]) -> float:
         if len(vector1) != len(vector2):
-            raise ValueError("向量维度不匹配")
+            raise ValueError("Vector dimension mismatch")
         dot_product = sum(a * b for a, b in zip(vector1, vector2))
         norm1 = sum(a * a for a in vector1) ** 0.5
         norm2 = sum(b * b for b in vector2) ** 0.5
@@ -176,13 +176,13 @@ class ModelsService:
         combined_text = "\n".join(texts)
         lang = (lang or "en").lower()
         if lang == "zh":
-            prompt = f"""请为以下内容生成摘要，最多{max_tokens}个token。
+            prompt = f"""Generate a summary for the following content, maximum {max_tokens} tokens.
 
-内容：
+Content:
 {combined_text}
 """
             if focus:
-                prompt += f"\n特别关注：{focus}"
+                prompt += f"\nSpecial focus: {focus}"
         else:
             prompt = f"""Summarize the following content concisely in up to {max_tokens} tokens.
 
@@ -196,12 +196,12 @@ Content:
     def suggest_labels(self, text: str, existing_labels: List[str] = None, lang: str | None = None) -> GenerationResult:
         lang = (lang or "en").lower()
         if lang == "zh":
-            prompt = f"""为以下内容建议3-5个标签，用逗号分隔。
+            prompt = f"""Suggest 3-5 tags for the following content, separated by commas.
 
-内容：{text}
+Content:{text}
 """
             if existing_labels:
-                prompt += f"\n已有标签：{', '.join(existing_labels)}"
+                prompt += f"\nExisting tags: {', '.join(existing_labels)}"
         else:
             prompt = f"""Suggest 3-5 labels for the following content, separated by commas.
 
@@ -214,12 +214,12 @@ Content: {text}
     def analyze_split_points(self, text: str, strategy: str = "auto_by_patterns", lang: str | None = None) -> GenerationResult:
         lang = (lang or "en").lower()
         if lang == "zh":
-            prompt = f"""分析以下文本的结构，建议分割点。策略：{strategy}
+            prompt = f"""Analyze the structure of the following text and suggest split points. Strategy: {strategy}
 
-文本：
+Text:
 {text}
 
-请返回分割位置的索引列表，例如：[100, 250, 400]
+Please return a list of split position indexes, for example: [100, 250, 400]
 """
         else:
             prompt = f"""Analyze the structure of the following text and suggest split points. Strategy: {strategy}
@@ -277,7 +277,7 @@ Return index positions for splits, e.g., [100, 250, 400]
         except Exception:
             # Fallback plain generate with an explicit instruction
             if lang and lang.lower() == "zh":
-                instr = "仅输出一个JSON{}，不要添加任何解释、注释或前后缀。".format("数组" if expect == "array" else "对象")
+                instr = "Output only one JSON{}, do not add any explanations, comments or prefix/suffix.".format("array" if expect == "array" else "object")
             else:
                 instr = "Output a JSON {} only, with no explanation or prefix/suffix.".format("array" if expect == "array" else "object")
             prompt2 = f"{prompt}\n\n{instr}"
@@ -316,11 +316,11 @@ Return index positions for splits, e.g., [100, 250, 400]
         # Preferred: structured JSON generation
         if lang == "zh":
             prompt = (
-                "请将下面的文本按指令切分为不超过 {n} 段，返回一个 JSON 数组。\n"
-                "每个元素为对象，字段：title(可选)、text(必填)、range(可选，原文中的[start,end]索引)。\n"
-                "指令：{instr}\n\n"
-                "文本：\n{content}\n"
-            ).format(n=max_splits, instr=(instruction or "按主题切分"), content=text)
+                "Split the following text according to instructions into no more than {n} segments, return a JSON array.\n"
+                "Each element is an object with fields: title(optional), text(required), range(optional, [start,end] index in original text).\n"
+                "Instruction: {instr}\n\n"
+                "Text:\n{content}\n"
+            ).format(n=max_splits, instr=(instruction or "Split by topic"), content=text)
         else:
             prompt = (
                 "Split the text into at most {n} segments according to the instruction and return a JSON array.\n"
@@ -379,7 +379,7 @@ Return index positions for splits, e.g., [100, 250, 400]
             plain_prompt = (
                 f"Split the following text into at most {max_splits} plain-text segments, one per line.\n\n{text}\n"
                 if lang != "zh"
-                else f"请将下面的文本切分为不超过 {max_splits} 段，按行输出纯文本。\n\n{text}\n"
+                else f"Please split the following text into no more than {max_splits}  segments, output plain text line by line.\n\n{text}\n"
             )
             self.debug_last_split_prompt = plain_prompt
             res = self.generation_model.generate(plain_prompt, max_tokens=min(256, max(64, len(text)//6)), lang=lang)
@@ -443,12 +443,12 @@ Return index positions for splits, e.g., [100, 250, 400]
     def assess_importance(self, text: str, context: Optional[str] = None, lang: str | None = None) -> GenerationResult:
         lang = (lang or "en").lower()
         if lang == "zh":
-            prompt = f"""评估以下内容的重要性等级（低/中/高/紧急）。
+            prompt = f"""Evaluate the importance level of the following content (low/medium/high/urgent).
 
-内容：{text}
+Content:{text}
 """
             if context:
-                prompt += f"\n上下文：{context}"
+                prompt += f"\nContext: {context}"
         else:
             prompt = f"""Assess the importance level of the following content (low/normal/high/urgent).
 
@@ -460,17 +460,17 @@ Content: {text}
 
 
 class PromptTemplates:
-    SUMMARIZE_TEMPLATE = """请为以下记忆内容生成简洁摘要：
+    SUMMARIZE_TEMPLATE = """Generate a concise summary for the following memory content:
 
-记忆内容：
+Memory Content:
 {content}
 
-要求：
-- 保留关键信息
-- 控制在{max_tokens}个token以内
+Requirements:
+- Preserve key information
+- Keep within {max_tokens} tokens
 {focus_instruction}
 
-摘要："""
+Summary:"""
 
 
 _models_service_instance: Optional[ModelsService] = None

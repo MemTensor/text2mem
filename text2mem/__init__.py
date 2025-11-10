@@ -1,7 +1,7 @@
 """
-Text2Mem: 一个简洁的本地记忆管理系统
+Text2Mem: A Concise Local Memory Management System
 
-提供本地记忆存储、检索和智能操作功能。
+Provides local memory storage, retrieval and intelligent operation capabilities.
 """
 
 __version__ = "0.1.0"

@@ -32,10 +32,10 @@ CREATE TABLE IF NOT EXISTS memory (
     weight REAL,
 
     -- Embedding
-    embedding TEXT,       -- JSON array, 原型先存 json
-    embedding_dim INTEGER,        -- 嵌入向量维度（用于兼容性检索）
-    embedding_model TEXT,         -- 嵌入模型名
-    embedding_provider TEXT,      -- 嵌入提供商（ollama/openai/dummy等）
+    embedding TEXT,       -- JSON array, store as json for prototype
+    embedding_dim INTEGER,        -- Embedding vector dimension (for compatibility retrieval)
+    embedding_model TEXT,         -- Embedding model name
+    embedding_provider TEXT,      -- Embedding provider (ollama/openai/dummy, etc.)
 
     -- Provenance & lifecycle
     source TEXT,
@@ -92,7 +92,7 @@ class SQLiteAdapter(BaseAdapter):
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(DDL)
         self.models_service = models_service or get_models_service()
-        self.virtual_now = virtual_now  # 虚拟"当前时间"，用于测试相对时间查询
+        self.virtual_now = virtual_now  # Virtual "current time" for testing relative time queries
         
         # Load search configuration from ModelConfig
         from text2mem.core.config import ModelConfig
@@ -113,7 +113,7 @@ class SQLiteAdapter(BaseAdapter):
             cur = self.conn.execute("PRAGMA table_info(memory)")
             existing = {row[1] for row in cur.fetchall()}
         except sqlite3.Error as exc:
-            logger.warning("无法获取 memory 表结构信息，跳过列迁移: %s", exc)
+            logger.warning("Unable to get memory table structure info, skipping column migration: %s", exc)
             return
 
         pending = {
@@ -130,7 +130,7 @@ class SQLiteAdapter(BaseAdapter):
             try:
                 self.conn.execute(sql)
             except sqlite3.OperationalError as exc:
-                logger.warning("新增列失败 %s: %s", column, exc)
+                logger.warning("Failed to add column %s: %s", column, exc)
         self.conn.commit()
 
     # ---------- lock helpers ----------
@@ -188,27 +188,27 @@ class SQLiteAdapter(BaseAdapter):
             # custom reviewer check
             reviewers = policy.get("reviewers") if isinstance(policy.get("reviewers"), list) else None
             if reviewers and actor not in reviewers:
-                raise PermissionError(f"记忆 {row_dict['id']} 已锁定，需要 reviewer 才能执行 {ir.op}")
+                raise PermissionError(f"Memory {row_dict['id']} is locked, requires reviewer to execute {ir.op}")
 
             if mode == "read_only":
-                raise PermissionError(f"记忆 {row_dict['id']} 已锁定为只读，无法执行 {ir.op}")
+                raise PermissionError(f"Memory {row_dict['id']} is locked as read-only, cannot execute {ir.op}")
             if mode == "no_delete" and ir.op == "Delete":
-                raise PermissionError(f"记忆 {row_dict['id']} 已锁定禁止删除")
+                raise PermissionError(f"Memory {row_dict['id']} is locked against deletion")
             if mode == "append_only" and ir.op in {"Update","Delete","Promote","Demote","Merge","Split","Lock","Expire"}:
-                raise PermissionError(f"记忆 {row_dict['id']} 锁定为 append_only，禁止执行 {ir.op}")
+                raise PermissionError(f"Memory {row_dict['id']} is locked as append_only, cannot execute {ir.op}")
             if mode == "custom":
                 allow = policy.get("allow") if isinstance(policy.get("allow"), list) else None
                 deny = policy.get("deny") if isinstance(policy.get("deny"), list) else None
                 if allow and ir.op not in allow:
-                    raise PermissionError(f"记忆 {row_dict['id']} 自定义策略仅允许 {allow}，不允许 {ir.op}")
+                    raise PermissionError(f"Memory {row_dict['id']} custom policy only allows {allow}, not {ir.op}")
                 if deny and ir.op in deny:
-                    raise PermissionError(f"记忆 {row_dict['id']} 自定义策略禁止 {ir.op}")
+                    raise PermissionError(f"Memory {row_dict['id']} custom policy denies {ir.op}")
 
     def _parse_iso_duration(self, duration: str) -> timedelta:
         pattern = r"P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?"
         match = re.fullmatch(pattern, duration)
         if not match:
-            raise ValueError(f"无效的 ISO8601 时长: {duration}")
+            raise ValueError(f"Invalid ISO8601 duration: {duration}")
         years, months, weeks, days, hours, minutes, seconds = match.groups()
         total = timedelta(0)
         if years:
@@ -269,7 +269,7 @@ class SQLiteAdapter(BaseAdapter):
         clauses: list[str] = []
         params: list[Any] = []
 
-        # ids: 单个或列表
+        # ids: single or list
         if target.ids is not None:
             ids = target.ids
             if isinstance(ids, list):
@@ -280,7 +280,7 @@ class SQLiteAdapter(BaseAdapter):
                 clauses.append("id = ?")
                 params.append(ids)
 
-        # filter: 支持 has_tags / not_tags / type / time_range（相对或绝对）以及扩展字段
+        # filter: supports has_tags / not_tags / type / time_range (relative or absolute) and extended fields
         if target.filter is not None:
             f: Filters = target.filter
             if f.has_tags:
@@ -301,7 +301,7 @@ class SQLiteAdapter(BaseAdapter):
                     params.extend([tr.start, tr.end])
                 elif getattr(tr, 'relative', None) and getattr(tr, 'amount', None) and getattr(tr, 'unit', None):
                     from datetime import datetime, timedelta, timezone
-                    # 使用虚拟时间（如果提供）或实际当前时间
+                    # Use virtual time (if provided) or actual current time
                     now = self.virtual_now if self.virtual_now else datetime.now(timezone.utc)
                     amount = int(tr.amount)
                     unit = tr.unit
@@ -361,7 +361,7 @@ class SQLiteAdapter(BaseAdapter):
                 clauses.append("expire_at IS NOT NULL AND expire_at > ?")
                 params.append(f.expire_after)
 
-        # all: 不加任何 where 条件
+        # all: no where conditions added
         if target.all:
             pass
 
@@ -490,22 +490,22 @@ class SQLiteAdapter(BaseAdapter):
     def _exec_encode(self, ir: IR, args: EncodeArgs) -> ExecutionResult:
         text_val = args.payload.text or (json.dumps(args.payload.structured, ensure_ascii=False) if args.payload.structured else None)
 
-        # 自动生成嵌入向量（如果未显式跳过）。安全策略：不接受外部直接提供的 embedding。
+        # Auto-generate embedding (if not explicitly skipped). Security policy: do not accept externally provided embedding directly.
         embedding_val = None
         embedding_dim = None
         embedding_model_name = None
         embedding_provider = None
         if text_val and not bool(getattr(args, 'skip_embedding', False)):
-            # 使用模型服务生成嵌入
+            # Use model service to generate embedding
             embedding_result = self.models_service.encode_memory(text_val)
             embedding_val = embedding_result.vector
             embedding_dim = getattr(embedding_result, "dimension", None) or (len(embedding_val) if embedding_val else None)
             embedding_model_name = getattr(embedding_result, "model_name", None) or getattr(embedding_result, "model", None)
-            # 尝试从模型实例推断提供商
+            # Try to infer provider from model instance
             try:
                 em = getattr(self.models_service, "embedding_model", None)
                 if em is not None:
-                    # 优先使用模型自带属性
+                    # Prefer model's own attributes
                     embedding_provider = getattr(em, "provider", None) or getattr(em, "provider_name", None)
                     if not embedding_provider:
                         cls = em.__class__.__name__.lower()
@@ -585,10 +585,10 @@ class SQLiteAdapter(BaseAdapter):
             ir.meta.lang.lower() if getattr(ir, "meta", None) and ir.meta.lang else os.getenv("TEXT2MEM_LANG", "en").lower()
         )
         
-        # 如果没有提供标签但有auto_generate_tags，自动生成标签
+        # If no tags provided but auto_generate_tags is set, generate tags automatically
         tags_to_use = args.tags
         if not tags_to_use and args.auto_generate_tags:
-            # 获取记忆内容来生成标签
+            # Get memory content to generate tags
             select_sql = f"SELECT text, tags FROM memory WHERE {wh}"
             if not (ir.meta and ir.meta.dry_run):
                 rows = self.conn.execute(select_sql, ps).fetchall()
@@ -598,7 +598,7 @@ class SQLiteAdapter(BaseAdapter):
                         if row["tags"]:
                             existing_tags.extend(json.loads(row["tags"]))
                     
-                    # 使用第一行内容生成标签
+                    # Use first row content to generate tags
                     text_content = rows[0]["text"]
                     if text_content:
                         label_result = self.models_service.suggest_labels(
@@ -606,18 +606,18 @@ class SQLiteAdapter(BaseAdapter):
                             existing_labels=list(set(existing_tags)),
                             lang=lang_pref,
                         )
-                        # 解析生成的标签
+                        # Parse generated tags
                         generated_labels = [tag.strip() for tag in label_result.text.split(',')]
                         tags_to_use = generated_labels
         
-        # 处理 tags
+        # Handle tags
         if tags_to_use:
             updates.append("tags = ?")
             vals.append(_json(tags_to_use))
         
-        # 处理 facets
+        # Handle facets
         if args.facets:
-            # 先获取现有 facets
+            # First get existing facets
             select_sql = f"SELECT facets FROM memory WHERE {wh}"
             if ir.meta and ir.meta.dry_run:
                 existing_facets = {}
@@ -626,17 +626,17 @@ class SQLiteAdapter(BaseAdapter):
                 if not rows:
                     return {"affected_rows": 0}
                 
-                # 获取第一行的 facets（作为示例）
+                # Get facets from first row (as example)
                 existing_facets = json.loads(rows[0]["facets"]) if rows[0]["facets"] else {}
             
-            # 合并 facets
+            # Merge facets
             new_facets = args.facets.model_dump(exclude_none=True)
             merged_facets = {**existing_facets, **new_facets}
             
             updates.append("facets = ?")
             vals.append(_json(merged_facets))
             
-            # 更新关联字段
+            # Update associated fields
             for key in ["subject", "time", "location", "topic"]:
                 if getattr(args.facets, key):
                     updates.append(f"{key} = ?")
@@ -677,8 +677,8 @@ class SQLiteAdapter(BaseAdapter):
                 else:
                     sets.append(f"{col}=?"); vals.append(_json(v))
             elif k == "embedding":
-                # 拒绝通过 Update 写入embedding，返回安全错误
-                raise ValueError("安全策略：禁止通过 Update 直接写入 embedding")
+                # Reject writing embedding through Update, return security error
+                raise ValueError("Security policy: direct embedding write through Update is prohibited")
             else:
                 if k == "weight":
                     try:
@@ -702,7 +702,7 @@ class SQLiteAdapter(BaseAdapter):
             raise ValueError(str(err))
         sets, vals = [], []
         
-        # 处理 weight 绝对值
+        # Handle weight absolute value
         if getattr(args, "weight", None) is not None:
             sets.append("weight = ?")
             w = args.weight
@@ -712,13 +712,13 @@ class SQLiteAdapter(BaseAdapter):
                 pass
             vals.append(w)
         
-        # 处理 weight_delta
+        # Handle weight_delta
         if args.weight_delta is not None:
-            # 先加，再夹紧
+            # Add first, then clamp
             sets.append("weight = MIN(1.0, MAX(0.0, COALESCE(weight, 0) + ?))")
             vals.append(args.weight_delta)
         
-        # 处理 remind
+        # Handle remind
         if args.remind:
             if "rrule" in args.remind:
                 sets.append("auto_frequency = ?")
@@ -750,12 +750,12 @@ class SQLiteAdapter(BaseAdapter):
             raise ValueError(str(err))
         sets, vals = [], []
         
-        # 处理 archive 参数（原型：降级为低权重）
+        # Handle archive parameter (prototype: downgrade to low weight)
         if args.archive:
-            # 原型实现：减小权重（并夹紧）
+            # Prototype implementation: reduce weight (and clamp)
             sets.append("weight = MAX(0.0, COALESCE(weight, 0) - 1.0)")
         
-        # 处理 weight 绝对值
+        # Handle weight absolute value
         if getattr(args, "weight", None) is not None:
             sets.append("weight = ?")
             w = args.weight
@@ -765,9 +765,9 @@ class SQLiteAdapter(BaseAdapter):
                 pass
             vals.append(w)
         
-        # 处理 weight_delta
+        # Handle weight_delta
         if args.weight_delta is not None:
-            # weight_delta 在 demote 中通常为负值；加后夹紧
+            # weight_delta in demote is usually negative; add then clamp
             sets.append("weight = MIN(1.0, MAX(0.0, COALESCE(weight, 0) + ?))")
             vals.append(args.weight_delta)
         
@@ -805,7 +805,7 @@ class SQLiteAdapter(BaseAdapter):
                     clauses.append("time >= ? AND time <= ?")
                     params.extend([tr.start, tr.end])
                 elif getattr(tr, "relative", None) and getattr(tr, "amount", None) and getattr(tr, "unit", None):
-                    # 使用虚拟时间（如果提供）或实际当前时间
+                    # Use virtual time (if provided) or actual current time
                     now = self.virtual_now if self.virtual_now else datetime.now(timezone.utc)
                     amount = int(tr.amount)
                     unit = tr.unit
@@ -860,10 +860,10 @@ class SQLiteAdapter(BaseAdapter):
         # For Summarize (RET operation), don't require explicit limit - allow overrides.k fallback
         wh, ps = self._where_from_target(ir.target, require_limit=False)
         
-        # 添加忽略已删除
+        # Add filter to ignore deleted
         wh = f"({wh}) AND deleted=0"
         
-        # 检索内容
+        # Retrieve content
         sql = f"SELECT id, text, topic, subject FROM memory WHERE {wh} ORDER BY time DESC"
         
         if ir.meta and ir.meta.dry_run:
@@ -880,7 +880,7 @@ class SQLiteAdapter(BaseAdapter):
         if not rows:
             return {"summary": "", "count": 0}
         
-        # 使用LLM生成摘要
+        # Use LLM to generate summary
         texts = []
         for row in rows:
             if row["text"]:
@@ -897,7 +897,7 @@ class SQLiteAdapter(BaseAdapter):
             model_name = getattr(summary_result, "model", None)
             usage = getattr(summary_result, "usage", None)
         else:
-            summary = "无可摘要的文本内容" if lang_pref == "zh" else "No text available for summarization"
+            summary = "No text available for summarization" if lang_pref == "zh" else "No text available for summarization"
             model_name = None
             usage = None
         
@@ -912,7 +912,7 @@ class SQLiteAdapter(BaseAdapter):
         }
 
     def _exec_merge(self, ir: IR, args: MergeArgs) -> ExecutionResult:
-        """合并记忆操作（仅支持 merge_into_primary）"""
+        """Merge memory operation (only supports merge_into_primary)"""
         wh, ps = self._where_from_target(ir.target)
         where_clause = f"({wh}) AND deleted=0"
         try:
@@ -920,37 +920,37 @@ class SQLiteAdapter(BaseAdapter):
         except PermissionError as err:
             raise ValueError(str(err))
 
-        # 获取目标记忆
+        # Get target memories
         sql = f"SELECT * FROM memory WHERE {where_clause}"
         rows = [dict(r) for r in self.conn.execute(sql, ps).fetchall()]
 
         if not rows:
-            return {"message": "没有找到需要合并的记忆", "merged_count": 0}
+            return {"message": "No memories found to merge", "merged_count": 0}
 
         if len(rows) < 2:
-            return {"message": "至少需要2条记忆才能进行合并", "merged_count": 0}
+            return {"message": "At least 2 memories required for merge", "merged_count": 0}
 
         if ir.meta and ir.meta.dry_run:
-            # 预览：若未跳过，将会对主记忆进行重嵌入
-            return {"message": f"模拟合并 {len(rows)} 条记忆", "strategy": "merge_into_primary", "would_reembed": (not getattr(args, 'skip_reembedding', False))}
+            # Preview: if not skipped, will re-embed primary memory
+            return {"message": f"Simulated merge of {len(rows)}  memories", "strategy": "merge_into_primary", "would_reembed": (not getattr(args, 'skip_reembedding', False))}
 
-        # 主记忆选择：显式 primary_id 或第一条（默认 "auto" 表示自动）
+        # Primary memory selection: explicit primary_id or first one (default "auto" means automatic)
         if args.primary_id in (None, "auto"):
             primary_id = str(rows[0]["id"])
         else:
             primary_id = str(args.primary_id)
         primary = next((r for r in rows if str(r["id"]) == primary_id), None)
         if not primary:
-            return {"error": f"找不到主记忆 ID: {primary_id}", "merged_count": 0}
+            return {"error": f"Primary memory ID not found: {primary_id}", "merged_count": 0}
 
-        # 合并文本内容
+        # Merge text content
         texts = [r.get("text") for r in rows if r.get("text") and str(r["id"]) != primary_id]
         if texts:
             base_text = primary.get("text") or ""
             merged_text = (base_text + ("\n\n" if base_text else "") + "\n".join(texts))
             self.conn.execute("UPDATE memory SET text = ? WHERE id = ?", (merged_text, primary_id))
 
-        # 处理其他子记忆删除方式
+        # Handle deletion method for other child memories
         other_ids = [r["id"] for r in rows if str(r["id"]) != primary_id]
         if other_ids:
             if args.soft_delete_children:
@@ -959,13 +959,13 @@ class SQLiteAdapter(BaseAdapter):
                 sql_del = "DELETE FROM memory WHERE id IN ({})".format(",".join("?" * len(other_ids)))
             self.conn.execute(sql_del, other_ids)
 
-        # 合并提交文本与删除
+        # Commit merged text and deletions
         self.conn.commit()
 
-        # 合并后重嵌入（除非明确跳过）
+        # Re-embed after merge (unless explicitly skipped)
         reembedded = False
         if not getattr(args, 'skip_reembedding', False):
-            # 读取主记忆当前文本
+            # Read current text of primary memory
             try:
                 row = self.conn.execute("SELECT id, text FROM memory WHERE id = ?", (primary_id,)).fetchone()
                 primary_text = row["text"] if row else None
@@ -974,7 +974,7 @@ class SQLiteAdapter(BaseAdapter):
                     emb_val = emb_res.vector
                     emb_dim = getattr(emb_res, "dimension", None) or (len(emb_val) if emb_val else None)
                     emb_model = getattr(emb_res, "model_name", None) or getattr(emb_res, "model", None)
-                    # 尝试推断提供商
+                    # Try to infer provider
                     emb_provider = None
                     try:
                         em = getattr(self.models_service, "embedding_model", None)
@@ -1000,24 +1000,24 @@ class SQLiteAdapter(BaseAdapter):
                     self.conn.commit()
                     reembedded = True
             except Exception:
-                # 安全起见，忽略重嵌入错误，不影响合并结果
+                # For safety, ignore re-embedding errors, doesn't affect merge result
                 reembedded = False
 
         return {"primary_id": primary_id, "merged_count": len(other_ids), "strategy": "merge_into_primary", "reembedded": reembedded}
 
     def _exec_split(self, ir: IR, args: SplitArgs) -> ExecutionResult:
-        """分割记忆操作（by_sentences | by_chunks | custom）"""
+        """Split memory operation (by_sentences | by_chunks | custom)"""
         wh, ps = self._where_from_target(ir.target)
 
-        # 获取目标记忆
+        # Get target memories
         sql = f"SELECT * FROM memory WHERE {wh} AND deleted=0"
         rows = [dict(r) for r in self.conn.execute(sql, ps).fetchall()]
 
         if not rows:
-            return {"message": "没有找到需要分割的记忆", "split_count": 0}
+            return {"message": "No memories found to split", "split_count": 0}
 
         if ir.meta and ir.meta.dry_run:
-            return {"message": f"模拟分割 {len(rows)} 条记忆", "strategy": args.strategy}
+            return {"message": f"Simulated split of {len(rows)}  memories", "strategy": args.strategy}
 
         params = args.params if isinstance(args.params, dict) else {}
 
@@ -1105,7 +1105,7 @@ class SQLiteAdapter(BaseAdapter):
             # 2) delegate to models service
             service_used = False
             try:
-                service_segments = self.models_service.split_custom(text, instruction or "按主题拆分", max_splits=max_splits)
+                service_segments = self.models_service.split_custom(text, instruction or "Split by topic", max_splits=max_splits)
                 service_used = True
             except Exception:
                 service_segments = []
@@ -1126,7 +1126,7 @@ class SQLiteAdapter(BaseAdapter):
 
             return ([{"text": text.strip()}], "custom:single")
 
-        # 处理各条目
+        # Process each item
         split_results = []
         for row in rows:
             text = row.get("text") or ""
@@ -1159,7 +1159,7 @@ class SQLiteAdapter(BaseAdapter):
                 max_splits = conf.get("max_splits") if conf else 10
                 splits, split_mode = split_custom(
                     text,
-                    instruction=instr or "按主题拆分",
+                    instruction=instr or "Split by topic",
                     max_splits=max_splits or 10,
                     force_model=bool(conf.get("force_model")) if conf else False,
                 )
@@ -1173,14 +1173,14 @@ class SQLiteAdapter(BaseAdapter):
             if not children or len(children) <= 1:
                 continue
 
-            # 构建并插入子记录
+            # Build and insert child records
             child_ids = []
             for child in children:
                 split_text = (child.get("text") or "").strip()
                 if not split_text:
                     continue
 
-                # 继承逻辑
+                # Inheritance logic
                 inherit = bool(getattr(args, 'inherit_all', True))
                 tags = json.loads(row["tags"]) if (inherit and row.get("tags")) else []
                 tags = tags if isinstance(tags, list) else []
@@ -1266,7 +1266,7 @@ class SQLiteAdapter(BaseAdapter):
         }
 
     def _exec_expire(self, ir: IR, args: ExpireArgs) -> ExecutionResult:
-        """设置记忆过期"""
+        """Set memory expiration"""
         wh, ps = self._where_from_target(ir.target)
         wh = f"({wh}) AND deleted=0"
 
@@ -1300,12 +1300,12 @@ class SQLiteAdapter(BaseAdapter):
         }
 
     # def _exec_clarify(self, ir: IR, args: ClarifyArgs) -> ExecutionResult:
-    #     """澄清操作"""
+    #     """Clarification operation"""
     #     
     #     if ir.meta and ir.meta.dry_run:
-    #         return {"message": "模拟澄清请求", "incomplete_input": args.incomplete_input}
+    #         return {"message": "Simulated clarification request", "incomplete_input": args.incomplete_input}
     #     
-    #     # 获取上下文信息（如果target指定了相关记忆）
+    #     # Get context information (if target specifies related memories)
     #     context = None
     #     if ir.target:
     #         wh, ps = self._where_from_target(ir.target)
@@ -1314,19 +1314,19 @@ class SQLiteAdapter(BaseAdapter):
     #         if context_rows:
     #             context = " ".join([row["text"] for row in context_rows if row["text"]])
     #     
-    #     # 使用LLM生成澄清问题
+    #     # Use LLM to generate clarification questions
     #     clarify_result = self.models_service.generate_clarification(
     #         args.incomplete_input,
     #         context=context
     #     )
     #     
     #     try:
-    #         # 解析结构化响应
+    #         # Parse structured response
     #         import json
     #         clarify_data = json.loads(clarify_result.text)
     #         
     #         response = {
-    #             "question": clarify_data.get("question", "请提供更多信息"),
+    #             "question": clarify_data.get("question", "Please provide more information"),
     #             "missing_slots": clarify_data.get("missing_slots", []),
     #             "suggestions": clarify_data.get("suggestions", []),
     #             "timeout": args.timeout,
@@ -1336,7 +1336,7 @@ class SQLiteAdapter(BaseAdapter):
 #                "model_used": True
 #            }
 #        except json.JSONDecodeError:
-#            # 如果解析失败，使用文本作为问题
+#            # If parsing fails, use text as question
 #            response = {
 #                "question": clarify_result.text,
 #                "missing_slots": [],
@@ -1351,7 +1351,7 @@ class SQLiteAdapter(BaseAdapter):
 #        return response
 
     def _exec_retrieve(self, ir: IR, args: RetrieveArgs) -> ExecutionResult:
-        # 检索：基于 target
+        # Retrieve: based on target
         target = ir.target
         base_target = target
         if target and target.search is not None:
@@ -1364,10 +1364,10 @@ class SQLiteAdapter(BaseAdapter):
                 base_kwargs["all"] = True
             base_target = Target(**base_kwargs) if base_kwargs else None  # type: ignore[arg-type]
         wh, ps = self._where_from_target(base_target)
-        # 忽略 deleted
+        # Ignore deleted
         wh = f"({wh}) AND deleted=0"
 
-    # 语义检索模式：当 target.search 存在
+    # Semantic retrieval mode: when target.search exists
         if target and target.search is not None:
             search = target.search
             intent = search.intent
@@ -1378,7 +1378,7 @@ class SQLiteAdapter(BaseAdapter):
             select_sql = f"SELECT id, text, embedding, embedding_dim, embedding_model, embedding_provider FROM memory WHERE {wh}"
             rows = self.conn.execute(select_sql, ps).fetchall()
 
-            # 收集向量
+            # Collect vectors
             memory_vectors = []
             try:
                 target_dim = self.models_service.embedding_model.get_dimension()
@@ -1394,20 +1394,20 @@ class SQLiteAdapter(BaseAdapter):
                     else:
                         skipped += 1
 
-            # 计算相似度排序（混合：语义 + 关键词）
+            # Calculate similarity ranking (hybrid: semantic + keyword)
             if not memory_vectors:
                 note = "no_embeddings"
                 if skipped:
                     note += f", skipped_incompatible_vectors={skipped}"
                 return {"rows": [], "count": 0, "mode": "semantic", "note": note}
 
-            # 根据意图选择查询向量
+            # Select query vector based on intent
             if intent.vector is not None:
                 query_vector = intent.vector
-                # 如果维度可获取，过滤不匹配
+                # If dimension available, filter mismatches
                 if target_dim is not None and len(query_vector) != target_dim:
                     return {"rows": [], "count": 0, "mode": "semantic", "note": "query_vector_dimension_mismatch"}
-                # 手动打分
+                # Manual scoring
                 scored = []
                 alpha = self.search_alpha
                 beta = self.search_beta
@@ -1423,9 +1423,9 @@ class SQLiteAdapter(BaseAdapter):
                 scored.sort(key=lambda x: x.get("similarity", 0), reverse=True)
                 search_results = scored[:limit]
             else:
-                # 通过服务的语义检索
+                # Semantic retrieval through service
                 base = self.models_service.semantic_search(intent.query, memory_vectors, k=limit)  # type: ignore
-                # 关键词加权重排
+                # Keyword weighted reranking
                 alpha = self.search_alpha
                 beta = self.search_beta
                 phrase_bonus = self.search_phrase_bonus
@@ -1457,7 +1457,7 @@ class SQLiteAdapter(BaseAdapter):
                 result["note"] = f"skipped_incompatible_vectors={skipped}"
             return result
 
-        # 传统过滤和排序
+        # Traditional filtering and sorting
         order_by = "time_desc"
         order_sql = {
             "time_desc": "time DESC",
@@ -1508,10 +1508,10 @@ class SQLiteAdapter(BaseAdapter):
             # elif ir.op == "Clarify":
             #     result = self._exec_clarify(ir, typed)  # type: ignore
             else:
-                # 其他操作给出占位，便于你逐步补全
+                # Placeholder for other operations for gradual completion
                 result = {"todo": f"{ir.op} not implemented in SQLiteAdapter prototype"}
             
-            # 将字典结果包装成ExecutionResult对象
+            # Wrap dict result into ExecutionResult object
             if isinstance(result, ExecutionResult):
                 return result
             else:
@@ -1521,29 +1521,29 @@ class SQLiteAdapter(BaseAdapter):
             return ExecutionResult(success=False, error=str(e), data=None, meta={})
             
     def close(self) -> None:
-        """关闭数据库连接"""
+        """Close database connection"""
         if hasattr(self, 'conn') and self.conn:
             self.conn.close()
             
     def get_table_stats(self) -> dict:
-        """获取数据库表统计信息"""
+        """Get database table statistics"""
         stats = {}
         try:
-            # 获取memory表的行数
+            # Get row count for memory table
             cur = self.conn.execute("SELECT COUNT(*) as count, SUM(CASE WHEN deleted=0 THEN 1 ELSE 0 END) as active FROM memory")
             row = cur.fetchone()
             stats["total_rows"] = row["count"] if row["count"] is not None else 0
             stats["active_rows"] = row["active"] if row["active"] is not None else 0
             
-            # 获取类型分布
+            # Get type distribution
             cur = self.conn.execute("SELECT type, COUNT(*) as count FROM memory WHERE deleted=0 GROUP BY type")
             stats["types"] = {row["type"] if row["type"] else "null": row["count"] for row in cur.fetchall()}
             
-            # 获取优先级分布
+            # Get priority distribution
             cur = self.conn.execute("SELECT CASE WHEN weight IS NULL THEN 'null' ELSE 'non_null' END as bucket, COUNT(*) as count FROM memory WHERE deleted=0 GROUP BY bucket")
             stats["weight_non_null"] = {row["bucket"]: row["count"] for row in cur.fetchall()}
             
-            # 获取标签统计（这只是一个近似值，因为tags存储为JSON）
+            # Get tag statistics (this is approximate since tags are stored as JSON)
             cur = self.conn.execute("SELECT id, tags FROM memory WHERE deleted=0 AND tags IS NOT NULL")
             tag_counts = {}
             for row in cur.fetchall():
@@ -1560,7 +1560,7 @@ class SQLiteAdapter(BaseAdapter):
             return {"error": str(e)}
     
     def dump_recent_rows(self, limit=5) -> list:
-        """获取最近添加的记录"""
+        """Get recently added records"""
         try:
             cur = self.conn.execute(
                 "SELECT id, text, type, tags, weight, deleted FROM memory ORDER BY id DESC LIMIT ?", 
@@ -1569,7 +1569,7 @@ class SQLiteAdapter(BaseAdapter):
             rows = []
             for row in cur.fetchall():
                 row_dict = dict(row)
-                # 格式化JSON字段以便于阅读
+                # Format JSON fields for readability
                 if row_dict["tags"]:
                     try:
                         row_dict["tags"] = json.loads(row_dict["tags"])
@@ -1582,20 +1582,20 @@ class SQLiteAdapter(BaseAdapter):
             
     def optimize_database(self) -> dict:
         """
-        执行数据库优化操作
+        Execute database optimization operations
         
-        包括:
-        1. 创建索引
-        2. 执行ANALYZE更新统计信息
-        3. 整理数据库结构(VACUUM)
+        Includes:
+        1. Create indexes
+        2. Execute ANALYZE to update statistics
+        3. Reorganize database structure (VACUUM)
         
         Returns:
-            dict: 操作结果
+            dict: Operation results
         """
         results = {}
         
         try:
-            # 1. 创建索引以加速查询
+            # 1. Create indexes to accelerate queries
             indexes = [
                 ("idx_memory_type", "CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(type)"),
                 ("idx_memory_deleted", "CREATE INDEX IF NOT EXISTS idx_memory_deleted ON memory(deleted)"),
@@ -1607,19 +1607,19 @@ class SQLiteAdapter(BaseAdapter):
                 start = datetime.now()
                 self.conn.execute(sql)
                 duration = (datetime.now() - start).total_seconds()
-                results[name] = {"status": "success", "time": f"{duration:.3f}秒"}
+                results[name] = {"status": "success", "time": f"{duration:.3f}s"}
             
-            # 2. 更新统计信息
+            # 2. Update statistics
             start = datetime.now()
             self.conn.execute("ANALYZE")
             duration = (datetime.now() - start).total_seconds()
-            results["analyze"] = {"status": "success", "time": f"{duration:.3f}秒"}
+            results["analyze"] = {"status": "success", "time": f"{duration:.3f}s"}
             
-            # 3. 清理结构
+            # 3. Clean up structure
             start = datetime.now()
             self.conn.execute("VACUUM")
             duration = (datetime.now() - start).total_seconds()
-            results["vacuum"] = {"status": "success", "time": f"{duration:.3f}秒"}
+            results["vacuum"] = {"status": "success", "time": f"{duration:.3f}s"}
             
             self.conn.commit()
             return results
@@ -1628,18 +1628,18 @@ class SQLiteAdapter(BaseAdapter):
             
     def get_database_info(self) -> dict:
         """
-        获取数据库详细信息
+        Get detailed database information
         
         Returns:
-            dict: 数据库信息
+            dict: Database information
         """
         info = {}
         try:
-            # SQLite版本
+            # SQLite version
             cur = self.conn.execute("SELECT sqlite_version()")
             info["sqlite_version"] = cur.fetchone()[0]
             
-            # 表结构
+            # Table structure
             tables = {}
             for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
                 table_name = row[0]
@@ -1653,7 +1653,7 @@ class SQLiteAdapter(BaseAdapter):
                     })
             info["tables"] = tables
             
-            # 索引
+            # Indexes
             indexes = {}
             for row in self.conn.execute("SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index'"):
                 index_name, table_name, sql = row
@@ -1665,7 +1665,7 @@ class SQLiteAdapter(BaseAdapter):
                 })
             info["indexes"] = indexes
             
-            # 数据库状态
+            # Database state
             info["pragma"] = {}
             for pragma in ["page_size", "page_count", "freelist_count", "auto_vacuum"]:
                 cur = self.conn.execute(f"PRAGMA {pragma}")

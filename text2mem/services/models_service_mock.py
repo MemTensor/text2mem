@@ -53,7 +53,7 @@ def _mock_value_from_schema(prop: Dict[str, Any], lang: str = "en") -> Any:
 
 	schema_type = (prop or {}).get("type")
 	if schema_type == "string":
-		return "模拟字符串" if lang == "zh" else "mock string"
+		return "mock string" if lang == "zh" else "mock string"
 	if schema_type == "number":
 		return 42
 	if schema_type == "integer":
@@ -78,7 +78,7 @@ class MockEmbeddingModel(BaseEmbeddingModel):
 		self.dimension = 384
 		self.provider = "mock"
 		self.provider_name = "mock"
-		logger.info("✅ Mock嵌入模型初始化: %s", model_name)
+		logger.info("✅ Mock embedding model initialized: %s", model_name)
 
 	def embed_text(self, text: str) -> EmbeddingResult:
 		import hashlib
@@ -107,18 +107,18 @@ class MockEmbeddingModel(BaseEmbeddingModel):
 class MockGenerationModel(BaseGenerationModel):
 	def __init__(self, model_name: str = "mock-generation"):
 		self.model_name = model_name
-		logger.info("✅ Mock生成模型初始化: %s", model_name)
+		logger.info("✅ Mock generation model initialized: %s", model_name)
 
 	def generate(self, prompt: str, **kwargs) -> GenerationResult:
 		lang = _resolve_lang(kwargs, prompt)
 		if lang == "zh":
 			responses = {
-				"summarize": "这是对文本的总结：文本讨论了重要概念和关键思想。",
-				"label": "技术, 创新, 研究",
-				"question": "这是对您问题的模拟回答。我是一个模拟模型，不提供真实的AI功能。",
-				"hello": "你好！我是Text2Mem的模拟模型。我可以帮助演示功能，但不提供实际的AI能力。",
+				"summarize": "This is a summary of the text: The text discusses important concepts and key ideas.",
+				"label": "technology, innovation, research",
+				"question": "This is a simulated answer to your question. I am a mock model and do not provide real AI functionality.",
+				"hello": "Hello! I am the Text2Mem mock model. I can help demonstrate features but do not provide actual AI capabilities.",
 			}
-			default_response = "这是一个模拟响应，用于演示功能。在实际使用中，这里会是真实的AI生成内容。"
+			default_response = "This is a mock response for feature demonstration. In actual use, this would be real AI-generated content."
 		else:
 			responses = {
 				"summarize": "This is a summary of the text: it discusses key concepts and main ideas.",
@@ -147,34 +147,34 @@ class MockGenerationModel(BaseGenerationModel):
 		import json
 
 		lang = _resolve_lang(kwargs, prompt)
-		if "切分" in prompt or "split" in prompt.lower():
+		if "split" in prompt or "split" in prompt.lower():
 			result = {
 				"splits": [
 					{
-						"title": "部分1" if lang == "zh" else "Part 1",
-						"text": "第一段内容……" if lang == "zh" else "First section...",
+						"title": "Part 1" if lang == "zh" else "Part 1",
+						"text": "First section content..." if lang == "zh" else "First section...",
 					},
 					{
-						"title": "第二节" if lang == "zh" else "Section 2",
-						"text": "第二段内容更长……" if lang == "zh" else "Second section is longer...",
+						"title": "Section 2" if lang == "zh" else "Section 2",
+						"text": "Second section content is longer..." if lang == "zh" else "Second section is longer...",
 					},
 					{
-						"title": "第三节" if lang == "zh" else "Section 3",
-						"text": "第三段内容。" if lang == "zh" else "Third section.",
+						"title": "Section 3" if lang == "zh" else "Section 3",
+						"text": "Third section content." if lang == "zh" else "Third section.",
 					},
 				]
 			}
 			response = json.dumps(result, ensure_ascii=False)
 		else:
-			if "label" in prompt.lower() or "标签" in prompt:
+			if "label" in prompt.lower() or "tags" in prompt:
 				result = {
-					"labels": ["技术", "创新", "研究"]
+					"labels": ["technology", "innovation", "research"]
 					if lang == "zh"
 					else ["technology", "innovation", "research"]
 				}
-			elif "summary" in prompt.lower() or "摘要" in prompt:
+			elif "summary" in prompt.lower() or "summary" in prompt:
 				result = {
-					"summary": "这是一段模拟的文本摘要。"
+					"summary": "This is a simulated text summary."
 					if lang == "zh"
 					else "This is a mock text summary."
 				}
@@ -186,7 +186,7 @@ class MockGenerationModel(BaseGenerationModel):
 					}
 				else:
 					result = {
-						"result": "模拟结构化响应" if lang == "zh" else "mock structured response"
+						"result": "mock structured response" if lang == "zh" else "mock structured response"
 					}
 			response = json.dumps(result, ensure_ascii=False)
 
@@ -206,7 +206,7 @@ class MockModelsService(ModelsService):
 	def __init__(self, config: Optional[ModelConfig] = None):
 		self.embedding_model = MockEmbeddingModel()
 		self.generation_model = MockGenerationModel()
-		logger.info("✅ Mock模型服务初始化完成 (deprecated path)")
+		logger.info("✅ Mock model service initialized (deprecated path)")
 
 
 def create_mock_models_service(
@@ -293,14 +293,14 @@ def create_models_service(
 			else:
 				resolved_mode = "mock"
 
-	logger.info("🔄 创建模型服务：%s 模式", resolved_mode)
+	logger.info("🔄 Creating model service: %s mode", resolved_mode)
 	if resolved_mode == "openai":
 		return create_openai_models_service(cfg)
 	if resolved_mode == "ollama":
 		return create_ollama_models_service(cfg)
 	if resolved_mode == "mock":
 		return create_mock_models_service(cfg)
-	raise ValueError(f"未知的模型服务模式: {resolved_mode}")
+	raise ValueError(f"Unknown model service mode: {resolved_mode}")
 
 
 def create_models_service_from_env() -> ModelsService:

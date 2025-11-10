@@ -25,11 +25,11 @@ class Meta(BaseModel):
                 from datetime import datetime
                 datetime.fromisoformat(v.replace('Z', '+00:00'))
             except ValueError:
-                raise ValueError(f"时间戳格式错误: '{v}' 不是有效的ISO8601格式")
+                raise ValueError(f"Invalid timestamp format: '{v}' is not a valid ISO8601 format")
         return v
 
 class Facets(BaseModel):
-    model_config = {"extra": "allow"}  # 允许额外字段
+    model_config = {"extra": "allow"}  # Allow extra fields
     
     subject: Optional[str] = None
     time: Optional[str] = None
@@ -38,17 +38,17 @@ class Facets(BaseModel):
     
     @model_validator(mode="after")
     def validate_non_empty(self):
-        # 检查是否有任何字段（包括额外字段）有值
-        # 使用 model_dump 获取所有字段（包括 extra 字段）
+        # Check if any field (including extra fields) has a value
+        # Use model_dump to get all fields (including extra fields)
         all_fields = self.model_dump(exclude_none=True)
         if not all_fields:
-            raise ValueError("特性集合至少需要提供一个字段")
+            raise ValueError("Facets must provide at least one field")
         if self.time:
             try:
                 from datetime import datetime
                 datetime.fromisoformat(self.time.replace('Z', '+00:00'))
             except ValueError:
-                raise ValueError(f"时间格式错误: '{self.time}' 不是有效的ISO8601格式")
+                raise ValueError(f"Invalid time format: '{self.time}' is not a valid ISO8601 format")
         return self
 
 class Filters(BaseModel):
@@ -73,7 +73,7 @@ class Filters(BaseModel):
     @classmethod
     def validate_limit(cls, v):
         if v is not None and v < 1:
-            raise ValueError("limit 必须大于或等于1")
+            raise ValueError("limit must be greater than or equal to 1")
         return v
 
 class TimeRange(BaseModel):
@@ -88,15 +88,15 @@ class TimeRange(BaseModel):
         abs_ok = self.start is not None and self.end is not None
         rel_ok = self.relative is not None and self.amount is not None and self.unit is not None
         if not (abs_ok or rel_ok):
-            raise ValueError("时间范围设置不完整。请提供: (1)start+end 或 (2)relative+amount+unit")
+            raise ValueError("Incomplete time range settings. Please provide: (1) start+end OR (2) relative+amount+unit")
         if abs_ok and rel_ok:
-            raise ValueError("时间范围设置冲突。请只提供一组: (1)start+end 或 (2)relative+amount+unit")
+            raise ValueError("Conflicting time range settings. Please provide only one set: (1) start+end OR (2) relative+amount+unit")
         if (self.start is not None and self.end is None) or (self.end is not None and self.start is None):
-            raise ValueError("使用绝对时间范围时，必须同时提供 start 和 end")
+            raise ValueError("When using absolute time range, both start and end must be provided")
         if (self.relative is not None or self.unit is not None) and self.amount is None:
-            raise ValueError("使用相对时间范围时，必须提供 amount（数量）")
+            raise ValueError("When using relative time range, amount must be provided")
         if self.amount is not None and (self.relative is None or self.unit is None):
-            raise ValueError("使用相对时间范围时，必须同时提供 relative 和 unit")
+            raise ValueError("When using relative time range, both relative and unit must be provided")
         return self
 
 class SearchIntent(BaseModel):
@@ -106,7 +106,7 @@ class SearchIntent(BaseModel):
     @model_validator(mode="after")
     def _one_of(self):
         if not ((self.query is not None) ^ (self.vector is not None)):
-            raise ValueError("search.intent 必须且只能设置 query 或 vector 其中之一")
+            raise ValueError("search.intent must set either query OR vector, but not both")
         return self
 
 class SearchOverrides(BaseModel):
@@ -134,11 +134,11 @@ class Target(BaseModel):
         has_all = bool(self.all)
         if has_all and (has_ids or has_filter or has_search):
             # Keep legacy error message for compatibility with tests
-            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
+            raise ValueError("target must choose exactly one of: ids | filter | search | all")
         if has_ids and (has_filter or has_search or has_all):
-            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
+            raise ValueError("target must choose exactly one of: ids | filter | search | all")
         if not (has_ids or has_filter or has_search or has_all):
-            raise ValueError("target 必须且只能在 ids | filter | search | all 中选择一种")
+            raise ValueError("target must choose exactly one of: ids | filter | search | all")
         return self
 
 class Embedding(RootModel):
@@ -157,7 +157,7 @@ class EncodePayload(BaseModel):
     def one_of(self):
         present = sum(v is not None for v in [self.text, self.url, self.structured])
         if present != 1:
-            raise ValueError("payload 必须且只能包含以下一种：text（文本） | url（网址） | structured（结构化数据）")
+            raise ValueError("payload must contain exactly one of: text | url | structured")
         return self
 
 class EncodeArgs(BaseModel):
@@ -190,7 +190,7 @@ class EncodeArgs(BaseModel):
                 from datetime import datetime
                 datetime.fromisoformat(self.time.replace('Z', '+00:00'))
             except ValueError:
-                raise ValueError(f"时间格式错误: '{self.time}' 不是有效的ISO8601格式")
+                raise ValueError(f"Invalid time format: '{self.time}' is not a valid ISO8601 format")
         return self
     
 
@@ -201,7 +201,7 @@ class LabelArgs(BaseModel):
     @model_validator(mode="after")
     def _at_least_one(self):
         if not self.tags and not self.facets and not self.auto_generate_tags:
-            raise ValueError("Label 操作至少需要提供 tags、facets 或 auto_generate_tags 中的一个")
+            raise ValueError("Label operation requires at least one of: tags, facets, or auto_generate_tags")
         return self
 
 class UpdateSet(BaseModel):
@@ -227,13 +227,13 @@ class UpdateSet(BaseModel):
     @model_validator(mode="after")
     def _non_empty(self):
         if not any(getattr(self, f) is not None for f in self.__class__.model_fields):
-            raise ValueError("Update.set 必须至少包含一个要更新的字段")
+            raise ValueError("Update.set must contain at least one field to update")
         return self
     @model_validator(mode="after")
     def _validate_weight_range(self):
         if self.weight is not None:
             if not (0.0 <= self.weight <= 1.0):
-                raise ValueError("Update.set.weight 必须在 [0,1] 区间内")
+                raise ValueError("Update.set.weight must be in range [0,1]")
         return self
     
 
@@ -242,7 +242,7 @@ class UpdateArgs(BaseModel):
     @model_validator(mode="after")
     def validate_updates(self):
         if not self.set:
-            raise ValueError("更新操作必须指定至少一个要更新的字段")
+            raise ValueError("Update operation must specify at least one field to update")
         return self
 
 class MergeArgs(BaseModel):
@@ -259,24 +259,24 @@ class PromoteArgs(BaseModel):
     def _one_of(self):
         provided = sum(1 for v in [self.weight is not None, self.weight_delta is not None, self.remind is not None] if v)
         if provided == 0:
-            raise ValueError("Promote 操作至少需要提供以下一种：weight（设置绝对权重） | weight_delta（权重调整） | remind（提醒）")
+            raise ValueError("Promote operation requires at least one of: weight (absolute) | weight_delta (adjustment) | remind")
         elif provided > 1:
-            raise ValueError("Promote 操作只能提供以下一种：weight（设置绝对权重） | weight_delta（权重调整） | remind（提醒）")
+            raise ValueError("Promote operation must specify only one of: weight (absolute) | weight_delta (adjustment) | remind")
         if self.remind and "rrule" not in self.remind:
-            raise ValueError("remind 必须包含 rrule 字段")
+            raise ValueError("remind must contain rrule field")
         return self
     @model_validator(mode="after")
     def _validate_weight_range(self):
         if self.weight is not None:
             if not (0.0 <= self.weight <= 1.0):
-                raise ValueError("Promote.weight 必须在 [0,1] 区间内")
+                raise ValueError("Promote.weight must be in range [0,1]")
         if self.weight_delta is not None:
             try:
                 delta = float(self.weight_delta)
             except (TypeError, ValueError):
-                raise ValueError("Promote.weight_delta 必须是数值类型")
+                raise ValueError("Promote.weight_delta must be numeric")
             if not (-1.0 <= delta <= 1.0):
-                raise ValueError("Promote.weight_delta 建议在 [-1,1] 区间内，以避免权重越界")
+                raise ValueError("Promote.weight_delta should be in range [-1,1] to avoid weight overflow")
         return self
 
 class DemoteArgs(BaseModel):
@@ -287,22 +287,22 @@ class DemoteArgs(BaseModel):
     def validate_operations(self):
         provided = sum(1 for v in [self.archive is not None, self.weight is not None, self.weight_delta is not None] if v)
         if provided == 0:
-            raise ValueError("Demote 操作至少需要提供以下一种：archive（归档） | weight（设置绝对权重） | weight_delta（权重调整）")
+            raise ValueError("Demote operation requires at least one of: archive | weight (absolute) | weight_delta (adjustment)")
         if provided > 1:
-            raise ValueError("Demote 操作只能提供以下一种：archive（归档） | weight（设置绝对权重） | weight_delta（权重调整）")
+            raise ValueError("Demote operation must specify only one of: archive | weight (absolute) | weight_delta (adjustment)")
         return self
     @model_validator(mode="after")
     def _validate_weight_range(self):
         if self.weight is not None:
             if not (0.0 <= self.weight <= 1.0):
-                raise ValueError("Demote.weight 必须在 [0,1] 区间内")
+                raise ValueError("Demote.weight must be in range [0,1]")
         if self.weight_delta is not None:
             try:
                 delta = float(self.weight_delta)
             except (TypeError, ValueError):
-                raise ValueError("Demote.weight_delta 必须是数值类型")
+                raise ValueError("Demote.weight_delta must be numeric")
             if not (-1.0 <= delta <= 1.0):
-                raise ValueError("Demote.weight_delta 建议在 [-1,1] 区间内，以避免权重越界")
+                raise ValueError("Demote.weight_delta should be in range [-1,1] to avoid weight overflow")
         return self
 
 class DeleteArgs(BaseModel):
@@ -328,7 +328,7 @@ class RetrieveArgs(BaseModel):
         ]
         for field in v:
             if field not in allowed_fields:
-                raise ValueError(f"include 包含无效字段: '{field}'。允许的字段: {', '.join(allowed_fields)}")
+                raise ValueError(f"include contains invalid field: '{field}'. Allowed fields: {', '.join(allowed_fields)}")
         return v
 
 class SummarizeArgs(BaseModel):
@@ -338,9 +338,9 @@ class SummarizeArgs(BaseModel):
     @classmethod
     def validate_max_tokens(cls, v):
         if v < 1:
-            raise ValueError("max_tokens 必须至少为1")
+            raise ValueError("max_tokens must be at least 1")
         if v > 2000:
-            raise ValueError("max_tokens 不建议超过2000，请考虑分段总结")
+            raise ValueError("max_tokens should not exceed 2000, consider using split summarization")
         return v
 
 class SplitArgs(BaseModel):
@@ -379,41 +379,41 @@ class SplitArgs(BaseModel):
             allowed = {"by_sentences", "by_chunks", "custom"}
             unknown = set(self.params.keys()) - allowed
             if unknown:
-                raise ValueError(f"params 仅支持键 {allowed}，发现无效: {unknown}")
+                raise ValueError(f"params only supports keys {allowed}, found invalid: {unknown}")
             # by_sentences
             if self.strategy == "by_sentences":
                 conf = self.params.get("by_sentences") if isinstance(self.params, dict) else None
                 if conf is not None:
                     lang = conf.get("lang")
                     if lang and lang not in {"zh","en","auto"}:
-                        raise ValueError("by_sentences.lang 只能为 zh|en|auto")
+                        raise ValueError("by_sentences.lang must be one of: zh|en|auto")
                     max_sent = conf.get("max_sentences")
                     if max_sent is not None and (not isinstance(max_sent, int) or max_sent < 1):
-                        raise ValueError("by_sentences.max_sentences 必须为 >=1 的整数")
+                        raise ValueError("by_sentences.max_sentences must be an integer >= 1")
             # by_chunks
             if self.strategy == "by_chunks":
                 conf = self.params.get("by_chunks") if isinstance(self.params, dict) else None
                 if conf is None:
-                    raise ValueError("by_chunks 策略要求提供 params.by_chunks 配置")
+                    raise ValueError("by_chunks strategy requires params.by_chunks configuration")
                 chunk = conf.get("chunk_size")
                 num = conf.get("num_chunks")
                 if chunk is None and num is None:
-                    raise ValueError("by_chunks 需要 chunk_size 或 num_chunks 之一")
+                    raise ValueError("by_chunks requires either chunk_size or num_chunks")
                 if chunk is not None and (not isinstance(chunk, int) or chunk < 50):
-                    raise ValueError("by_chunks.chunk_size 必须为 >=50 的整数")
+                    raise ValueError("by_chunks.chunk_size must be an integer >= 50")
                 if num is not None and (not isinstance(num, int) or num < 1):
-                    raise ValueError("by_chunks.num_chunks 必须为 >=1 的整数")
+                    raise ValueError("by_chunks.num_chunks must be an integer >= 1")
             # custom
             if self.strategy == "custom":
                 conf = self.params.get("custom") if isinstance(self.params, dict) else None
                 if conf is None:
-                    raise ValueError("custom 策略要求提供 params.custom 配置")
+                    raise ValueError("custom strategy requires params.custom configuration")
                 instr = conf.get("instruction")
                 if not instr or not isinstance(instr, str):
-                    raise ValueError("custom.instruction 必须提供且为字符串")
+                    raise ValueError("custom.instruction must be provided and be a string")
                 max_splits = conf.get("max_splits")
                 if max_splits is not None and (not isinstance(max_splits, int) or max_splits < 1):
-                    raise ValueError("custom.max_splits 必须为 >=1 的整数")
+                    raise ValueError("custom.max_splits must be an integer >= 1")
         return self
 
 class LockPolicy(BaseModel):
@@ -425,18 +425,18 @@ class LockPolicy(BaseModel):
     @model_validator(mode="after")
     def validate_policy(self):
         if self.allow is not None and not isinstance(self.allow, list):
-            raise ValueError("policy.allow 必须是操作列表")
+            raise ValueError("policy.allow must be a list of operations")
         if self.deny is not None and not isinstance(self.deny, list):
-            raise ValueError("policy.deny 必须是操作列表")
+            raise ValueError("policy.deny must be a list of operations")
         if self.reviewers is not None and not isinstance(self.reviewers, list):
-            raise ValueError("policy.reviewers 必须是字符串列表")
+            raise ValueError("policy.reviewers must be a list of strings")
         if self.expires:
             try:
                 from datetime import datetime
 
                 datetime.fromisoformat(self.expires.replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                raise ValueError("policy.expires 必须是有效的ISO8601格式时间")
+                raise ValueError("policy.expires must be a valid ISO8601 format timestamp")
         return self
 
 
@@ -448,7 +448,7 @@ class LockArgs(BaseModel):
     @model_validator(mode="after")
     def validate_custom_mode(self):
         if self.mode == "custom" and self.policy is None:
-            raise ValueError("Lock 模式为 custom 时必须提供 policy")
+            raise ValueError("Lock mode 'custom' requires a policy to be provided")
         return self
 
     def is_read_only(self) -> bool:
@@ -463,14 +463,14 @@ class ExpireArgs(BaseModel):
     @model_validator(mode="after")
     def _one_of(self):
         if not ((self.ttl is not None) ^ (self.expire_at is not None)):
-            raise ValueError("Expire 操作必须且只能提供以下一种：ttl（生存时间） | expire_at（过期日期）")
+            raise ValueError("Expire operation must provide exactly one of: ttl | expire_at")
         if self.expire_at:
             try:
                 from datetime import datetime
 
                 datetime.fromisoformat(self.expire_at.replace('Z', '+00:00'))
             except ValueError:
-                raise ValueError(f"过期日期格式错误: '{self.expire_at}' 不是有效的ISO8601格式")
+                raise ValueError(f"Invalid expiration date format: '{self.expire_at}' is not a valid ISO8601 format")
         return self
 
 class IR(BaseModel):
@@ -494,11 +494,11 @@ class IR(BaseModel):
         sto_ops = {"Label","Update","Merge","Promote","Demote","Delete","Split","Lock","Expire"}
         ret_ops = {"Retrieve","Summarize"}
         if self.op in enc_ops and self.stage != "ENC":
-            raise ValueError(f"操作类型 {self.op} 需要在 ENC 阶段执行")
+            raise ValueError(f"Operation {self.op} must be executed in ENC stage")
         if self.op in sto_ops and self.stage != "STO":
-            raise ValueError(f"操作类型 {self.op} 需要在 STO 阶段执行")
+            raise ValueError(f"Operation {self.op} must be executed in STO stage")
         if self.op in ret_ops and self.stage != "RET":
-            raise ValueError(f"操作类型 {self.op} 需要在 RET 阶段执行")
+            raise ValueError(f"Operation {self.op} must be executed in RET stage")
         return self
 
     @model_validator(mode="after")
@@ -510,14 +510,14 @@ class IR(BaseModel):
                 # Users can choose to add limit for safety, but it's not mandatory
                 if self.target.all:
                     if not (self.meta and (self.meta.dry_run or getattr(self.meta, 'confirmation', False))):
-                        raise ValueError("STO 阶段使用 target.all 时，必须设置 meta.dry_run=true 或 meta.confirmation=true")
+                        raise ValueError("STO stage using target.all requires meta.dry_run=true or meta.confirmation=true")
         return self
 
     @model_validator(mode="after")
     def _ret_safety(self):
         if self.op == "Retrieve" and self.target is None:
-            raise ValueError("Retrieve 操作必须提供 target")
+            raise ValueError("Retrieve operation must provide a target")
         if self.stage == "RET" and isinstance(self.target, Target) and self.target.all:
             if not (self.meta and getattr(self.meta, "confirmation", False)):
-                raise ValueError("RET 阶段使用 target.all 时，必须设置 meta.confirmation=true")
+                raise ValueError("RET stage using target.all requires meta.confirmation=true")
         return self

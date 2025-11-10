@@ -1,9 +1,9 @@
 # text2mem/adapters/base.py
 """
-Text2Mem 适配器基类模块
+Text2Mem Adapter Base Module
 
-该模块定义了适配器的接口规范和执行结果的数据结构。
-所有具体的适配器实现（如SQLite适配器、Memory API适配器）都应继承BaseAdapter。
+This module defines the interface specification for adapters and the data structure for execution results.
+All concrete adapter implementations (such as SQLite adapter, Memory API adapter) should inherit from BaseAdapter.
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
@@ -15,49 +15,49 @@ from text2mem.core.models import IR
 @dataclass
 class ExecutionResult:
     """
-    操作执行结果
+    Operation Execution Result
     
-    用于统一表示不同适配器的执行结果，包含成功状态、数据和错误信息。
+    Used to uniformly represent execution results from different adapters, including success status, data, and error messages.
     """
-    success: bool  # 操作是否成功
-    data: Optional[Any] = None  # 操作返回的数据
-    error: Optional[str] = None  # 错误信息
-    meta: Optional[Dict[str, Any]] = None  # 元数据（执行时间、SQL等）
+    success: bool  # Whether operation succeeded
+    data: Optional[Any] = None  # Data returned by operation
+    error: Optional[str] = None  # Error message
+    meta: Optional[Dict[str, Any]] = None  # Metadata (execution time, SQL, etc.)
     
     def __bool__(self) -> bool:
-        """允许直接用于条件表达式，检查操作是否成功"""
+        """Allow direct use in conditional expressions to check if operation succeeded"""
         return self.success
 
 
 class BaseAdapter(ABC):
     """
-    适配器基类
+    Adapter Base Class
     
-    定义了Text2Mem适配器的接口规范。
-    适配器负责将IR操作转换为具体的存储系统操作（如SQL查询、API调用）。
+    Defines the interface specification for Text2Mem adapters.
+    Adapters are responsible for converting IR operations into specific storage system operations (such as SQL queries, API calls).
     """
     
     @abstractmethod
     def execute(self, ir: IR) -> ExecutionResult:
         """
-        执行IR操作
+        Execute IR operation
         
         Args:
-            ir: 要执行的IR对象
+            ir: IR object to execute
             
         Returns:
-            ExecutionResult: 操作执行结果
+            ExecutionResult: Operation execution result
             
         Raises:
-            NotImplementedError: 当适配器不支持该操作时
+            NotImplementedError: When adapter does not support this operation
         """
         pass
     
     def close(self) -> None:
         """
-        关闭适配器连接
+        Close adapter connection
         
-        用于释放适配器持有的资源（如数据库连接）。
-        默认实现为空，具体适配器可以根据需要重写。
+        Used to release resources held by the adapter (such as database connections).
+        Default implementation is empty, specific adapters can override as needed.
         """
         pass

@@ -26,21 +26,21 @@ logger = logging.getLogger("text2mem.models_service_ollama")
 class OllamaEmbeddingModel(BaseEmbeddingModel):
     def __init__(self, model_name: str = "nomic-embed-text", base_url: str = "http://localhost:11434"):
         if not HAS_HTTPX:
-            raise ImportError("需要安装 httpx 以支持 Ollama API")
+            raise ImportError("httpx is required to support Ollama API")
         self.model_name = model_name
         self.base_url = base_url.rstrip('/')
         self.client = httpx.Client(timeout=60.0)
-        logger.info(f"✅ Ollama嵌入模型初始化: {model_name} @ {base_url}")
+        logger.info(f"✅ Ollama embedding model initialized: {model_name} @ {base_url}")
     def embed_text(self, text: str) -> EmbeddingResult:
         try:
             response = self.client.post(f"{self.base_url}/api/embeddings", json={"model": self.model_name, "prompt": text})
             response.raise_for_status()
             data = response.json()
             embedding = data["embedding"]
-            logger.debug(f"✅ Ollama嵌入生成完成，维度: {len(embedding)}")
+            logger.debug(f"✅ Ollama embedding generated, dimension: {len(embedding)}")
             return EmbeddingResult(text=text, embedding=embedding, model=self.model_name, tokens_used=len(text.split()))
         except Exception as e:
-            logger.error(f"❌ Ollama嵌入生成失败: {e}")
+            logger.error(f"❌ Ollama embedding generation failed: {e}")
             raise
     def embed_batch(self, texts: List[str]) -> List[EmbeddingResult]:
         return [self.embed_text(text) for text in texts]
@@ -60,16 +60,16 @@ class OllamaEmbeddingModel(BaseEmbeddingModel):
 class OllamaGenerationModel(BaseGenerationModel):
     def __init__(self, model_name: str = "qwen2:0.5b", base_url: str = "http://localhost:11434"):
         if not HAS_HTTPX:
-            raise ImportError("需要安装 httpx 以支持 Ollama API")
+            raise ImportError("httpx is required to support Ollama API")
         self.model_name = model_name
         self.base_url = base_url.rstrip('/')
         self.client = httpx.Client(timeout=120.0)
-        logger.info(f"✅ Ollama生成模型初始化: {model_name} @ {base_url}")
+        logger.info(f"✅ Ollama generation model initialized: {model_name} @ {base_url}")
     def generate(self, prompt: str, **kwargs) -> GenerationResult:
         try:
             lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
             if lang == "zh":
-                language_hint = "请使用中文回答。"
+                language_hint = "Please answer in Chinese."
             elif lang == "en":
                 language_hint = "Please respond in English."
             else:
@@ -96,7 +96,7 @@ class OllamaGenerationModel(BaseGenerationModel):
             generated_text = data["response"]
             prompt_tokens = len(prompt.split())
             completion_tokens = len(generated_text.split())
-            logger.debug(f"✅ Ollama文本生成完成，输出长度: {len(generated_text)}")
+            logger.debug(f"✅ Ollama text generation completed, output length: {len(generated_text)}")
             return GenerationResult(
                 text=generated_text.strip(),
                 model=self.model_name,
@@ -105,7 +105,7 @@ class OllamaGenerationModel(BaseGenerationModel):
                 total_tokens=prompt_tokens + completion_tokens,
             )
         except Exception as e:
-            logger.error(f"❌ Ollama文本生成失败: {e}")
+            logger.error(f"❌ Ollama text generation failed: {e}")
             raise
     def generate_structured(self, prompt: str, schema: Dict[str, Any], **kwargs) -> GenerationResult:
         """Ask Ollama to return strict JSON by enabling options.format=json.
@@ -117,17 +117,17 @@ class OllamaGenerationModel(BaseGenerationModel):
         """
         lang = (kwargs.get("lang") or os.getenv("TEXT2MEM_LANG") or "en").lower()
         if lang == "zh":
-            language_hint = "请使用中文回答。"
+            language_hint = "Please answer in Chinese."
         elif lang == "en":
             language_hint = "Please respond in English."
         else:
             language_hint = f"Please respond in {lang}."
 
-        # 统一用简洁提示，请求返回 JSON 数组（元素可包含 title/text/range），不强制输出给定schema
+        # Use concise prompt, request return JSON array (elements can contain title/text/range), not forcing given schema
         structured_prompt = (
             f"{prompt}\n\n"
-            f"仅输出一个 JSON 数组，不要添加任何解释、注释或前后缀。数组元素为对象，字段可包含：\n"
-            f"- title: 可选，字符串\n- text: 可选，字符串\n- range: 可选，[start,end] 两个整数，表示在原文中的范围\n"
+            f"Output only a JSON array, do not add any explanations, comments or prefix/suffix. Array elements are objects with possible fields:\n"
+            f"- title: optional, string\n- text: optional, string\n- range: optional, [start,end] two integers indicating range in original text\n"
         )
         structured_prompt = f"{language_hint}\n\n{structured_prompt}" if language_hint else structured_prompt
         try:
@@ -160,8 +160,8 @@ class OllamaGenerationModel(BaseGenerationModel):
                 total_tokens=prompt_tokens + completion_tokens,
             )
         except Exception as e:
-            logger.error(f"❌ Ollama结构化输出失败: {e}")
-            # 回退到普通生成（可能包含额外文本，由上层做更宽松解析）
+            logger.error(f"❌ Ollama structured output failed: {e}")
+            # Fallback to normal generation (may contain extra text, upper layer does looser parsing)
             return self.generate(structured_prompt, **kwargs)
 
 
@@ -180,10 +180,10 @@ class ModelFactory:
                     organization=config.openai_organization,
                 )
             except ImportError as e:
-                logger.error(f"❌ 导入OpenAI模块失败: {e}")
-                raise ImportError("使用OpenAI模型需要安装openai库: pip install openai")
+                logger.error(f"❌ Failed to import OpenAI module: {e}")
+                raise ImportError("Using OpenAI models requires openai library: pip install openai")
         else:
-            raise ValueError(f"不支持的嵌入提供商: {config.embedding_provider}")
+            raise ValueError(f"Unsupported embedding provider: {config.embedding_provider}")
 
     @staticmethod
     def create_generation_model(config: ModelConfig) -> BaseGenerationModel:
@@ -199,10 +199,10 @@ class ModelFactory:
                     organization=config.openai_organization,
                 )
             except ImportError as e:
-                logger.error(f"❌ 导入OpenAI模块失败: {e}")
-                raise ImportError("使用OpenAI模型需要安装openai库: pip install openai")
+                logger.error(f"❌ Failed to import OpenAI module: {e}")
+                raise ImportError("Using OpenAI models requires openai library: pip install openai")
         else:
-            raise ValueError(f"不支持的生成提供商: {config.generation_provider}")
+            raise ValueError(f"Unsupported generation provider: {config.generation_provider}")
 
 
 def create_models_service_from_config(config: ModelConfig) -> ModelsService:
