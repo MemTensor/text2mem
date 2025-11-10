@@ -1,16 +1,304 @@
-# Text2Mem 配置指南
+<div align="center">
 
-完整的环境配置、模型选择和参数设置说明。
+# Text2Mem Configuration Guide | Text2Mem 配置指南
+
+**Complete environment configuration, model selection, and parameter settings**  
+**完整的环境配置、模型选择和参数设置说明**
+
+</div>
 
 ---
 
+[English](#english) | [中文](#中文)
+
+---
+
+# English
+
+## Table of Contents
+
+- [Configuration Architecture](#configuration-architecture)
+- [Quick Setup](#quick-setup)
+- [Environment Variables](#environment-variables)
+- [Model Selection](#model-selection)
+- [Configuration Validation](#configuration-validation)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Configuration Architecture
+
+Text2Mem uses a **Provider and Service separation** architecture:
+
+- **Provider**: Provides model interfaces (EmbeddingModel / GenerationModel)
+  - Mock: Simulated models for testing
+  - Ollama: Locally running open-source models
+  - OpenAI: Cloud API service
+
+- **Service**: Encapsulates high-level capabilities
+  - encode (text encoding)
+  - semantic_search (semantic search)
+  - summarize (generate summary)
+  - label (label suggestion)
+  - split (text splitting)
+
+---
+
+## Quick Setup
+
+### Method 1: Using manage.py (Recommended)
+
+```bash
+# Mock mode (testing/development)
+python manage.py config --provider mock
+
+# Ollama mode (local running)
+python manage.py config --provider ollama \
+  --embed-model nomic-embed-text \
+  --gen-model qwen2.5:0.5b
+
+# OpenAI mode (cloud API)
+python manage.py config --provider openai \
+  --openai-key sk-xxx \
+  --embed-model text-embedding-3-small \
+  --gen-model gpt-4o-mini
+```
+
+### Method 2: Programmatic
+
+```python
+from text2mem.services.service_factory import create_models_service
+
+# Automatically select based on environment
+service = create_models_service(mode="auto")
+
+# Or force specify provider
+service = create_models_service(mode="openai")  # "mock" / "ollama" / "openai"
+```
+
+### Method 3: Manual .env Edit
+
+```bash
+# Copy template
+cp .env.example .env
+
+# Edit configuration
+nano .env
+```
+
+---
+
+## Environment Variables
+
+### Common Configuration
+
+Applicable to all Providers:
+
+| Variable | Description | Default |
+|---------|------|--------|
+| `TEXT2MEM_DB_PATH` | Database file path | `./text2mem.db` |
+| `TEXT2MEM_DB_WAL` | Enable WAL mode | `true` |
+| `TEXT2MEM_DB_TIMEOUT` | Database timeout(s) | `30` |
+| `TEXT2MEM_LOG_LEVEL` | Log level | `INFO` |
+| `TEXT2MEM_TEMPERATURE` | Generation temperature | `0.7` |
+| `TEXT2MEM_MAX_TOKENS` | Max generation tokens | `512` |
+| `TEXT2MEM_TOP_P` | Generation top-p sampling | `0.9` |
+
+### OpenAI Configuration
+
+| Variable | Description | Default |
+|---------|------|--------|
+| `OPENAI_API_KEY` | OpenAI API key | **Must set** |
+| `OPENAI_API_BASE` | Custom API endpoint | `https://api.openai.com/v1` |
+| `OPENAI_ORGANIZATION` | Organization ID | None |
+| `TEXT2MEM_EMBEDDING_PROVIDER` | Fixed to "openai" | `openai` |
+| `TEXT2MEM_EMBEDDING_MODEL` | Embedding model name | `text-embedding-3-small` |
+| `TEXT2MEM_GENERATION_PROVIDER` | Fixed to "openai" | `openai` |
+| `TEXT2MEM_GENERATION_MODEL` | Generation model name | `gpt-4o-mini` |
+
+### Ollama Configuration
+
+| Variable | Description | Default |
+|---------|------|--------|
+| `TEXT2MEM_EMBEDDING_PROVIDER` | Fixed to "ollama" | `ollama` |
+| `TEXT2MEM_EMBEDDING_MODEL` | Embedding model name | `nomic-embed-text` |
+| `TEXT2MEM_OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
+| `TEXT2MEM_GENERATION_PROVIDER` | Fixed to "ollama" | `ollama` |
+| `TEXT2MEM_GENERATION_MODEL` | Generation model name | `qwen2.5:0.5b` |
+
+### Mock Configuration
+
+Mock mode requires no additional configuration, automatically uses virtual models.
+
+---
+
+## Model Selection
+
+### OpenAI Recommended Models
+
+#### Embedding Models
+
+| Model | Dimensions | Features | Use Case |
+|-----|------|------|---------|
+| `text-embedding-3-small` | 1536 | **Recommended**, good performance, low cost | General |
+| `text-embedding-3-large` | 3072 | Higher precision, higher cost | High precision needs |
+| `text-embedding-ada-002` | 1536 | Legacy model | Compatibility |
+
+#### Generation Models
+
+| Model | Features | Use Case |
+|-----|------|---------|
+| `gpt-4o-mini` | **Recommended**, fast and low cost | General |
+| `gpt-4o` | Latest model, high quality output | High quality needs |
+| `gpt-4-turbo` | Newer model, balanced quality and cost | Balanced scenarios |
+| `gpt-3.5-turbo` | Fast response, lowest cost | Simple tasks |
+
+### Ollama Recommended Models
+
+#### Embedding Models
+
+| Model | Dimensions | Features |
+|-----|------|------|
+| `nomic-embed-text` | 768 | **Recommended**, good performance |
+| `mxbai-embed-large` | 1024 | Optional high-performance model |
+
+#### Generation Models
+
+| Model | Parameters | Features |
+|-----|-------|------|
+| `qwen2.5:0.5b` | 0.5B | **Recommended**, lightweight |
+| `llama3:8b` | 8B | High quality, needs more resources |
+| `mistral:7b` | 7B | Alternative option |
+
+---
+
+## Configuration Validation
+
+### Check Environment Status
+
+```bash
+python manage.py status
+```
+
+Output example:
+```
+============================================================
+📊 Text2Mem Environment Status
+============================================================
+
+[Environment File]
+  ✅ .env configured -> /path/to/.env
+
+[Model Configuration]
+  Provider: openai
+  Embedding model: openai:text-embedding-3-small
+  Generation model: openai:gpt-4o-mini
+  OpenAI API Key: ✅ Set
+
+[Database]
+  Path: ./text2mem.db
+  Status: ✅ Exists
+
+[Dependencies]
+  ollama: ✅ Available
+  pytest: ✅ Available
+```
+
+### View Model Details
+
+```bash
+python manage.py models-info
+```
+
+Output example:
+```
+============================================================
+🤖 Model Configuration Details
+============================================================
+
+[General Configuration]
+  Provider: openai
+
+[Embedding Model]
+  Provider: openai
+  Model: text-embedding-3-small
+
+[Generation Model]
+  Provider: openai
+  Model: gpt-4o-mini
+
+[OpenAI Configuration]
+  API Key: ✅ Set (sk-pYqTN...)
+  API Base: https://api.openai.com/v1
+```
+
+### Run Smoke Tests
+
+```bash
+# Test current configuration
+python manage.py models-smoke
+
+# Test specific provider
+python manage.py models-smoke openai
+python manage.py models-smoke ollama
+python manage.py models-smoke mock
+```
+
+---
+
+## Troubleshooting
+
+### OpenAI API Errors
+
+**Problem**: 401 Unauthorized
+
+**Solution**:
+```bash
+# Check API Key
+echo $OPENAI_API_KEY
+
+# Reset
+python manage.py config --provider openai --openai-key sk-xxx
+```
+
+### Ollama Connection Failed
+
+**Problem**: Connection refused
+
+**Solution**:
+```bash
+# Start Ollama service
+ollama serve
+
+# Check service status
+curl http://localhost:11434/api/version
+```
+
+### Model Not Found
+
+**Problem**: Model 'xxx' not found
+
+**Solution**:
+```bash
+# Ollama: Pull model
+python manage.py setup-ollama
+
+# OpenAI: Check model name
+python manage.py models-info
+```
+
+---
+
+# 中文
+
 ## 目录
 
-- [配置架构](#配置架构)
-- [快速配置](#快速配置)
-- [环境变量](#环境变量)
-- [模型选择](#模型选择)
-- [配置验证](#配置验证)
+- [配置架构](#配置架构-1)
+- [快速配置](#快速配置-1)
+- [环境变量](#环境变量-1)
+- [模型选择](#模型选择-1)
+- [配置验证](#配置验证-1)
+- [故障排除](#故障排除-1)
 
 ---
 
@@ -234,121 +522,6 @@ python manage.py models-smoke mock
 
 ---
 
-## 切换配置
-
-### 在不同 Provider 之间切换
-
-```bash
-# 切换到 Ollama
-python manage.py config --provider ollama
-
-# 切换到 OpenAI
-python manage.py config --provider openai --openai-key sk-xxx
-
-# 切换到 Mock
-python manage.py config --provider mock
-```
-
-### 更新单个环境变量
-
-```bash
-# 更新生成模型
-python manage.py set-env TEXT2MEM_GENERATION_MODEL gpt-4o
-
-# 更新嵌入模型
-python manage.py set-env TEXT2MEM_EMBEDDING_MODEL text-embedding-3-large
-
-# 更新数据库路径
-python manage.py set-env TEXT2MEM_DB_PATH /path/to/custom.db
-```
-
----
-
-## 语言与国际化 (i18n)
-
-### 默认语言
-
-- 默认输出语言：英语 (en)
-- 可通过环境变量全局设置
-
-### 配置方式
-
-```bash
-# 设置为中文
-export TEXT2MEM_LANG=zh
-
-# 设置为英文
-export TEXT2MEM_LANG=en
-```
-
-### 语言解析顺序
-
-1. 显式传入的 `meta.lang` 或调用参数 `lang`
-2. 环境变量 `TEXT2MEM_LANG`
-3. 自动检测输入是否包含中文
-4. 回落到英文 (en)
-
-### 使用示例
-
-```python
-# 全局设置中文
-import os
-os.environ['TEXT2MEM_LANG'] = 'zh'
-
-# 单次调用使用英文
-result = engine.execute({
-    "stage": "RET",
-    "op": "Retrieve",
-    "meta": {"lang": "en"}
-})
-```
-
----
-
-## Ollama 特殊说明
-
-### 安装 Ollama
-
-```bash
-# macOS
-brew install ollama
-
-# Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Windows
-# 下载安装包: https://ollama.com/download
-```
-
-### 启动 Ollama 服务
-
-```bash
-ollama serve
-```
-
-### 拉取模型
-
-```bash
-# 使用 manage.py (推荐)
-python manage.py setup-ollama
-
-# 或手动拉取
-ollama pull nomic-embed-text
-ollama pull qwen2.5:0.5b
-```
-
-### 验证 Ollama
-
-```bash
-# 检查服务状态
-curl http://localhost:11434/api/version
-
-# 列出已安装模型
-ollama list
-```
-
----
-
 ## 故障排除
 
 ### OpenAI API 错误
@@ -392,20 +565,10 @@ python manage.py models-info
 
 ---
 
-## 相关文档
+<div align="center">
 
-- [README.md](../README.md) - 项目主文档
-- [CHANGELOG.md](CHANGELOG.md) - 变更日志
-- [Environment Configuration Guide](ENVIRONMENT_CONFIGURATION.md) - 详细环境配置
+**Last Updated | 最后更新**: 2025-11-10
 
----
+[⬆ Back to top | 返回顶部](#text2mem-configuration-guide--text2mem-配置指南)
 
-## 帮助命令
-
-```bash
-# 查看所有配置命令
-python manage.py help config
-python manage.py help set-env
-python manage.py help setup-ollama
-python manage.py help setup-openai
-```
+</div>

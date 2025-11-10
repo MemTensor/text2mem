@@ -1,12 +1,313 @@
-# Benchmark 系统完整指南
+<div align="center">
+
+# Benchmark System Complete Guide | Benchmark 系统完整指南
+
+**Comprehensive guide for the Text2Mem benchmark system**  
+**Text2Mem 基准测试系统的完整使用指南**
+
+</div>
+
+---
+
+[English](#english) | [中文](#中文)
+
+---
+
+# English
+
+## 📋 Table of Contents
+
+1. [Quick Start](#quick-start)
+2. [Complete Workflow](#complete-workflow)
+3. [Command Reference](#command-reference)
+4. [Data Structure](#data-structure)
+5. [Common Questions](#common-questions)
+
+---
+
+## 🚀 Quick Start
+
+### First Time Use
+
+```bash
+# 1. View benchmark information
+./bench-cli info
+
+# 2. Run quick test (few seconds)
+./bench-cli run --mode mock -v
+
+# 3. View results
+./bench-cli show-result latest
+```
+
+### Daily Use
+
+```bash
+# Full test
+./bench-cli run --mode ollama -v
+
+# View history
+./bench-cli list-results
+
+# Compare results
+./bench-cli compare <id1> <id2>
+```
+
+---
+
+## 🔄 Complete Workflow
+
+### Workflow 1: Daily Testing
+
+```bash
+# 1. View benchmark
+./bench-cli info
+
+# 2. Run tests
+./bench-cli run --mode ollama -v
+
+# 3. View results
+./bench-cli show-result latest
+
+# 4. View historical trends
+./bench-cli list-results
+```
+
+### Workflow 2: Generate New Benchmark
+
+```bash
+# Step 1: Edit configuration (optional)
+nano bench/generate/config/generation_plan.yaml
+
+# Step 2: Generate data
+./bench-cli generate
+
+# Step 3: Validate quality
+./bench-cli validate <generation_id>
+./bench-cli validate <generation_id> --run-tests
+
+# Step 4: If quality is good, promote to official benchmark
+./bench-cli promote <generation_id>
+
+# Step 5: Test new benchmark
+./bench-cli run --mode ollama -v
+```
+
+### Workflow 3: Debugging Issues
+
+```bash
+# Test specific operations only
+./bench-cli run --schema-filter Encode -v
+
+# View failure details
+./bench-cli show-result latest --show-failed
+
+# Test Chinese only
+./bench-cli run --filter "lang:zh" -v
+```
+
+---
+
+## 📖 Command Reference
+
+### `run` - Run Tests
+
+```bash
+./bench-cli run [OPTIONS]
+
+Options:
+  --mode MODE              Test mode: auto/mock/ollama/openai
+  --filter EXPR            Sample filter: "lang:zh" or "lang:en"
+  --schema-filter OPS      Operation filter: "Encode,Retrieve"
+  --schema-indices IDS     Index filter: "0,2"
+  --timeout SECONDS        Timeout setting
+  --output-id ID           Result ID
+  --verbose, -v            Verbose output
+
+Examples:
+  ./bench-cli run --mode mock -v              # Mock quick test
+  ./bench-cli run --mode ollama -v            # Ollama full test
+  ./bench-cli run --filter "lang:zh" -v       # Chinese only
+  ./bench-cli run --schema-filter Encode -v   # Encode only
+```
+
+### `generate` - Generate New Benchmark
+
+```bash
+./bench-cli generate [OPTIONS]
+
+Options:
+  --config FILE            Configuration file path
+  --output-id ID           Output ID
+  --use-generation-dir     Use generation/ directory
+
+Examples:
+  ./bench-cli generate                        # Use default config
+  ./bench-cli generate --config my_plan.yaml  # Use custom config
+```
+
+### `validate` - Validate Data
+
+```bash
+./bench-cli validate <generation_id> [OPTIONS]
+
+Options:
+  --run-tests              Run test validation
+  --verbose, -v            Verbose output
+
+Examples:
+  ./bench-cli validate 20251110_100000               # Quick stats
+  ./bench-cli validate 20251110_100000 --run-tests   # Full validation
+```
+
+### `promote` - Promote to Benchmark
+
+```bash
+./bench-cli promote <generation_id> [OPTIONS]
+
+Options:
+  --yes, -y                Skip confirmation
+  --notes TEXT             Notes
+
+Examples:
+  ./bench-cli promote 20251110_100000                    # Promote (needs confirmation)
+  ./bench-cli promote 20251110_100000 -y                 # Skip confirmation
+  ./bench-cli promote 20251110_100000 --notes "v2.0"
+```
+
+**Warning**: This operation will replace the current benchmark, but will automatically backup to `archive/`.
+
+### `list-results` - List Results
+
+```bash
+./bench-cli list-results [--limit N]
+
+Examples:
+  ./bench-cli list-results            # Show recent 20
+  ./bench-cli list-results --limit 5  # Show recent 5
+```
+
+### `show-result` - Show Details
+
+```bash
+./bench-cli show-result <result_id> [--show-failed]
+
+Examples:
+  ./bench-cli show-result latest                 # Latest result
+  ./bench-cli show-result 20251110_130000        # Specific result
+  ./bench-cli show-result latest --show-failed   # Show failed samples
+```
+
+### `compare` - Compare Results
+
+```bash
+./bench-cli compare <result_id1> <result_id2>
+
+Examples:
+  ./bench-cli compare 20251110_130000 20251110_140000
+```
+
+### `info` - Benchmark Information
+
+```bash
+./bench-cli info
+
+Shows statistics of current benchmark
+```
+
+---
+
+## 📊 Data Structure
+
+### Complete Directory Structure
+
+```
+bench/data/
+├── benchmark/          # Current benchmark in use
+│   ├── benchmark.jsonl # Test samples
+│   ├── metadata.json   # Metadata
+│   └── stats.json      # Statistics
+│
+├── results/            # Test history
+│   ├── 20251110_130000/
+│   │   ├── config.json
+│   │   ├── report.json
+│   │   ├── passed.jsonl
+│   │   └── failed.jsonl
+│   └── latest -> 20251110_130000
+│
+├── raw/                # Generated raw data
+│   └── 20251110_100000/
+│       ├── stage1.jsonl
+│       ├── stage2.jsonl
+│       └── stage3.jsonl
+│
+├── generation/         # Generation workspace (optional)
+└── archive/            # Backups
+    └── benchmark_backup_*/
+```
+
+---
+
+## ❓ Common Questions
+
+### Q: How to generate new benchmark?
+
+A: Complete workflow:
+```bash
+./bench-cli generate
+./bench-cli validate <id> --run-tests
+./bench-cli promote <id>
+```
+
+### Q: How to run tests?
+
+A: 
+```bash
+./bench-cli run --mode ollama -v
+```
+
+### Q: How to view latest test results?
+
+A: 
+```bash
+./bench-cli show-result latest
+```
+
+### Q: Will promoting benchmark overwrite?
+
+A: Yes, but the system automatically backs up to `bench/data/archive/`
+
+### Q: How to restore old benchmark?
+
+A: Copy from `bench/data/archive/benchmark_backup_*/` back to `bench/data/benchmark/`
+
+### Q: Difference between Mock/Ollama/OpenAI modes?
+
+A:
+- **Mock**: Fastest, for quick validation, not realistic
+- **Ollama**: Needs local models, realistic testing
+- **OpenAI**: Needs API key, realistic testing
+
+### Q: How to test only some samples?
+
+A: Use filter parameters:
+```bash
+--filter "lang:zh"              # Chinese only
+--schema-filter Encode,Retrieve # Specific operations only
+```
+
+---
+
+# 中文
 
 ## 📋 目录
 
-1. [快速开始](#快速开始)
-2. [完整工作流](#完整工作流)
-3. [命令参考](#命令参考)
-4. [数据结构](#数据结构)
-5. [常见问题](#常见问题)
+1. [快速开始](#快速开始-1)
+2. [完整工作流](#完整工作流-1)
+3. [命令参考](#命令参考-1)
+4. [数据结构](#数据结构-1)
+5. [常见问题](#常见问题-1)
 
 ---
 
@@ -113,7 +414,7 @@ nano bench/generate/config/generation_plan.yaml
   ./bench-cli run --mode mock -v              # Mock 快速测试
   ./bench-cli run --mode ollama -v            # Ollama 完整测试
   ./bench-cli run --filter "lang:zh" -v       # 只测中文
-  ./bench-cli run --schema-filter Encode -v  # 只测 Encode
+  ./bench-cli run --schema-filter Encode -v   # 只测 Encode
 ```
 
 ### `generate` - 生成新 benchmark
@@ -128,7 +429,7 @@ nano bench/generate/config/generation_plan.yaml
 
 示例:
   ./bench-cli generate                        # 使用默认配置
-  ./bench-cli generate --config my_plan.yaml # 使用自定义配置
+  ./bench-cli generate --config my_plan.yaml  # 使用自定义配置
 ```
 
 ### `validate` - 验证数据
@@ -142,7 +443,7 @@ nano bench/generate/config/generation_plan.yaml
 
 示例:
   ./bench-cli validate 20251110_100000               # 快速统计
-  ./bench-cli validate 20251110_100000 --run-tests  # 完整验证
+  ./bench-cli validate 20251110_100000 --run-tests   # 完整验证
 ```
 
 ### `promote` - 提升为 benchmark
@@ -179,7 +480,7 @@ nano bench/generate/config/generation_plan.yaml
 
 示例:
   ./bench-cli show-result latest                 # 最新结果
-  ./bench-cli show-result 20251110_130000         # 特定结果
+  ./bench-cli show-result 20251110_130000        # 特定结果
   ./bench-cli show-result latest --show-failed   # 显示失败样本
 ```
 
@@ -232,101 +533,6 @@ bench/data/
     └── benchmark_backup_*/
 ```
 
-### benchmark/
-
-**当前使用的测试标准**
-
-- `benchmark.jsonl` - 所有测试样本
-- `metadata.json` - 创建时间、来源等
-- `stats.json` - 语言、操作分布统计
-
-### results/
-
-**测试历史记录**
-
-每次运行 `./bench-cli run` 都会创建新目录：
-
-- `config.json` - 测试配置
-- `report.json` - 测试报告（通过率、分组统计）
-- `passed.jsonl` - 通过的样本 ID
-- `failed.jsonl` - 失败的样本和错误信息
-- `latest` - 软链接指向最新结果
-
-### raw/
-
-**生成的原始数据**
-
-运行 `./bench-cli generate` 的输出：
-
-- `stage1.jsonl` - NL 自然语言指令
-- `stage2.jsonl` - IR 中间表示
-- `stage3.jsonl` - Expected 期望结果
-
-### archive/
-
-**自动备份**
-
-每次 `./bench-cli promote` 都会自动备份当前 benchmark。
-
----
-
-## 💡 使用场景
-
-### 场景 1: 每日测试
-
-```bash
-# 早上快速验证
-./bench-cli run --mode mock -v
-
-# 下午完整测试
-./bench-cli run --mode ollama -v
-
-# 查看历史趋势
-./bench-cli list-results
-```
-
-### 场景 2: 生成新版本
-
-```bash
-# 1. 编辑配置
-nano bench/generate/config/generation_plan.yaml
-
-# 2. 生成
-./bench-cli generate
-
-# 3. 验证（假设 ID 为 20251110_150000）
-./bench-cli validate 20251110_150000 --run-tests
-
-# 4. 如果质量好，提升
-./bench-cli promote 20251110_150000
-
-# 5. 测试新 benchmark
-./bench-cli run --mode ollama -v
-```
-
-### 场景 3: 调试问题
-
-```bash
-# 只测试有问题的操作
-./bench-cli run --schema-filter Encode -v
-
-# 查看失败详情
-./bench-cli show-result latest --show-failed
-```
-
-### 场景 4: A/B 测试
-
-```bash
-# 测试配置 A
-./bench-cli run --mode ollama --output-id test_a -v
-
-# 测试配置 B
-./bench-cli run --mode openai --output-id test_b -v
-
-# 对比结果
-./bench-cli compare test_a test_b
-```
-
 ---
 
 ## ❓ 常见问题
@@ -377,43 +583,13 @@ A: 使用过滤参数：
 --schema-filter Encode,Retrieve # 只测特定操作
 ```
 
-### Q: 可以删除旧的测试结果吗？
-
-A: 可以，直接删除 `bench/data/results/` 下的对应目录
-
 ---
 
-## ⚠️ 注意事项
+<div align="center">
 
-### 生成 benchmark 前
+**System Version | 系统版本**: v1.0  
+**Last Updated | 最后更新**: 2025-11-10
 
-1. 确保配置文件正确: `bench/generate/config/generation_plan.yaml`
-2. 确保有足够的 API 配额（OpenAI）
-3. 生成过程可能需要较长时间
+[⬆ Back to top | 返回顶部](#benchmark-system-complete-guide--benchmark-系统完整指南)
 
-### 提升 benchmark 前
-
-1. 务必先验证: `./bench-cli validate <id> --run-tests`
-2. 检查通过率是否合理 (建议 > 50%)
-3. 确认数据分布符合预期
-
-### 运行测试时
-
-1. Mock 模式最快，但不真实
-2. Ollama 模式需要本地模型运行
-3. OpenAI 模式需要 API key
-
----
-
-## 📁 重要文件
-
-- **配置**: `bench/generate/config/generation_plan.yaml`
-- **Benchmark**: `bench/data/benchmark/benchmark.jsonl`
-- **测试结果**: `bench/data/results/`
-- **生成数据**: `bench/data/raw/`
-- **备份**: `bench/data/archive/`
-
----
-
-**系统版本**: v1.0  
-**最后更新**: 2025-11-10
+</div>

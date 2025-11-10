@@ -1,6 +1,133 @@
-# Text2Mem 变更日志
+<div align="center">
+
+# Text2Mem Changelog | Text2Mem 变更日志
+
+**Version history and release notes**  
+**版本历史和发布说明**
+
+</div>
+
+---
+
+# English | 英文
+
+## [Unreleased] - 2025-01-26
+
+### CLI Modernization
+
+- **Refactored manage.py**: Comprehensive command structure and UX optimization
+  - Improved code style, PEP 8 compliant
+  - Reorganized command groups (Core Config / Feature Demo / Workflow Execution / Interactive Mode / Model Management / Operations Tools)
+  - Enhanced command features:
+    - `config`: Added `--db-path` parameter, updated default model versions
+    - `test`: Added `-v/--verbose`, `-k/--keyword`, `--smoke` parameters
+    - `demo`: Added `--verbose` parameter, improved error handling and statistics
+    - `workflow`: Added `--verbose` parameter, detailed step information
+    - `models-smoke`: Beautified output format, added troubleshooting guide
+    - `setup-ollama`: Improved download progress indication
+  - Unified output format with separators and emoji icons
+  - All commands maintain backward compatibility
+
+### Documentation Consolidation
+
+- **bench/ Documentation Cleanup**:
+  - Merged `QUICKSTART.md` + `QUICK_REFERENCE.md` → `GUIDE.md` (unified entry point)
+  - Kept `README.md` (project overview)
+  - All documentation converted to bilingual (Chinese-English)
+- **docs/ Documentation Optimization**:
+  - Enhanced `CONFIGURATION.md` (clearer configuration guide)
+  - Kept `CHANGELOG.md` (this file)
+  - Converted all files to bilingual format
+- **Documentation Structure**:
+  - Root directory: `README.md` (main project documentation)
+  - `docs/`: Configuration and changelog
+  - `bench/`: Benchmark-related documentation
+  - `examples/`: Example descriptions
+- **Reduced Duplication**: Core documentation now bilingual and streamlined
+
+### Benchmark Testing Framework
+
+- Completed v1.3 refactor, all tests start from empty table
+- Use prerequisites to dynamically prepare data, 96% performance improvement
+- Removed pre-filled database dependency, 88% codebase reduction
+
+## [1.1.0] - 2025-01-05
+
+### CLI Optimization
+
+- **Optimized manage.py**: Removed redundant commands, enhanced core functionality
+  - Removed `features` command (duplicate functionality, use `demo` instead)
+  - Removed `repl` command (incomplete functionality, use `session` instead)
+  - Marked `bench-*` commands as in-development status
+  - **Enhanced session command**: Expanded from 3 to all 12 IR operations
+    - Original: encode, retrieve, summarize
+    - New: label, update, delete, promote, demote, lock, merge, split, expire
+  - Total 16 commands, more focused and complete
+
+### Documentation Cleanup
+
+- **Cleaned Root Directory**: Removed 18 temporary/duplicate documents
+  - Removed 8 BENCH_* temporary status documents
+  - Removed 5 STAGE2_* development process documents
+  - Removed 2 PROMPT_* temporary summary documents
+  - Removed 3 other outdated documents
+  - Root directory now only retains core README.md
+- **Documentation Structure Optimization**: All documents now concentrated in `docs/`, `bench/`, `examples/` directories
+
+## [1.0.0] - 2023-10-01
+
+### Added
+
+- Implemented all 13 operations from IR Schema v1.3
+- Created SQLite adapter supporting in-memory or local file database
+- Added Pydantic v2 models consistent with Schema
+- Created example runner run_demo.py, supporting list, run single or all examples
+- Added workflow executor run_workflow.py, supporting sequential execution of multiple IR operations
+- Completed example files for all 13 operations
+- Added unit tests and test data
+- Created project template generator create_project.sh
+- Added Makefile to simplify common commands
+
+### Optimized
+
+- Used Conda environment to manage dependencies, simplified installation process
+- Improved error handling and reporting
+- Added strict field validation for all models
+- Optimized project structure, improved code reusability
+- Standardized adapter interface for easy extension
+
+### Documentation
+
+- Added detailed installation guide (INSTALL.md)
+- Enhanced project documentation (README.md)
+- Added test documentation
+- Created changelog (CHANGELOG.md)
+
+## Future Plans
+
+### Short-term Plans
+
+- Enhanced vector retrieval support
+- Add more adapters (PostgreSQL, MongoDB, Redis)
+- Improve workflow management with conditional branches and loops
+- Add more unit tests
+- Create Python API documentation
+
+### Long-term Plans
+
+- Add Web API interface
+- Develop command-line tools
+- Provide richer search functionality
+- Support batch processing and asynchronous operations
+- Implement data migration and version control
+
+---
+
+# 中文 | Chinese
 
 ## [未发布] - 2025-01-26
+
+### CLI 现代化
 
 ### CLI 现代化
 - **重构 manage.py**: 全面优化命令结构和用户体验
