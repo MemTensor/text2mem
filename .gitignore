@@ -27,7 +27,7 @@ htmlcov/
 
 # Environment variables
 .env
-.env.*
+!.env.example
 
 # SQLite database files
 *.sqlite

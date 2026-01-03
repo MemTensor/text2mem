@@ -144,7 +144,10 @@ python manage.py status
 #### Encode a Memory
 ```bash
 # Create a memory from text
-python manage.py ir '{"op":"Encode","args":{"text":"Meeting with team about Q4 roadmap","knowledge_type":"event","tags":["meeting","roadmap"]}}'
+python manage.py ir --inline '{"stage":"ENC","op":"Encode","args":{"payload":{"text":"Meeting with team about Q4 roadmap"},"type":"event","tags":["meeting","roadmap"]}}'
+
+# Or use a file
+python manage.py ir --file examples/ir_operations/sample_ir_encode.json
 
 # Output:
 # ✅ Encoded memory [id=1]
@@ -155,7 +158,10 @@ python manage.py ir '{"op":"Encode","args":{"text":"Meeting with team about Q4 r
 #### Retrieve Memories
 ```bash
 # Search by text
-python manage.py ir '{"op":"Retrieve","args":{"query":"roadmap meeting","limit":5}}'
+python manage.py ir --inline '{"stage":"RET","op":"Retrieve","target":{"search":{"intent":{"query":"roadmap meeting"},"limit":5}},"args":{}}'
+
+# Or use a file
+python manage.py ir --file examples/ir_operations/sample_ir_retrieve.json
 
 # Output:
 # 🔍 Found 1 memories
@@ -165,7 +171,10 @@ python manage.py ir '{"op":"Retrieve","args":{"query":"roadmap meeting","limit":
 #### Summarize Content
 ```bash
 # Get AI summary of stored content
-python manage.py ir '{"op":"Summarize","args":{"memory_ids":[1],"style":"brief"}}'
+python manage.py ir --inline '{"stage":"RET","op":"Summarize","target":{"ids":["1"]},"args":{"focus":"brief summary","max_tokens":256}}'
+
+# Or use a file
+python manage.py ir --file examples/ir_operations/sample_ir_summarize.json
 
 # Output:
 # 📄 Summary: Team discussed Q4 product roadmap and priorities
@@ -262,8 +271,8 @@ python manage.py status              # Show environment status
 python manage.py config              # Interactive configuration
 
 # Single IR execution
-python manage.py ir <json>           # Execute one IR
-python manage.py ir --file path.json # Execute from file
+python manage.py ir --inline '<json>' # Execute one IR from inline JSON
+python manage.py ir --file path.json  # Execute from file
 
 # Demo & examples
 python manage.py demo                # Run demo workflow
@@ -304,12 +313,14 @@ See [bench/GUIDE.md](bench/GUIDE.md) for complete benchmark documentation.
 ### Encode Operation
 ```json
 {
+  "stage": "ENC",
   "op": "Encode",
   "args": {
-    "text": "Product launch scheduled for Q1 2024",
-    "knowledge_type": "event",
-    "tags": ["product", "launch", "2024"],
-    "importance": 0.9
+    "payload": {
+      "text": "Product launch scheduled for Q1 2024"
+    },
+    "type": "event",
+    "tags": ["product", "launch", "2024"]
   }
 }
 ```
@@ -317,24 +328,33 @@ See [bench/GUIDE.md](bench/GUIDE.md) for complete benchmark documentation.
 ### Retrieve with Filters
 ```json
 {
+  "stage": "RET",
   "op": "Retrieve",
-  "args": {
-    "query": "product launch",
-    "limit": 10,
-    "filters": {
-      "tags": ["product"],
-      "min_importance": 0.7
+  "target": {
+    "search": {
+      "intent": {
+        "query": "product launch"
+      },
+      "limit": 10
+    },
+    "filter": {
+      "has_tags": ["product"]
     }
-  }
+  },
+  "args": {}
 }
 ```
 
 ### Label Suggestion
 ```json
 {
+  "stage": "STO",
   "op": "Label",
+  "target": {
+    "ids": ["1", "2", "3"]
+  },
   "args": {
-    "memory_ids": [1, 2, 3],
+    "tags": ["important", "review"],
     "mode": "suggest"
   }
 }
@@ -513,7 +533,10 @@ python manage.py status
 #### 编码记忆
 ```bash
 # 从文本创建记忆
-python manage.py ir '{"op":"Encode","args":{"text":"团队会议讨论 Q4 路线图","knowledge_type":"event","tags":["会议","路线图"]}}'
+python manage.py ir --inline '{"stage":"ENC","op":"Encode","args":{"payload":{"text":"团队会议讨论 Q4 路线图"},"type":"event","tags":["会议","路线图"]}}'
+
+# 或使用文件
+python manage.py ir --file examples/ir_operations/sample_ir_encode.json
 
 # 输出：
 # ✅ 已编码记忆 [id=1]
@@ -524,7 +547,10 @@ python manage.py ir '{"op":"Encode","args":{"text":"团队会议讨论 Q4 路线
 #### 检索记忆
 ```bash
 # 按文本搜索
-python manage.py ir '{"op":"Retrieve","args":{"query":"路线图 会议","limit":5}}'
+python manage.py ir --inline '{"stage":"RET","op":"Retrieve","target":{"search":{"intent":{"query":"路线图 会议"},"limit":5}},"args":{}}'
+
+# 或使用文件
+python manage.py ir --file examples/ir_operations/sample_ir_retrieve.json
 
 # 输出：
 # 🔍 找到 1 条记忆
@@ -534,7 +560,10 @@ python manage.py ir '{"op":"Retrieve","args":{"query":"路线图 会议","limit"
 #### 生成摘要
 ```bash
 # 获取内容的 AI 摘要
-python manage.py ir '{"op":"Summarize","args":{"memory_ids":[1],"style":"brief"}}'
+python manage.py ir --inline '{"stage":"RET","op":"Summarize","target":{"ids":["1"]},"args":{"focus":"简要摘要","max_tokens":256}}'
+
+# 或使用文件
+python manage.py ir --file examples/ir_operations/sample_ir_summarize.json
 
 # 输出：
 # 📄 摘要：团队讨论了 Q4 产品路线图和优先级
@@ -631,8 +660,8 @@ python manage.py status              # 显示环境状态
 python manage.py config              # 交互式配置
 
 # 单个 IR 执行
-python manage.py ir <json>           # 执行一个 IR
-python manage.py ir --file 路径.json # 从文件执行
+python manage.py ir --inline '<json>' # 从内联 JSON 执行一个 IR
+python manage.py ir --file 路径.json  # 从文件执行
 
 # 演示和示例
 python manage.py demo                # 运行演示工作流
@@ -673,12 +702,14 @@ python manage.py test                # 运行测试套件
 ### 编码操作
 ```json
 {
+  "stage": "ENC",
   "op": "Encode",
   "args": {
-    "text": "产品发布计划于 2024 Q1",
-    "knowledge_type": "event",
-    "tags": ["产品", "发布", "2024"],
-    "importance": 0.9
+    "payload": {
+      "text": "产品发布计划于 2024 Q1"
+    },
+    "type": "event",
+    "tags": ["产品", "发布", "2024"]
   }
 }
 ```
@@ -686,24 +717,33 @@ python manage.py test                # 运行测试套件
 ### 带过滤的检索
 ```json
 {
+  "stage": "RET",
   "op": "Retrieve",
-  "args": {
-    "query": "产品发布",
-    "limit": 10,
-    "filters": {
-      "tags": ["产品"],
-      "min_importance": 0.7
+  "target": {
+    "search": {
+      "intent": {
+        "query": "产品发布"
+      },
+      "limit": 10
+    },
+    "filter": {
+      "has_tags": ["产品"]
     }
-  }
+  },
+  "args": {}
 }
 ```
 
 ### 标签建议
 ```json
 {
+  "stage": "STO",
   "op": "Label",
+  "target": {
+    "ids": ["1", "2", "3"]
+  },
   "args": {
-    "memory_ids": [1, 2, 3],
+    "tags": ["重要", "待审核"],
     "mode": "suggest"
   }
 }
