@@ -46,8 +46,19 @@ class OpenAIEmbeddingModel(BaseEmbeddingModel):
     def embed_text(self, text: str) -> EmbeddingResult:
         try:
             response = self.client.embeddings.create(model=self.model_name, input=text, encoding_format="float")
+            
+            # Debug: check response type
+            if isinstance(response, str):
+                logger.error(f"❌ Unexpected string response: {response[:200]}")
+                raise ValueError(f"API returned string instead of object. Check if API endpoint is correct.")
+            
+            # Try to access response data
+            if not hasattr(response, 'data'):
+                logger.error(f"❌ Response missing 'data' attribute. Response type: {type(response)}, content: {str(response)[:200]}")
+                raise AttributeError(f"Response object has no 'data' attribute. API may not be OpenAI-compatible.")
+            
             embedding = response.data[0].embedding
-            tokens_used = response.usage.total_tokens
+            tokens_used = response.usage.total_tokens if hasattr(response, 'usage') else 0
             logger.debug(f"✅ OpenAI embedding generated, dimension: {len(embedding)}, tokens used: {tokens_used}")
             return EmbeddingResult(text=text, embedding=embedding, model=self.model_name, tokens_used=tokens_used)
         except Exception as e:

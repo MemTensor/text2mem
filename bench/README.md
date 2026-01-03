@@ -35,7 +35,7 @@
 ### Daily Testing
 
 ```bash
-./bench-cli run --mode ollama -v              # Full test
+./bench-cli run --mode openai -v              # Full test
 ./bench-cli run --filter "lang:zh" -v         # Chinese only
 ./bench-cli run --schema-filter Encode -v     # Specific operation
 ```

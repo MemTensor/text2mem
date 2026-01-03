@@ -372,14 +372,6 @@ Text2Mem includes a complete benchmark pipeline:
 4. **Test**: Execute and measure performance
 5. **Analyze**: Generate reports
 
-```bash
-# Quick benchmark run
-./bench-cli generate --count 5
-./bench-cli validate bench/data/raw/latest.jsonl
-./bench-cli clean bench/data/raw/latest.jsonl
-./bench-cli test bench/data/benchmark/benchmark.jsonl
-```
-
 See [bench/README.md](bench/README.md) for details.
 
 ## 📚 Documentation
