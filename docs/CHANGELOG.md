@@ -9,9 +9,36 @@
 
 ---
 
-# English | 英文
+[English](#english) | [中文](#中文)
 
-## [Unreleased] - 2025-01-26
+---
+
+# English
+
+## [Unreleased] - 2026-01-07
+
+### Documentation Overhaul
+
+- **Complete Documentation Reorganization**:
+  - Rebuilt `docs/` folder with comprehensive bilingual documentation
+  - Created unified `docs/README.md` as documentation index
+  - Enhanced `docs/CONFIGURATION.md` with detailed provider setup
+  - Updated `docs/CHANGELOG.md` (this file) with complete history
+  - All documentation now fully bilingual (English first, Chinese second)
+
+- **Documentation Structure**:
+  - Root: `README.md` (project overview and quick start)
+  - `docs/`: Core documentation (README, CONFIGURATION, CHANGELOG)
+  - `bench/`: Benchmark system documentation (README, GUIDE, TEST_REPORT)
+  - `examples/`: Usage examples and scenarios
+
+- **Consistency Verification**:
+  - Verified all documentation matches actual code implementation
+  - Confirmed 12 canonical operations: Encode, Retrieve, Summarize, Label, Update, Promote, Demote, Merge, Split, Lock, Expire, Delete
+  - Validated CLI commands match manage.py implementation
+  - Ensured provider configuration aligns with actual service factory
+
+## [1.1.0] - 2025-01-26
 
 ### CLI Modernization
 
@@ -34,15 +61,18 @@
   - Merged `QUICKSTART.md` + `QUICK_REFERENCE.md` → `GUIDE.md` (unified entry point)
   - Kept `README.md` (project overview)
   - All documentation converted to bilingual (Chinese-English)
+
 - **docs/ Documentation Optimization**:
   - Enhanced `CONFIGURATION.md` (clearer configuration guide)
   - Kept `CHANGELOG.md` (this file)
   - Converted all files to bilingual format
+
 - **Documentation Structure**:
   - Root directory: `README.md` (main project documentation)
   - `docs/`: Configuration and changelog
   - `bench/`: Benchmark-related documentation
   - `examples/`: Example descriptions
+
 - **Reduced Duplication**: Core documentation now bilingual and streamlined
 
 ### Benchmark Testing Framework
@@ -72,20 +102,41 @@
   - Removed 2 PROMPT_* temporary summary documents
   - Removed 3 other outdated documents
   - Root directory now only retains core README.md
+
 - **Documentation Structure Optimization**: All documents now concentrated in `docs/`, `bench/`, `examples/` directories
+
+### Bench Testing Framework
+
+- Completed v1.3 refactor, all tests start from empty table
+- Use prerequisites to dynamically prepare data, performance improvement 96%
+- Removed pre-filled database dependency, codebase reduction 88%
 
 ## [1.0.0] - 2023-10-01
 
 ### Added
 
-- Implemented all 13 operations from IR Schema v1.3
+- Implemented all 12 operations from IR Schema v1.3
+  - **Encoding**: Encode
+  - **Retrieval**: Retrieve, Summarize
+  - **Storage Governance**: Label, Update, Promote, Demote, Merge, Split, Lock, Expire, Delete
+
 - Created SQLite adapter supporting in-memory or local file database
+
 - Added Pydantic v2 models consistent with Schema
+  - Full type validation
+  - JSON Schema + Pydantic dual validation
+  - Safety invariants for destructive operations
+
 - Created example runner run_demo.py, supporting list, run single or all examples
+
 - Added workflow executor run_workflow.py, supporting sequential execution of multiple IR operations
-- Completed example files for all 13 operations
+
+- Completed example files for all 12 operations
+
 - Added unit tests and test data
+
 - Created project template generator create_project.sh
+
 - Added Makefile to simplify common commands
 
 ### Optimized
@@ -123,19 +174,41 @@
 
 ---
 
-# 中文 | Chinese
+# 中文
 
-## [未发布] - 2025-01-26
+## [未发布] - 2026-01-07
+
+### 文档全面改进
+
+- **完整文档重组**:
+  - 重建 `docs/` 文件夹，提供全面的双语文档
+  - 创建统一的 `docs/README.md` 作为文档索引
+  - 增强 `docs/CONFIGURATION.md`，提供详细的提供者设置
+  - 更新 `docs/CHANGELOG.md`（本文件），包含完整历史
+  - 所有文档现在完全双语（英文优先，中文其次）
+
+- **文档结构**:
+  - 根目录：`README.md`（项目概览和快速开始）
+  - `docs/`：核心文档（README、CONFIGURATION、CHANGELOG）
+  - `bench/`：基准测试系统文档（README、GUIDE、TEST_REPORT）
+  - `examples/`：使用示例和场景
+
+- **一致性验证**:
+  - 验证所有文档与实际代码实现匹配
+  - 确认 12 个标准操作：Encode、Retrieve、Summarize、Label、Update、Promote、Demote、Merge、Split、Lock、Expire、Delete
+  - 验证 CLI 命令与 manage.py 实现匹配
+  - 确保提供者配置与实际服务工厂对齐
+
+## [1.1.0] - 2025-01-26
 
 ### CLI 现代化
 
-### CLI 现代化
 - **重构 manage.py**: 全面优化命令结构和用户体验
   - 改进代码风格，符合 PEP 8 规范
-  - 重新组织命令分组 (核心配置 / 功能演示 / 工作流执行 / 交互模式 / 模型管理 / 运维工具)
+  - 重新组织命令分组（核心配置 / 功能演示 / 工作流执行 / 交互模式 / 模型管理 / 运维工具）
   - 增强命令功能：
     - `config`: 新增 `--db-path` 参数，更新默认模型版本
-    - `test`: 新增 `-v/--verbose`, `-k/--keyword`, `--smoke` 参数
+    - `test`: 新增 `-v/--verbose`、`-k/--keyword`、`--smoke` 参数
     - `demo`: 新增 `--verbose` 参数，改进错误处理和统计
     - `workflow`: 新增 `--verbose` 参数，详细步骤信息
     - `models-smoke`: 美化输出格式，添加故障排查指南
@@ -144,43 +217,57 @@
   - 所有命令保持向后兼容
 
 ### 文档整理与合并
+
 - **bench/ 文档清理**:
-  - 合并 `QUICKSTART.md` + `QUICK_REFERENCE.md` → `GUIDE.md` (统一入口)
-  - 保留 `WORKFLOW.md` (详细工作流说明)
-  - 保留 `README.md` (项目概览)
+  - 合并 `QUICKSTART.md` + `QUICK_REFERENCE.md` → `GUIDE.md`（统一入口）
+  - 保留 `README.md`（项目概览）
+  - 所有文档转换为双语（中英文）
+
 - **docs/ 文档优化**:
-  - 删除 `INSTALL.md` (内容过时，已并入主 README)
-  - 重构 `CONFIG.md` → `CONFIGURATION.md` (更清晰的配置指南)
-  - 保留 `CHANGELOG.md` (本文件)
+  - 增强 `CONFIGURATION.md`（更清晰的配置指南）
+  - 保留 `CHANGELOG.md`（本文件）
+  - 所有文件转换为双语格式
+
 - **文档结构**:
-  - 根目录: `README.md` (主项目文档)
-  - `docs/`: 配置和变更日志
-  - `bench/`: Benchmark 相关文档
-  - `examples/`: 示例说明
-- **减少重复**: 从 19 个活跃文档减少到 6 个核心文档
+  - 根目录：`README.md`（主项目文档）
+  - `docs/`：配置和变更日志
+  - `bench/`：Benchmark 相关文档
+  - `examples/`：示例说明
+
+- **减少重复**：核心文档现在双语且精简
+
+### 基准测试框架
+
+- 完成 v1.3 重构，所有测试从空表开始
+- 使用 prerequisites 动态准备数据，性能提升 96%
+- 删除预填充数据库依赖，代码库减少 88%
 
 ## [1.1.0] - 2025-01-05
 
 ### CLI 优化
+
 - **优化 manage.py**: 删除冗余命令，增强核心功能
   - 删除 `features` 命令（功能重复，使用 `demo` 替代）
   - 删除 `repl` 命令（功能不完整，使用 `session` 替代）
   - 标记 `bench-*` 命令为开发中状态
   - **增强 session 命令**: 从 3 种操作扩展到支持全部 12 种 IR 操作
-    - 原有: encode, retrieve, summarize
-    - 新增: label, update, delete, promote, demote, lock, merge, split, expire
+    - 原有：encode、retrieve、summarize
+    - 新增：label、update、delete、promote、demote、lock、merge、split、expire
   - 总计 16 个命令，功能更聚焦、更完整
 
 ### 文档整理
+
 - **清理根目录文档**: 删除 18 个临时/重复文档
   - 移除 8 个 BENCH_* 临时状态文档
   - 移除 5 个 STAGE2_* 开发过程文档
   - 移除 2 个 PROMPT_* 临时总结文档
   - 移除 3 个其他过期文档
   - 根目录现在只保留核心 README.md
-- **文档结构优化**: 所有文档现在集中在 `docs/`, `bench/`, `examples/` 目录
+
+- **文档结构优化**: 所有文档现在集中在 `docs/`、`bench/`、`examples/` 目录
 
 ### Bench 测试框架
+
 - 完成 v1.3 重构，所有测试从空表开始
 - 使用 prerequisites 动态准备数据，性能提升 96%
 - 删除预填充数据库依赖，代码库减少 88%
@@ -188,17 +275,33 @@
 ## [1.0.0] - 2023-10-01
 
 ### 添加
-- 实现 IR Schema v1.3 的全部 13 种操作
+
+- 实现 IR Schema v1.3 的全部 12 种操作
+  - **编码阶段**：Encode
+  - **检索阶段**：Retrieve、Summarize
+  - **存储治理**：Label、Update、Promote、Demote、Merge、Split、Lock、Expire、Delete
+
 - 创建 SQLite 适配器，支持内存或本地文件数据库
+
 - 添加 Pydantic v2 模型，与 Schema 保持一致性
+  - 完整类型验证
+  - JSON Schema + Pydantic 双重验证
+  - 破坏性操作的安全不变量
+
 - 创建示例运行器 run_demo.py，支持列出、运行单个或全部示例
+
 - 添加工作流执行器 run_workflow.py，支持按序执行多个 IR 操作
-- 完善 13 种操作的示例文件
+
+- 完善 12 种操作的示例文件
+
 - 添加单元测试和测试数据
+
 - 创建项目模板生成器 create_project.sh
+
 - 添加 Makefile，简化常用命令
 
 ### 优化
+
 - 使用 Conda 环境管理依赖，简化安装流程
 - 改进错误处理和报告
 - 为所有模型增加严格的字段验证
@@ -206,23 +309,37 @@
 - 标准化适配器接口，便于扩展
 
 ### 文档
-- 添加详细的安装指南 (INSTALL.md)
-- 完善项目文档 (README.md)
+
+- 添加详细的安装指南（INSTALL.md）
+- 完善项目文档（README.md）
 - 添加测试文档
-- 创建变更日志 (CHANGELOG.md)
+- 创建变更日志（CHANGELOG.md）
 
 ## 未来计划
 
 ### 近期计划
+
 - 增强向量检索支持
-- 添加更多适配器 (PostgreSQL, MongoDB, Redis)
+- 添加更多适配器（PostgreSQL、MongoDB、Redis）
 - 改进工作流管理，支持条件分支和循环
 - 增加更多单元测试
 - 创建 Python API 文档
 
 ### 长期计划
+
 - 添加 Web API 界面
 - 开发命令行工具
 - 提供更丰富的搜索功能
 - 支持批处理和异步操作
 - 实现数据迁移和版本控制
+
+---
+
+<div align="center">
+
+**Last Updated | 最后更新**: 2026-01-07  
+**Version | 版本**: v1.2.0
+
+[⬆ Back to top | 返回顶部](#text2mem-changelog--text2mem-变更日志)
+
+</div>

@@ -1,4 +1,127 @@
-# 🚀 异步生成快速参考
+<div align="center">
+
+# Async Generation Quick Reference | 异步生成快速参考
+
+**Quick reference for async benchmark generation**  
+**异步基准生成的快速参考**
+
+</div>
+
+---
+
+[English](#english) | [中文](#中文)
+
+---
+
+# English
+
+## ✅ All Fixes (v2.3)
+
+| # | Issue | Fix | Status |
+|---|-------|-----|--------|
+| 1 | Method name errors (3 places) | ✅ Fixed | Complete |
+| 2 | Missing parameters (2 places) | ✅ Added | Complete |
+| 3 | Fragile JSON parsing | ✅ 3-layer defense | Complete |
+| 4 | Frequent checkpoints | ✅ Batch updates | Complete |
+| 5 | Unclear prompts | ✅ Strict requirements | Complete |
+| 6 | No debug logs | ✅ Auto-save | Complete |
+
+## 🎯 Quick Start
+
+```bash
+# 1. Install dependencies
+pip install aiohttp
+
+# 2. Basic usage (recommended)
+python bench/generate/generate.py --async --max-concurrent 5
+
+# 3. Fast mode
+python bench/generate/generate.py --async --max-concurrent 10
+
+# 4. Safe mode
+python bench/generate/generate.py --async --max-concurrent 2
+```
+
+## 📊 Performance Comparison
+
+| Mode | 120 samples | Speedup |
+|------|------------|---------|
+| Sync | 16 minutes | 1x |
+| Async (3 concurrent) | 5 minutes | 3x |
+| Async (5 concurrent) | 3 minutes | 5x |
+| Async (10 concurrent) | 1.6 minutes | 10x |
+
+## ⚙️ Configuration Options
+
+```bash
+# Concurrency (default: 5)
+--max-concurrent 10
+
+# Checkpoint batch size (default: 10)
+export TEXT2MEM_BENCH_GEN_CHECKPOINT_BATCH=20
+
+# Max retries (default: 3)
+export TEXT2MEM_BENCH_GEN_RETRY_MAX=5
+```
+
+## 🐛 Troubleshooting
+
+### JSON parsing failures?
+```bash
+# View failure logs
+ls -lh bench/generate/output/failed_responses/
+cat bench/generate/output/failed_responses/failed_stage2_*.txt
+```
+
+### Still slow?
+```bash
+# Check:
+1. Concurrency > 1
+2. API response time
+3. Rate limiting
+```
+
+### Frequent retries?
+```bash
+# Possible causes:
+1. Unstable LLM output format
+2. Unstable API
+3. Prompt needs optimization
+```
+
+## 📈 Monitoring Commands
+
+```bash
+# View realtime progress
+tail -f bench/generate/output/*_stage2_*.jsonl
+
+# View checkpoint
+cat bench/generate/output/.checkpoint.json
+
+# View failed responses
+ls bench/generate/output/failed_responses/
+```
+
+## 💡 Best Practices
+
+1. **Start small** (2-3) for testing
+2. **Gradually increase** concurrency
+3. **Monitor failure rate**, reduce if > 10%
+4. **Check failure logs**, optimize prompts
+5. **Backup checkpoint** regularly
+
+## 🎉 Improvements
+
+- ✅ **3-layer JSON parsing**: direct → extract first → bracket matching
+- ✅ **Smart bracket matching**: handles strings and escapes
+- ✅ **Failed response saving**: auto-save for debugging
+- ✅ **Batch checkpoints**: 90% less I/O
+- ✅ **Optimized prompts**: strict output requirements
+- ✅ **Complete error handling**: no details missed
+
+---
+
+# 中文
 
 ## ✅ 所有修复（v2.3）
 
@@ -11,7 +134,7 @@
 | 5 | Prompt不明确 | ✅ 严格要求 | 完成 |
 | 6 | 无调试日志 | ✅ 自动保存 | 完成 |
 
-## 🎯 立即使用
+## 🎯 快速开始
 
 ```bash
 # 1. 安装依赖
@@ -106,6 +229,12 @@ ls bench/generate/output/failed_responses/
 
 ---
 
-**版本**: v2.3  
-**状态**: ✅ 生产就绪  
-**推荐**: ⭐⭐⭐⭐⭐
+<div align="center">
+
+**Version | 版本**: v2.3  
+**Status | 状态**: ✅ Production Ready | 生产就绪  
+**Rating | 推荐**: ⭐⭐⭐⭐⭐
+
+[⬆ Back to top | 返回顶部](#async-generation-quick-reference--异步生成快速参考)
+
+</div>

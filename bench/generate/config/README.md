@@ -1,4 +1,236 @@
-# 配置文件说明
+<div align="center">
+
+# Configuration File Guide | 配置文件说明
+
+**Guide for benchmark generation configuration files**  
+**基准生成配置文件指南**
+
+</div>
+
+---
+
+[English](#english) | [中文](#中文)
+
+---
+
+# English
+
+## 📁 File List
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `generation_plan.yaml` | Main configuration file | ✅ Active |
+| `generation_plan_examples.yaml` | Configuration examples | 📖 Reference |
+| `config.yaml` | Legacy config (compatibility) | ⚠️ Kept |
+
+## 🔑 API Key and Base URL Configuration
+
+### Three Configuration Methods
+
+#### 1. Use Environment Variables (Recommended) ⭐
+
+**Pros**: Secure, simple, won't expose to Git
+
+```bash
+# Set environment variables
+export OPENAI_API_KEY=sk-your-key
+export OPENAI_API_BASE=https://api.openai.com/v1  # Optional
+```
+
+```yaml
+# Don't set in config file
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  # api_key and base_url auto-read from environment
+```
+
+#### 2. Use Environment Variable Placeholders (Team Collaboration) ⭐
+
+**Pros**: Config file can be committed to Git without exposing real keys
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  api_key: "${OPENAI_API_KEY}"        # Placeholder
+  base_url: "${OPENAI_API_BASE}"      # Placeholder
+```
+
+Team members set their own environment variables:
+```bash
+export OPENAI_API_KEY=sk-their-own-key
+```
+
+#### 3. Direct Configuration (Not Recommended) ⚠️
+
+**Cons**: Exposes keys, not secure
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  api_key: "sk-your-actual-key"       # ⚠️ Will expose
+  base_url: "https://api.openai.com/v1"
+```
+
+## 📊 Configuration Priority
+
+### API Key Reading Order
+
+1. **Direct config setting**: `api_key: 'sk-xxx'`
+2. **Config placeholder**: `api_key: '${OPENAI_API_KEY}'`
+3. **System environment variable**: 
+   - OpenAI: `OPENAI_API_KEY`
+   - Anthropic: `ANTHROPIC_API_KEY`
+
+### Base URL Reading Order
+
+1. **Direct config setting**: `base_url: 'https://...'`
+2. **Config placeholder**: `base_url: '${OPENAI_API_BASE}'`
+3. **System environment variable**:
+   - OpenAI: `OPENAI_API_BASE` or `OPENAI_BASE_URL`
+   - Ollama: `OLLAMA_HOST` or `OLLAMA_BASE_URL`
+4. **Use default**:
+   - OpenAI: `https://api.openai.com/v1`
+   - Ollama: `http://localhost:11434`
+   - Anthropic: `https://api.anthropic.com`
+
+## 🌐 Different Provider Configurations
+
+### OpenAI
+
+```bash
+# Set environment variables
+export OPENAI_API_KEY=sk-your-key
+
+# Optional: use proxy
+export OPENAI_API_BASE=https://your-proxy.com/v1
+```
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  # Or use gpt-3.5-turbo (cheaper)
+```
+
+### Ollama (Local/Remote)
+
+```bash
+# Local (default)
+ollama serve
+
+# Or use remote Ollama
+export OLLAMA_HOST=http://192.168.1.100:11434
+```
+
+```yaml
+llm:
+  provider: ollama
+  model: qwen2:7b
+  # base_url: http://localhost:11434  # Optional, default value
+  timeout: 120  # Ollama may need more time
+```
+
+### Anthropic
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-your-key
+```
+
+```yaml
+llm:
+  provider: anthropic
+  model: claude-3-opus-20240229
+```
+
+## 📝 Common Configuration Scenarios
+
+### Scenario 1: Development Testing
+
+```yaml
+plan:
+  total_samples: 10
+  batch_size: 2
+
+llm:
+  provider: openai
+  model: gpt-3.5-turbo  # Cheaper
+  temperature: 0.7
+  max_tokens: 1000      # Reduce cost
+```
+
+### Scenario 2: Production
+
+```yaml
+plan:
+  total_samples: 100
+  batch_size: 10
+
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  temperature: 0.7
+  max_tokens: 4000
+```
+
+### Scenario 3: Using Proxy
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4-turbo-preview
+  base_url: "https://your-openai-proxy.com/v1"
+```
+
+### Scenario 4: Local Ollama (Free)
+
+```yaml
+llm:
+  provider: ollama
+  model: qwen2:7b
+  base_url: http://localhost:11434
+  timeout: 120
+```
+
+## 🧪 Test Configuration
+
+Verify configuration is correct:
+
+```bash
+# Run config test
+python bench/generate/tests/test_llm_config.py
+
+# Run system test
+python bench/generate/tests/test_system.py
+```
+
+## 💡 Best Practices
+
+1. ✅ **Use environment variables** - Don't write API keys in config files
+2. ✅ **Use placeholders** - Use `${VAR_NAME}` in team configs
+3. ✅ **Configure .gitignore** - Ensure files with real keys won't be committed
+4. ✅ **Test first** - Test with small samples first
+5. ✅ **Document** - Explain which environment variables need to be set
+
+## ⚠️ Security Tips
+
+- ❌ **Don't** write API keys directly in config files
+- ❌ **Don't** commit config files with real keys to Git
+- ❌ **Don't** share config files publicly
+- ✅ **Use** environment variables or key management systems
+- ✅ **Rotate** API keys regularly
+
+## 📚 Related Documentation
+
+- [QUICKSTART.md](../docs/QUICKSTART.md) - Quick setup guide
+- [EXAMPLES.md](../docs/EXAMPLES.md) - Usage examples
+- [generation_plan_examples.yaml](generation_plan_examples.yaml) - 8 config examples
+
+---
+
+# 中文
 
 ## 📁 文件列表
 
@@ -215,5 +447,11 @@ python bench/generate/tests/test_system.py
 
 ---
 
-**更新时间**: 2025-01-07  
-**版本**: v3.0
+<div align="center">
+
+**Last Updated | 最后更新**: 2026-01-07  
+**Version | 版本**: v3.0
+
+[⬆ Back to top | 返回顶部](#configuration-file-guide--配置文件说明)
+
+</div>

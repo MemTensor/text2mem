@@ -1,4 +1,382 @@
-# Bench Tools - 工具集合
+<div align="center">
+
+# Bench Tools | 工具集合
+
+**Core toolkit for Text2Mem Benchmark data processing**  
+**Text2Mem Benchmark 的核心工具集**
+
+</div>
+
+---
+
+[English](#english) | [中文](#中文)
+
+---
+
+# English
+
+Core toolkit for Text2Mem Benchmark: generation, testing, cleaning, and building.
+
+## 📁 Tool Structure
+
+```
+bench/tools/
+├── Core Tools (Data Processing Pipeline)
+│   ├── run_manager.py      # Run directory management (core module)
+│   ├── test.py             # Test runner
+│   ├── clean.py            # Data cleaning
+│   ├── build.py            # Benchmark building
+│   ├── pipeline.py         # Complete workflow
+│   └── stats.py            # Statistical analysis
+│
+├── Utility Tools
+│   ├── clock.py                # Virtual clock
+│   ├── sql_builder_sqlite.py   # SQL builder
+│   └── create_empty_db.py      # Create empty database
+│
+└── _archive/               # Archived old tools
+```
+
+## 🚀 Quick Start
+
+### One-Command Complete Pipeline (Recommended)
+
+```bash
+# Generate benchmark from latest raw data
+python -m bench.tools.pipeline --raw latest --version v2
+
+# Generate from specific raw
+python -m bench.tools.pipeline --raw 20251022_184604 --version v2
+```
+
+### Step-by-Step Execution (Advanced)
+
+```bash
+# 1. Test - Create run from raw and run tests
+python -m bench.tools.test --raw latest
+
+# 2. Clean - Filter failed samples, apply rules
+python -m bench.tools.clean --run latest
+
+# 3. Build - Reassign IDs, generate final benchmark
+python -m bench.tools.build --run latest --version v2
+
+# 4. Stats - Analyze sample distribution and quality
+python -m bench.tools.stats --run latest
+```
+
+## 📋 Tool Details
+
+### Core Tools
+
+#### 1. run_manager.py - Run Directory Management
+
+Core module for managing data directory structure.
+
+```python
+from bench.tools.run_manager import RunManager
+
+manager = RunManager()
+latest_raw = manager.get_latest_raw()
+run_dir = manager.create_run_from_raw(latest_raw)
+```
+
+**Directory Structure**:
+- `raw/` - Raw generation output
+- `runs/` - Tested and cleaned data
+- `benchmarks/` - Final benchmarks
+
+#### 2. test.py - Test Runner
+
+Create run from raw and execute tests, identifying passed/failed samples.
+
+```bash
+# Create run from latest raw and test
+python -m bench.tools.test --raw latest
+
+# Create run from specific raw
+python -m bench.tools.test --raw 20251022_184604
+
+# Test existing run
+python -m bench.tools.test --run 20251022_184604
+
+# Test only first N samples (debugging)
+python -m bench.tools.test --raw latest --limit 10
+```
+
+**Output**:
+- `runs/{RUN_ID}/tests/passed.jsonl` - Passed samples
+- `runs/{RUN_ID}/tests/failed.jsonl` - Failed samples
+- `runs/{RUN_ID}/tests/summary.json` - Test summary
+
+#### 3. clean.py - Data Cleaning
+
+Filter samples from test results, apply filtering rules.
+
+```bash
+# Clean latest run
+python -m bench.tools.clean --run latest
+
+# Clean specific run
+python -m bench.tools.clean --run 20251022_184604
+
+# Don't filter unknown fields
+python -m bench.tools.clean --run latest --no-filter-unknown
+
+# Don't filter failed samples
+python -m bench.tools.clean --run latest --no-filter-failed
+```
+
+**Filtering Rules**:
+1. Filter test-failed samples (if test results exist)
+2. Filter samples containing 'unknown'
+3. Keep only 'direct' and 'indirect' instruction types
+4. Keep only 'single' and 'workflow' structures
+5. Keep only 12 core operations
+
+**Output**:
+- `runs/{RUN_ID}/cleaned/cleaned.jsonl` - Cleaned samples
+- `runs/{RUN_ID}/cleaned/metadata.json` - Metadata
+- `runs/{RUN_ID}/cleaned/filter_report.json` - Filter report
+
+#### 4. build.py - Benchmark Building
+
+Build final benchmark from cleaned data.
+
+```bash
+# Build benchmark from latest run
+python -m bench.tools.build --run latest --version v2
+
+# Build from specific run
+python -m bench.tools.build --run 20251022_184604 --version v2
+
+# Don't reassign IDs
+python -m bench.tools.build --run latest --version v2 --no-rebuild-ids
+```
+
+**Features**:
+- Reassign sample IDs (grouped by category)
+- Generate metadata and statistics
+- Support version management
+
+**Output**:
+- `benchmarks/{VERSION}/benchmark.jsonl` - Final benchmark
+- `benchmarks/{VERSION}/metadata.json` - Metadata
+- `benchmarks/{VERSION}/stats.json` - Statistics
+
+#### 5. pipeline.py - Complete Workflow
+
+Automate complete data processing pipeline.
+
+```bash
+# Process latest raw
+python -m bench.tools.pipeline --raw latest --version v2
+
+# Process specific raw
+python -m bench.tools.pipeline --raw 20251022_184604 --version v2
+
+# Skip test step (run must already exist)
+python -m bench.tools.pipeline --raw latest --version v2 --skip-tests
+
+# Show verbose output
+python -m bench.tools.pipeline --raw latest --version v2 --verbose
+```
+
+**Pipeline**:
+1. Run tests (create run)
+2. Clean data
+3. Build benchmark
+
+#### 6. stats.py - Statistical Analysis
+
+Analyze sample distribution and quality metrics.
+
+```bash
+# Stats for latest run
+python -m bench.tools.stats --run latest
+
+# Stats for specific run
+python -m bench.tools.stats --run 20251022_184604
+
+# Stats for specific file
+python -m bench.tools.stats --input stage3.jsonl
+
+# Generate detailed report
+python -m bench.tools.stats --run latest --verbose
+
+# Save report to file
+python -m bench.tools.stats --run latest --output report.json
+```
+
+**Statistics**:
+- Sample distribution (language, operation, instruction type, structure)
+- Quality metrics (completeness, validity)
+- Issue detection (unknown fields, missing fields)
+- Top combination statistics
+
+### Utility Tools
+
+#### 7. clock.py - Virtual Clock
+
+Used for time simulation in benchmarks.
+
+```python
+from bench.tools.clock import VirtualClock
+
+clock = VirtualClock()
+# Use for time-related operation simulation
+```
+
+#### 8. sql_builder_sqlite.py - SQL Builder
+
+Compile test assertions into SQL queries.
+
+```python
+from bench.tools.sql_builder_sqlite import SQLiteAssertionCompiler
+
+compiler = SQLiteAssertionCompiler()
+compiled = compiler.compile(assertion)
+```
+
+#### 9. create_empty_db.py - Create Empty Database
+
+Create Text2Mem standard empty database.
+
+```bash
+# Create in-memory database (testing)
+python bench/tools/create_empty_db.py
+
+# Create file database
+python bench/tools/create_empty_db.py --output /path/to/database.db
+
+# Verify schema
+python bench/tools/create_empty_db.py --verify /path/to/database.db
+```
+
+## 📊 Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Benchmark Data Flow                       │
+└─────────────────────────────────────────────────────────────┘
+
+1. Generate
+   └─> bench/data/raw/{TIMESTAMP}/
+       ├── stage1.jsonl  (NL instructions)
+       ├── stage2.jsonl  (IR samples)
+       └── stage3.jsonl  (Complete samples)
+
+2. Test
+   └─> bench/data/runs/{TIMESTAMP}/tests/
+       ├── passed.jsonl   (Passed samples)
+       ├── failed.jsonl   (Failed samples)
+       └── summary.json   (Test summary)
+
+3. Clean
+   └─> bench/data/runs/{TIMESTAMP}/cleaned/
+       ├── cleaned.jsonl       (Cleaned samples)
+       ├── metadata.json       (Metadata)
+       └── filter_report.json  (Filter report)
+
+4. Build
+   └─> bench/data/benchmarks/{VERSION}/
+       ├── benchmark.jsonl  (Final benchmark)
+       ├── metadata.json    (Metadata)
+       └── stats.json       (Statistics)
+```
+
+## 🔧 Advanced Usage
+
+### Custom Filtering Rules
+
+Modify filtering rules in `clean.py`:
+
+```python
+class DataCleaner:
+    ALLOWED_INSTRUCTION_TYPES = {'direct', 'indirect'}
+    ALLOWED_STRUCTURES = {'single', 'workflow'}
+    ALLOWED_OPERATIONS = {
+        'Encode', 'Retrieve', 'Update', 'Delete', 
+        'Summarize', 'Label', 'Promote', 'Demote',
+        'Expire', 'Lock', 'Merge', 'Split',
+    }
+```
+
+### Batch Process Multiple Raws
+
+```bash
+# Process all raws
+for raw in bench/data/raw/*/; do
+    raw_id=$(basename $raw)
+    python -m bench.tools.pipeline --raw $raw_id --version "v_$raw_id"
+done
+```
+
+### Compare Different Benchmark Versions
+
+```bash
+# Stats for v1
+python -m bench.tools.stats --input bench/data/benchmarks/v1/benchmark.jsonl
+
+# Stats for v2
+python -m bench.tools.stats --input bench/data/benchmarks/v2/benchmark.jsonl
+```
+
+## 📝 FAQ
+
+### Q: How to generate new benchmark from scratch?
+
+```bash
+# 1. Generate raw data
+python bench/generate/generate.py
+
+# 2. Run complete workflow
+python -m bench.tools.pipeline --raw latest --version v2
+```
+
+### Q: How to retest without generating new data?
+
+```bash
+# Retest from existing raw
+python -m bench.tools.test --raw 20251022_184604
+```
+
+### Q: How to debug test failures?
+
+```bash
+# 1. Test only first few samples
+python -m bench.tools.test --raw latest --limit 5 --verbose
+
+# 2. View failed samples
+cat bench/data/runs/latest/tests/failed.jsonl
+```
+
+### Q: How to customize benchmark version?
+
+```bash
+# Use custom version number
+python -m bench.tools.pipeline --raw latest --version v2.1-custom
+```
+
+## 📚 Related Documentation
+
+- [Benchmark README](../README.md) - Overall description
+- [Generation Tool Docs](../generate/QUICK_REFERENCE.md) - Data generation
+- [Workflow Docs](../WORKFLOW.md) - Complete workflow
+
+## 🗂️ Archived Tools
+
+Archived tools are saved in `_archive/` directory, including:
+- `clean_benchmark.py` - Old cleaning tool
+- `migrate_data.py` - Data structure migration script
+- `migrate_to_v3.py` - v3 migration script
+- `verify_setup.py` - Setup verification tool
+
+See [_archive/README.md](_archive/README.md) for details.
+
+---
+
+# 中文
 
 Text2Mem Benchmark 的核心工具集，用于数据生成、测试、清洗和构建。
 
@@ -358,3 +736,14 @@ python -m bench.tools.pipeline --raw latest --version v2.1-custom
 - `verify_setup.py` - 设置验证工具
 
 详见 [_archive/README.md](_archive/README.md)
+
+---
+
+<div align="center">
+
+**Last Updated | 最后更新**: 2026-01-07  
+**Version | 版本**: v3.0
+
+[⬆ Back to top | 返回顶部](#bench-tools--工具集合)
+
+</div>

@@ -273,20 +273,25 @@ python manage.py test                 # Run test suite
 ### Benchmark CLI
 
 ```bash
-# Generate benchmark data
-./bench-cli generate --count 10 --output bench/data/raw/test.jsonl
+# View current benchmark info
+./bench-cli info
 
-# Validate generated data
-./bench-cli validate bench/data/raw/test.jsonl
-
-# Clean and prepare data
-./bench-cli clean bench/data/raw/test.jsonl --output bench/data/benchmark/benchmark.jsonl
-
-# Test benchmark
-./bench-cli test bench/data/benchmark/benchmark.jsonl --mode mock
+# Run tests
+./bench-cli run --mode mock -v
 
 # View results
-./bench-cli results bench/data/results/latest.jsonl
+./bench-cli show-result latest
+
+# List result history
+./bench-cli list-results
+
+# Compare two results
+./bench-cli compare <id1> <id2>
+
+# Generate new benchmark (advanced)
+./bench-cli generate
+./bench-cli validate <id> --run-tests
+./bench-cli promote <id>
 ```
 
 See [bench/GUIDE.md](bench/GUIDE.md) for complete benchmark documentation.
@@ -593,21 +598,28 @@ python manage.py test                 # 运行测试套件
 ### Benchmark CLI
 
 ```bash
-# 生成基准数据
-./bench-cli generate --count 10 --output bench/data/raw/test.jsonl
+# 查看当前 benchmark 信息
+./bench-cli info
 
-# 验证生成的数据
-./bench-cli validate bench/data/raw/test.jsonl
-
-# 清理和准备数据
-./bench-cli clean bench/data/raw/test.jsonl --output bench/data/benchmark/benchmark.jsonl
-
-# 测试基准
-./bench-cli test bench/data/benchmark/benchmark.jsonl --mode mock
+# 运行测试
+./bench-cli run --mode mock -v
 
 # 查看结果
-./bench-cli results bench/data/results/latest.jsonl
+./bench-cli show-result latest
+
+# 列出结果历史
+./bench-cli list-results
+
+# 对比两个结果
+./bench-cli compare <id1> <id2>
+
+# 生成新 benchmark（高级）
+./bench-cli generate
+./bench-cli validate <id> --run-tests
+./bench-cli promote <id>
 ```
+
+详见 [bench/GUIDE.md](bench/GUIDE.md)。
 
 详见 [bench/GUIDE.md](bench/GUIDE.md)。
 
